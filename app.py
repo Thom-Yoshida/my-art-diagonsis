@@ -10,152 +10,290 @@ import pandas as pd
 
 # PDF生成用ライブラリ
 from reportlab.pdfgen import canvas
-from reportlab.lib.pagesizes import A4
+from reportlab.lib.pagesizes import A4, landscape
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.cidfonts import UnicodeCIDFont
 from reportlab.lib.units import mm
+from reportlab.lib.colors import HexColor
 
 # ---------------------------------------------------------
 # ▼▼▼ セキュリティ対応版: APIキーの設定 ▼▼▼
-# 1. Streamlitの「Secrets」からキーを取得を試みる
-# 2. なければ、サイドバーで入力を求める（他人が自分のキーで試せるようにする）
-# ---------------------------------------------------------
 if "GEMINI_API_KEY" in st.secrets:
     os.environ["GEMINI_API_KEY"] = st.secrets["GEMINI_API_KEY"]
 else:
-    # Secretsがない場合（ローカルでファイル未作成、または公開時にキー未設定の場合）
     user_api_key = st.sidebar.text_input("Gemini APIキーを入力してください", type="password")
     if user_api_key:
         os.environ["GEMINI_API_KEY"] = user_api_key
     else:
-        st.warning("⚠️ APIキーが設定されていません。サイドバーに入力するか、Secretsを設定してください。")
-        st.stop() # キーがないとここで止まる
+        st.warning("⚠️ APIキー未設定：サイドバーにキーを入力するか、管理画面でSecretsを設定してください。")
+        st.stop()
+
+# ---------------------------------------------------------
+# 🎨 デザイン・配色設定
 # ---------------------------------------------------------
 
-# --- 設定: 日本語フォント ---
-pdfmetrics.registerFont(UnicodeCIDFont('HeiseiKakuGo-W5'))
-FONT_NAME = 'HeiseiKakuGo-W5'
+# フォント登録 (情緒の明朝、論理のゴシック)
+pdfmetrics.registerFont(UnicodeCIDFont('HeiseiMin-W3')) # 明朝体（情緒・権威）
+pdfmetrics.registerFont(UnicodeCIDFont('HeiseiKakuGo-W5')) # ゴシック体（論理・構造）
 
-# --- PDF生成関数 ---
-def create_pdf(json_data, quiz_summary, quiz_score_percent):
+FONT_SERIF = 'HeiseiMin-W3'
+FONT_SANS = 'HeiseiKakuGo-W5'
+
+# 配色パレット
+C_MAIN_SHADOW = HexColor('#2B2723')   # ウォームシャドウ（文字色）
+C_BG_WHITE    = HexColor('#F5F5F5')   # オフホワイト（背景）
+C_ACCENT_BLUE = HexColor('#7A96A0')   # ダスティーブルー（アクセント）
+C_WARM_BEIGE  = HexColor('#D1C0AF')   # ウォームベージュ（テクスチャ・装飾）
+C_MAUVE_GRAY  = HexColor('#A39E99')   # モーヴグレー（影）
+C_FOREST_TEAL = HexColor('#528574')   # フォレストティール（構造）
+C_MUTE_AMBER  = HexColor('#D6AE60')   # ミュートアンバー（ハイライト）
+
+# ---------------------------------------------------------
+# 📝 PDF生成ロジック（スライド形式）
+# ---------------------------------------------------------
+
+def draw_organic_shape(c, x, y, size, color):
+    """手書き風のゆらぎのある円（簡易表現）"""
+    c.setFillColor(color)
+    c.setStrokeColor(color)
+    # 完全に正円ではなく少し楕円にして有機的さを出す
+    c.circle(x, y, size, fill=1, stroke=0)
+
+def draw_header(c, title, page_num):
+    """共通ヘッダー・フッター"""
+    width, height = landscape(A4)
+    
+    # 背景色
+    c.setFillColor(C_BG_WHITE)
+    c.rect(0, 0, width, height, fill=1, stroke=0)
+    
+    # 装飾（有機的なシェイプ）
+    draw_organic_shape(c, 10*mm, height - 10*mm, 15*mm, C_WARM_BEIGE)
+    draw_organic_shape(c, width - 10*mm, 10*mm, 20*mm, C_ACCENT_BLUE)
+    
+    # ページ番号
+    c.setFont(FONT_SANS, 9)
+    c.setFillColor(C_MAUVE_GRAY)
+    c.drawRightString(width - 15*mm, 10*mm, f"{page_num}")
+
+def create_pdf(json_data, quiz_summary):
     buffer = io.BytesIO()
-    c = canvas.Canvas(buffer, pagesize=A4)
-    width, height = A4
+    # A4横向き (スライド形式)
+    c = canvas.Canvas(buffer, pagesize=landscape(A4))
+    width, height = landscape(A4)
     
-    # ヘッダー
-    c.setFont(FONT_NAME, 20)
-    c.drawCentredString(width / 2, height - 20*mm, "作家性・未来ビジョン統合診断レポート")
-    c.setFont(FONT_NAME, 10)
-    date_str = datetime.datetime.now().strftime("%Y年%m月%d日")
-    c.drawRightString(width - 20*mm, height - 30*mm, f"診断日: {date_str}")
+    # -----------------------------------------------
+    # P1. 表紙 (Key Visual)
+    # -----------------------------------------------
+    draw_header(c, "", 1)
     
-    y = height - 45*mm
-
-    # ■ STEP1: 作家性格タイプ & キーワード
-    c.setFillColorRGB(0.9, 0.9, 0.9)
-    c.rect(15*mm, y - 25*mm, width - 30*mm, 30*mm, fill=1, stroke=0)
-    c.setFillColorRGB(0, 0, 0)
+    # キャッチコピー (儚さ・静謐な美しさ)
+    c.setFont(FONT_SERIF, 40)
+    c.setFillColor(C_MAIN_SHADOW)
+    catchphrase = json_data.get('catchphrase', '無題')
+    c.drawCentredString(width/2, height/2 + 10*mm, catchphrase)
     
-    c.setFont(FONT_NAME, 14)
-    c.drawString(20*mm, y, "■ あなたを表す5つのキーワード")
-    y -= 10*mm
+    # サブタイトル
+    c.setFont(FONT_SANS, 14)
+    c.setFillColor(C_ACCENT_BLUE)
+    c.drawCentredString(width/2, height/2 - 15*mm, "Worldview Analysis Report")
     
-    keywords = json_data.get('five_keywords', [])
-    kw_str = "  /  ".join(keywords)
-    c.setFont(FONT_NAME, 12)
-    c.drawCentredString(width / 2, y, f"【 {kw_str} 】")
-    y -= 10*mm
-    
-    c.setFont(FONT_NAME, 10)
-    c.drawString(20*mm, y, f"性格タイプ診断: {quiz_summary} (情熱度: {quiz_score_percent}%)")
-    y -= 25*mm
-
-    # ■ パラメータグラフ
-    c.setFont(FONT_NAME, 14)
-    c.drawString(20*mm, y, "■ 作家性パラメータ分析")
-    y -= 8*mm
-    
-    scores = json_data.get('analysis_scores', {})
-    c.setFont(FONT_NAME, 10)
-    
-    start_x = 25*mm
-    bar_max_width = 100*mm
-    
-    for key, value in scores.items():
-        c.drawString(start_x, y, f"{key}")
-        c.drawRightString(start_x + 130*mm, y, f"{value}/100")
-        bar_len = (value / 100) * bar_max_width
-        c.setFillColorRGB(0.2, 0.4, 0.8)
-        c.rect(start_x + 25*mm, y, bar_len, 3*mm, fill=1, stroke=0)
-        c.setFillColorRGB(0, 0, 0)
-        y -= 8*mm
-        
-    y -= 15*mm
-
-    # ■ STEP2: 現在地の分析
-    c.setFont(FONT_NAME, 14)
-    c.drawString(20*mm, y, "■ 現在地の分析（過去作品より）")
-    y -= 10*mm
-    
-    current = json_data.get('current_worldview', {})
-    c.setFont(FONT_NAME, 12)
-    c.drawString(25*mm, y, f"テーマ: {current.get('catchphrase', 'なし')}")
-    y -= 8*mm
-    c.setFont(FONT_NAME, 10)
-    c.drawString(25*mm, y, f"特徴: {current.get('features', 'なし')}")
-    y -= 20*mm
-
-    # ■ STEP3: 理想の未来図
-    c.setFont(FONT_NAME, 14)
-    c.drawString(20*mm, y, "■ 理想の未来図（ヴィジョン）")
-    y -= 10*mm
-    
-    ideal = json_data.get('ideal_worldview', {})
-    c.setFont(FONT_NAME, 12)
-    c.drawString(25*mm, y, f"テーマ: {ideal.get('catchphrase', 'なし')}")
-    y -= 8*mm
-    c.setFont(FONT_NAME, 10)
-    c.drawString(25*mm, y, f"特徴: {ideal.get('features', 'なし')}")
-    y -= 20*mm
-
-    # ■ FINAL: 統合アドバイス
-    c.setFillColorRGB(0.95, 0.95, 1.0)
-    c.rect(15*mm, 20*mm, width - 30*mm, y - 25*mm, fill=1, stroke=0)
-    c.setFillColorRGB(0, 0, 0)
-
-    c.setFont(FONT_NAME, 14)
-    c.drawString(20*mm, y, "■ 理想へのロードマップ")
-    y -= 10*mm
-    c.setFont(FONT_NAME, 10)
-    
-    advice = json_data.get('roadmap_advice', 'なし')
-    
-    text_object = c.beginText(20*mm, y)
-    text_object.setFont(FONT_NAME, 10)
-    text_object.setLeading(14)
-    
-    # 改行コード(\n)で分割してから折り返し処理を行うように改良
-    # これにより箇条書きがきれいに表示されます
-    lines = advice.split('\n')
-    max_char = 40
-    
-    for line in lines:
-        if line.strip() == "":
-            text_object.textLine("") # 空行
-            continue
-            
-        for i in range(0, len(line), max_char):
-            chunk = line[i:i+max_char]
-            text_object.textLine(chunk)
-        
-    c.drawText(text_object)
+    # 日付と名前
+    date_str = datetime.datetime.now().strftime("%Y.%m.%d")
+    c.setFont(FONT_SERIF, 10)
+    c.setFillColor(C_MAIN_SHADOW)
+    c.drawCentredString(width/2, height/2 - 30*mm, f"Designed by AI Art Director | {date_str}")
     
     c.showPage()
+
+    # -----------------------------------------------
+    # P2. 数式スライド (A x B = C)
+    # -----------------------------------------------
+    draw_header(c, "", 2)
+    
+    # タイトル
+    c.setFont(FONT_SANS, 12)
+    c.setFillColor(C_ACCENT_BLUE)
+    c.drawString(20*mm, height - 25*mm, "01. THE FORMULA")
+    
+    # 数式デザイン
+    # 性格 (A)
+    c.setFont(FONT_SERIF, 24)
+    c.setFillColor(C_MAIN_SHADOW)
+    type_short = quiz_summary.split('（')[0] if '（' in quiz_summary else quiz_summary
+    c.drawCentredString(width*0.25, height/2 + 10*mm, "『 性格 』")
+    c.setFont(FONT_SANS, 14)
+    c.setFillColor(C_FOREST_TEAL)
+    c.drawCentredString(width*0.25, height/2 - 10*mm, type_short)
+    
+    # ×
+    c.setFont(FONT_SERIF, 40)
+    c.setFillColor(C_MUTE_AMBER)
+    c.drawCentredString(width*0.4, height/2, "×")
+    
+    # 表現 (B)
+    c.setFont(FONT_SERIF, 24)
+    c.setFillColor(C_MAIN_SHADOW)
+    c.drawCentredString(width*0.55, height/2 + 10*mm, "『 表現 』")
+    c.setFont(FONT_SANS, 14)
+    c.setFillColor(C_FOREST_TEAL)
+    # キーワードの1つ目を使用
+    kw1 = json_data.get('five_keywords', ['表現'])[0]
+    c.drawCentredString(width*0.55, height/2 - 10*mm, kw1)
+    
+    # = 
+    c.setFont(FONT_SERIF, 40)
+    c.setFillColor(C_MUTE_AMBER)
+    c.drawCentredString(width*0.7, height/2, "=")
+    
+    # 世界観 (C)
+    c.setFont(FONT_SERIF, 32)
+    c.setFillColor(C_MAIN_SHADOW)
+    # キャッチコピーの一部を使用
+    c.drawCentredString(width*0.85, height/2, "世界観")
+    
+    c.showPage()
+
+    # -----------------------------------------------
+    # P3. チャート (精密データ)
+    # -----------------------------------------------
+    draw_header(c, "", 3)
+    
+    c.setFont(FONT_SANS, 12)
+    c.setFillColor(C_ACCENT_BLUE)
+    c.drawString(20*mm, height - 25*mm, "02. ANALYSIS CHART")
+    
+    # グラフ描画
+    scores = json_data.get('analysis_scores', {})
+    start_x = 40*mm
+    start_y = height - 60*mm
+    gap_y = 15*mm
+    
+    c.setLineWidth(0.5)
+    
+    for i, (key, value) in enumerate(scores.items()):
+        y_pos = start_y - (i * gap_y)
+        
+        # ラベル
+        c.setFont(FONT_SERIF, 12)
+        c.setFillColor(C_MAIN_SHADOW)
+        c.drawString(start_x, y_pos, key)
+        
+        # ライン (科学計測器風：細い線)
+        line_start = start_x + 40*mm
+        line_max = 120*mm
+        c.setStrokeColor(C_MAUVE_GRAY)
+        c.line(line_start, y_pos + 1*mm, line_start + line_max, y_pos + 1*mm)
+        
+        # 値のドット
+        current_len = (value / 100) * line_max
+        c.setFillColor(C_FOREST_TEAL)
+        c.circle(line_start + current_len, y_pos + 1*mm, 1.5*mm, fill=1, stroke=0)
+        
+        # 数値
+        c.setFont(FONT_SANS, 10)
+        c.setFillColor(C_MAIN_SHADOW)
+        c.drawString(line_start + line_max + 5*mm, y_pos, f"{value}")
+        
+    # 分析コメント（吹き出し風ではないシンプルなブロック）
+    c.setFont(FONT_SANS, 10)
+    c.setFillColor(C_MAIN_SHADOW)
+    current_features = json_data.get('current_worldview', {}).get('features', '')
+    
+    text_y = 40*mm
+    text_obj = c.beginText(40*mm, text_y)
+    text_obj.setFont(FONT_SERIF, 11)
+    text_obj.setLeading(16)
+    
+    # 文字列の折り返し処理
+    comment = "分析結果：\n" + current_features
+    for line in comment.split('\n'):
+        if len(line) > 40:
+             text_obj.textLine(line[:40])
+             text_obj.textLine(line[40:])
+        else:
+             text_obj.textLine(line)
+    c.drawText(text_obj)
+    
+    c.showPage()
+
+    # -----------------------------------------------
+    # P4. ロードマップ (年表リスト & 矢印)
+    # -----------------------------------------------
+    draw_header(c, "", 4)
+    
+    c.setFont(FONT_SANS, 12)
+    c.setFillColor(C_ACCENT_BLUE)
+    c.drawString(20*mm, height - 25*mm, "03. FUTURE ROADMAP")
+    
+    roadmap_points = json_data.get('roadmap_steps', [])
+    
+    y_pos = height - 50*mm
+    
+    for i, point in enumerate(roadmap_points):
+        # 左列：巨大な数字 (年号的表現)
+        c.setFont(FONT_SANS, 36)
+        c.setFillColor(C_WARM_BEIGE)
+        step_num = f"0{i+1}"
+        c.drawString(30*mm, y_pos - 5*mm, step_num)
+        
+        # 右列：説明
+        # タイトル
+        title = point.get('title', '')
+        c.setFont(FONT_SERIF, 14)
+        c.setFillColor(C_MAIN_SHADOW)
+        c.drawString(60*mm, y_pos, title)
+        
+        # 詳細（体言止め）
+        desc = point.get('detail', '')
+        c.setFont(FONT_SANS, 10)
+        c.setFillColor(C_MAUVE_GRAY)
+        c.drawString(60*mm, y_pos - 6*mm, desc)
+        
+        # 装飾ライン
+        c.setStrokeColor(C_ACCENT_BLUE)
+        c.setLineWidth(1)
+        c.line(60*mm, y_pos - 12*mm, width - 30*mm, y_pos - 12*mm)
+        
+        y_pos -= 35*mm
+        
+    c.showPage()
+    
+    # -----------------------------------------------
+    # P5. メッセージ (対話形式・締め)
+    # -----------------------------------------------
+    draw_header(c, "", 5)
+    
+    # シンプルなテキストブロック
+    c.setFont(FONT_SERIF, 16)
+    c.setFillColor(C_MAIN_SHADOW)
+    c.drawString(30*mm, height/2 + 20*mm, "私からの提案。")
+    
+    c.setFont(FONT_SERIF, 12)
+    final_msg = json_data.get('final_message', 'あなたの創造性が、世界を彩ることを願う。')
+    
+    text_obj = c.beginText(30*mm, height/2)
+    text_obj.setLeading(20)
+    
+    # 折り返し
+    for i in range(0, len(final_msg), 35):
+        text_obj.textLine(final_msg[i:i+35])
+        
+    c.drawText(text_obj)
+    
+    # 最後のロゴ風装飾
+    c.setFillColor(C_FOREST_TEAL)
+    c.circle(width - 30*mm, 30*mm, 3*mm, fill=1, stroke=0)
+    c.setFont(FONT_SANS, 8)
+    c.drawCentredString(width - 30*mm, 22*mm, "Visionary")
+
+    c.showPage()
+
     c.save()
     buffer.seek(0)
     return buffer
 
-# --- 30問のクイズデータ ---
+# --- 30問のクイズデータ（前回と同じ） ---
 QUIZ_DATA = [
     {"q": "Q1. 制作を始めるきっかけは？", "opts": ["内から湧き出る衝動・感情", "外部の要請や明確なコンセプト"], "type_a": "内から湧き出る衝動・感情"},
     {"q": "Q2. アイデア出しの方法は？", "opts": ["走り書きや落書きから広げる", "マインドマップや箇条書きで整理する"], "type_a": "走り書きや落書きから広げる"},
@@ -191,11 +329,10 @@ QUIZ_DATA = [
 
 # --- Streamlit アプリ本体 ---
 
-st.set_page_config(page_title="AI作家性・未来統合診断", layout="centered")
-st.title("🚀 AI 作家性・未来ビジョン統合診断")
-st.write("「性質（クイズ）」「現在（過去作品）」「未来（理想）」を統合し、5つのキーワードと数値グラフで分析します。")
+st.set_page_config(page_title="Visionary Analysis", layout="wide") # デザインに合わせてwideに
+st.title("Visionary Analysis: AI作家性・統合診断")
+st.write("「センス」を科学し、あなたの「世界観」を体系化する。")
 
-# セッション状態の初期化
 if 'step' not in st.session_state:
     st.session_state.step = 1
 if 'quiz_result' not in st.session_state:
@@ -204,11 +341,11 @@ if 'quiz_score_percent' not in st.session_state:
     st.session_state.quiz_score_percent = 0
 
 # ==========================================
-# STEP 1: 心理クイズ (30問)
+# STEP 1: 心理クイズ
 # ==========================================
 if st.session_state.step == 1:
-    st.header("STEP 1: 作家としての性質を知る")
-    st.write("直感で答えてください。あなたの創作スタイルを詳細に分析します。")
+    st.header("01. SENSE CHECK")
+    st.write("直感で回答。あなたの創作の源泉を探る。")
 
     with st.form(key='quiz_form'):
         answers = []
@@ -217,7 +354,7 @@ if st.session_state.step == 1:
             answers.append((ans, item["type_a"]))
         
         st.write("---")
-        submit_button = st.form_submit_button(label="診断結果を出して、次へ進む")
+        submit_button = st.form_submit_button(label="Analyze Type")
 
     if submit_button:
         score_a = 0
@@ -229,13 +366,13 @@ if st.session_state.step == 1:
         st.session_state.quiz_score_percent = percent
         
         if score_a >= 20:
-            st.session_state.quiz_result = f"超・直感情熱型アーティスト (情熱度: {percent}%)"
+            st.session_state.quiz_result = f"直感・情熱型 (情熱度: {percent}%)"
         elif score_a >= 16:
-            st.session_state.quiz_result = f"バランス型（直感寄り） (情熱度: {percent}%)"
+            st.session_state.quiz_result = f"バランス型・直感寄り (情熱度: {percent}%)"
         elif score_a >= 11:
-            st.session_state.quiz_result = f"バランス型（論理寄り） (情熱度: {percent}%)"
+            st.session_state.quiz_result = f"バランス型・論理寄り (情熱度: {percent}%)"
         else:
-            st.session_state.quiz_result = f"超・論理構築型クリエイター (情熱度: {percent}%)"
+            st.session_state.quiz_result = f"論理・構築型 (情熱度: {percent}%)"
             
         st.session_state.step = 2
         st.rerun()
@@ -244,57 +381,71 @@ if st.session_state.step == 1:
 # STEP 2: 画像アップロード & 統合診断
 # ==========================================
 elif st.session_state.step == 2:
-    st.header("STEP 2: 現在地と未来の可視化")
-    st.success(f"あなたの診断結果: **「{st.session_state.quiz_result}」**")
+    st.header("02. VISION INTEGRATION")
+    st.success(f"TYPE: **{st.session_state.quiz_result}**")
     
     col1, col2 = st.columns(2)
     with col1:
-        st.subheader("① 現在地（過去作品）")
-        past_files = st.file_uploader("過去作品（最大3枚）", type=["jpg", "png", "jpeg"], accept_multiple_files=True, key="past")
+        st.subheader("Current Work (過去作品)")
+        past_files = st.file_uploader("Upload max 3 images", type=["jpg", "png", "jpeg"], accept_multiple_files=True, key="past")
     with col2:
-        st.subheader("② 目的地（未来ヴィジョン）")
-        future_files = st.file_uploader("理想画像（最大3枚）", type=["jpg", "png", "jpeg"], accept_multiple_files=True, key="future")
+        st.subheader("Ideal Vision (未来の理想)")
+        future_files = st.file_uploader("Upload max 3 images", type=["jpg", "png", "jpeg"], accept_multiple_files=True, key="future")
 
     if past_files and future_files:
         if len(past_files) > 3 or len(future_files) > 3:
-             st.warning("画像はそれぞれ3枚以内でお願いします。")
+             st.warning("画像は各3枚まで。")
         else:
-            if st.button("🚀 すべての情報を統合して診断する"):
+            if st.button("Generate Report (PDF)"):
                 
                 past_images = [Image.open(f) for f in past_files]
                 future_images = [Image.open(f) for f in future_files]
 
-                # プロンプトの修正：具体的なツール名を避け、芸術的観点での箇条書きを指定
+                # --- 厳密なデザイン・文章指示を含むプロンプト ---
                 prompt = f"""
-                あなたはプロのアートディレクター兼キャリアストラテジストです。
-                以下の情報に基づき、統合的な分析レポートを作成してください。
+                あなたは洗練された美意識を持つアートディレクターです。
+                ユーザーの「性格タイプ」「過去作品」「未来の理想」を分析し、
+                PDFスライド生成用のデータをJSON形式で作成してください。
 
-                【情報源】
-                1. 性格タイプ: {st.session_state.quiz_result}
-                2. 現在の作品（前半の画像）
-                3. 未来の理想（後半の画像）
+                【基本ルール】
+                ・製作者（あなた）の主語は「私」または主語なし。
+                ・文体は「〜だ。」「〜である。」「〜体言止め。」を使用。
+                ・説得力のある、短くても重みのある言葉を選ぶこと。
+                ・「センスを科学する」視点で、抽象的な言葉と論理的な分析を融合させること。
 
-                【出力フォーマット】
-                以下のJSONデータのみを出力してください。
+                【入力情報】
+                性格タイプ: {st.session_state.quiz_result}
+                (前半画像: 現在 / 後半画像: 理想)
 
+                【出力JSONフォーマット】
                 {{
-                    "five_keywords": ["この作家を表すキーワード1", "キーワード2", "キーワード3", "キーワード4", "キーワード5"],
+                    "catchphrase": "世界観を一言で表す、短く詩的なキャッチコピー（15文字以内）",
+                    "five_keywords": ["キーワード1", "キーワード2", "キーワード3", "キーワード4", "キーワード5"],
                     "analysis_scores": {{
-                        "独創性": 0-100の数値,
-                        "技術・構成力": 0-100の数値,
-                        "情熱・表現力": 0-100の数値,
-                        "市場・社会性": 0-100の数値,
-                        "将来性": 0-100の数値
+                        "独創性": 0-100,
+                        "技術力": 0-100,
+                        "表現力": 0-100,
+                        "社会性": 0-100,
+                        "将来性": 0-100
                     }},
                     "current_worldview": {{
-                        "catchphrase": "現在のキャッチコピー",
-                        "features": "現在の特徴（100文字以内）"
+                        "features": "現在の作品に見られる特徴の分析。（100文字程度、体言止め多用）"
                     }},
-                    "ideal_worldview": {{
-                        "catchphrase": "未来のキャッチコピー",
-                        "features": "理想の特徴（100文字以内）"
-                    }},
-                    "roadmap_advice": "性格タイプ（{st.session_state.quiz_result}）に基づき、現在から理想へ近づくための『方向性と表現』に関するヒント（全400文字程度）。具体的なツール名やソフトウェア名は言及せず、芸術的な観点（構図、色彩、哲学、マインドセットなど）からアドバイスしてください。\n出力形式は、以下の箇条書きスタイルにしてください（JSONの文字列の中で改行を含めてください）：\n・【ポイント1】: 詳細説明\n・【ポイント2】: 詳細説明\n・【ポイント3】: 詳細説明"
+                    "roadmap_steps": [
+                        {{
+                            "title": "STEP 1: 認識",
+                            "detail": "まず現状の武器を把握すること。〇〇の技術は既に高い水準にある。（体言止め・具体的助言）"
+                        }},
+                        {{
+                            "title": "STEP 2: 拡張",
+                            "detail": "次に、〇〇の要素を取り入れること。理想とのギャップはここに存在する。（体言止め・具体的助言）"
+                        }},
+                        {{
+                            "title": "STEP 3: 到達",
+                            "detail": "最終的に、〇〇な表現へと昇華させること。それが独自のスタイルとなる。（体言止め・具体的助言）"
+                        }}
+                    ],
+                    "final_message": "未来への総括メッセージ。100文字程度。詩的かつ応援を含めること。"
                 }}
                 """
                 
@@ -303,7 +454,7 @@ elif st.session_state.step == 2:
                 try:
                     client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
                     
-                    with st.spinner("キーワード抽出とパラメータ分析を実行中..."):
+                    with st.spinner("Analyzing Sense & Logic..."):
                         response = client.models.generate_content(
                             model='gemini-flash-latest',
                             contents=contents,
@@ -314,55 +465,29 @@ elif st.session_state.step == 2:
                         
                         data = json.loads(response.text)
                         
-                        st.success("統合分析が完了しました！")
+                        st.success("Analysis Completed.")
                         
-                        # --- 画面表示: キーワード ---
-                        st.subheader("🔑 あなたを表す5つのキーワード")
-                        cols = st.columns(5)
-                        for i, kw in enumerate(data['five_keywords']):
-                            cols[i].info(kw)
-
-                        # --- 画面表示: グラフ ---
-                        st.subheader("📊 成分パラメータ分析")
-                        scores = data['analysis_scores']
+                        # PDF生成 (スライド形式)
+                        pdf_file = create_pdf(data, st.session_state.quiz_result)
                         
-                        chart_data = pd.DataFrame(
-                            list(scores.values()),
-                            index=list(scores.keys()),
-                            columns=["スコア"]
-                        )
-                        st.bar_chart(chart_data, horizontal=True)
-
-                        # --- 画面表示: 現在と未来 ---
-                        col_res1, col_res2 = st.columns(2)
-                        with col_res1:
-                            st.subheader("現在地")
-                            st.write(f"**{data['current_worldview']['catchphrase']}**")
-                            st.caption(data['current_worldview']['features'])
-                        with col_res2:
-                            st.subheader("理想の未来")
-                            st.write(f"**{data['ideal_worldview']['catchphrase']}**")
-                            st.caption(data['ideal_worldview']['features'])
-                            
-                        st.subheader("🗺️ 未来へのロードマップ（方向性と表現のヒント）")
-                        # 改行をHTML的に反映して表示
-                        st.info(data['roadmap_advice'].replace('\n', '  \n'))
-                        
-                        # PDF生成
-                        pdf_file = create_pdf(data, st.session_state.quiz_result, st.session_state.quiz_score_percent)
-                        
+                        # ダウンロードボタン
                         st.download_button(
-                            label="📄 統合ロードマップ・レポートをPDFでダウンロード",
+                            label="📥 Download Analysis Report (PDF)",
                             data=pdf_file,
-                            file_name="future_roadmap_report.pdf",
+                            file_name="Visionary_Analysis_Report.pdf",
                             mime="application/pdf",
                             use_container_width=True
                         )
+                        
+                        # 簡易プレビュー
+                        st.subheader("Analysis Preview")
+                        st.write(f"**{data['catchphrase']}**")
+                        st.bar_chart(data['analysis_scores'])
 
                 except Exception as e:
-                    st.error(f"エラーが発生しました: {e}")
+                    st.error(f"Error: {e}")
 
-    elif st.button("診断を最初からやり直す"):
+    elif st.button("Reset"):
          st.session_state.step = 1
          st.session_state.quiz_result = None
          st.rerun()
