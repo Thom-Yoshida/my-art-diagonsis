@@ -32,6 +32,472 @@ else:
 # 🎨 デザイン・配色設定
 # ---------------------------------------------------------
 
+pdfmetrics.registerFont(UnicodeCIDFont('HeiseiMin-W3')) # 明朝体
+pdfmetrics.registerFont(UnicodeCIDFont('HeiseiKakuGo-W5')) # ゴシック体
+
+FONT_SERIF = 'HeiseiMin-W3'
+FONT_SANS = 'HeiseiKakuGo-W5'
+
+C_MAIN_SHADOW = HexColor('#2B2723')
+C_BG_WHITE    = HexColor('#F5F5F5')
+C_ACCENT_BLUE = HexColor('#7A96A0')
+C_WARM_BEIGE  = HexColor('#D1C0AF')
+C_MAUVE_GRAY  = HexColor('#A39E99')
+C_FOREST_TEAL = HexColor('#528574')
+C_MUTE_AMBER  = HexColor('#D6AE60')
+
+# ---------------------------------------------------------
+# 📝 PDF生成ロジック
+# ---------------------------------------------------------
+
+def draw_organic_shape(c, x, y, size, color):
+    c.setFillColor(color)
+    c.setStrokeColor(color)
+    c.circle(x, y, size, fill=1, stroke=0)
+
+def draw_header(c, title, page_num):
+    width, height = landscape(A4)
+    c.setFillColor(C_BG_WHITE)
+    c.rect(0, 0, width, height, fill=1, stroke=0)
+    
+    draw_organic_shape(c, 10*mm, height - 10*mm, 15*mm, C_WARM_BEIGE)
+    draw_organic_shape(c, width - 10*mm, 10*mm, 20*mm, C_ACCENT_BLUE)
+    
+    c.setFont(FONT_SANS, 9)
+    c.setFillColor(C_MAUVE_GRAY)
+    c.drawRightString(width - 15*mm, 10*mm, f"{page_num}")
+
+def draw_wrapped_text(c, text, x, y, font, size, max_width, leading):
+    c.setFont(font, size)
+    text_obj = c.beginText(x, y)
+    text_obj.setFont(font, size)
+    text_obj.setLeading(leading)
+    char_limit = int(max_width / (size * 0.8))
+    for line in text.split('\n'):
+        for i in range(0, len(line), char_limit):
+            text_obj.textLine(line[i:i+char_limit])
+    c.drawText(text_obj)
+
+def draw_slider(c, x, y, width_mm, left_text, right_text, value):
+    """対義語スライダーを描画する関数"""
+    bar_width = width_mm * mm
+    
+    # テキスト (左)
+    c.setFont(FONT_SERIF, 10)
+    c.setFillColor(C_MAIN_SHADOW)
+    c.drawRightString(x - 5*mm, y - 1*mm, left_text)
+    
+    # テキスト (右)
+    c.drawString(x + bar_width + 5*mm, y - 1*mm, right_text)
+    
+    # バー（背景）
+    c.setStrokeColor(C_MAUVE_GRAY)
+    c.setLineWidth(0.5)
+    c.line(x, y, x + bar_width, y)
+    
+    # 値のドット
+    # valueは0-100。0が左端、100が右端。
+    dot_x = x + (value / 100) * bar_width
+    
+    # ドット（アクセント）
+    c.setFillColor(C_FOREST_TEAL)
+    c.circle(dot_x, y, 1.8*mm, fill=1, stroke=0)
+    
+    # 中央の目盛り（うっすら）
+    c.setStrokeColor(C_WARM_BEIGE)
+    c.line(x + bar_width/2, y - 1*mm, x + bar_width/2, y + 1*mm)
+
+def create_pdf(json_data, quiz_summary):
+    buffer = io.BytesIO()
+    c = canvas.Canvas(buffer, pagesize=landscape(A4))
+    width, height = landscape(A4)
+    
+    # -----------------------------------------------
+    # P1. 表紙
+    # -----------------------------------------------
+    draw_header(c, "", 1)
+    
+    c.setFont(FONT_SERIF, 40)
+    c.setFillColor(C_MAIN_SHADOW)
+    catchphrase = json_data.get('catchphrase', '無題')
+    c.drawCentredString(width/2, height/2 + 10*mm, catchphrase)
+    
+    c.setFont(FONT_SANS, 14)
+    c.setFillColor(C_ACCENT_BLUE)
+    c.drawCentredString(width/2, height/2 - 15*mm, "Worldview Analysis Report")
+    
+    date_str = datetime.datetime.now().strftime("%Y.%m.%d")
+    c.setFont(FONT_SERIF, 10)
+    c.setFillColor(C_MAIN_SHADOW)
+    c.drawCentredString(width/2, height/2 - 30*mm, f"Designed by AI Art Director | {date_str}")
+    
+    c.showPage()
+
+    # -----------------------------------------------
+    # P2. 数式スライド
+    # -----------------------------------------------
+    draw_header(c, "", 2)
+    c.setFont(FONT_SANS, 12)
+    c.setFillColor(C_ACCENT_BLUE)
+    c.drawString(20*mm, height - 25*mm, "01. THE FORMULA")
+    
+    formula = json_data.get('formula', {})
+    center_y = height/2 + 20*mm
+    desc_y = height/2 - 5*mm
+    x1 = width * 0.2
+    x2 = width * 0.5
+    x3 = width * 0.8
+    
+    # 価値観
+    c.setFont(FONT_SERIF, 18)
+    c.setFillColor(C_MAIN_SHADOW)
+    c.drawCentredString(x1, center_y + 10*mm, "『 価値観 』")
+    c.setFont(FONT_SANS, 14)
+    c.setFillColor(C_FOREST_TEAL)
+    c.drawCentredString(x1, center_y, formula.get('values', {}).get('word', '---'))
+    c.setFillColor(C_MAUVE_GRAY)
+    draw_wrapped_text(c, formula.get('values', {}).get('detail', ''), x1 - 35*mm, desc_y, FONT_SERIF, 9, 70*mm, 12)
+
+    c.setFont(FONT_SERIF, 30)
+    c.setFillColor(C_MUTE_AMBER)
+    c.drawCentredString((x1+x2)/2, center_y, "×")
+
+    # 得意な表現
+    c.setFont(FONT_SERIF, 18)
+    c.setFillColor(C_MAIN_SHADOW)
+    c.drawCentredString(x2, center_y + 10*mm, "『 得意な表現 』")
+    c.setFont(FONT_SANS, 14)
+    c.setFillColor(C_FOREST_TEAL)
+    c.drawCentredString(x2, center_y, formula.get('strengths', {}).get('word', '---'))
+    c.setFillColor(C_MAUVE_GRAY)
+    draw_wrapped_text(c, formula.get('strengths', {}).get('detail', ''), x2 - 35*mm, desc_y, FONT_SERIF, 9, 70*mm, 12)
+
+    c.setFont(FONT_SERIF, 30)
+    c.setFillColor(C_MUTE_AMBER)
+    c.drawCentredString((x2+x3)/2, center_y, "×")
+
+    # 好きなこと
+    c.setFont(FONT_SERIF, 18)
+    c.setFillColor(C_MAIN_SHADOW)
+    c.drawCentredString(x3, center_y + 10*mm, "『 好きなこと 』")
+    c.setFont(FONT_SANS, 14)
+    c.setFillColor(C_FOREST_TEAL)
+    c.drawCentredString(x3, center_y, formula.get('interests', {}).get('word', '---'))
+    c.setFillColor(C_MAUVE_GRAY)
+    draw_wrapped_text(c, formula.get('interests', {}).get('detail', ''), x3 - 35*mm, desc_y, FONT_SERIF, 9, 70*mm, 12)
+
+    c.setFont(FONT_SERIF, 40)
+    c.setFillColor(C_MUTE_AMBER)
+    c.drawCentredString(width/2, desc_y - 40*mm, "||")
+    c.setFont(FONT_SERIF, 32)
+    c.setFillColor(C_MAIN_SHADOW)
+    c.drawCentredString(width/2, desc_y - 60*mm, json_data.get('catchphrase', '世界観'))
+    
+    c.showPage()
+
+    # -----------------------------------------------
+    # P3. チャート (対義語スライダー 10項目)
+    # -----------------------------------------------
+    draw_header(c, "", 3)
+    c.setFont(FONT_SANS, 12)
+    c.setFillColor(C_ACCENT_BLUE)
+    c.drawString(20*mm, height - 25*mm, "02. SENSE BALANCE")
+    
+    metrics = json_data.get('sense_metrics', [])
+    
+    # 2列レイアウト設定
+    left_col_x = 45*mm   # 左列のバー開始位置
+    right_col_x = 180*mm # 右列のバー開始位置
+    start_y = height - 50*mm
+    gap_y = 22*mm        # 行間
+    slider_width = 50    # スライダー幅(mm)
+    
+    # 10個の項目を配置（最大10個まで対応）
+    for i, metric in enumerate(metrics[:10]):
+        # 0-4は左列、5-9は右列
+        if i < 5:
+            x_pos = left_col_x
+            y_pos = start_y - (i * gap_y)
+        else:
+            x_pos = right_col_x
+            y_pos = start_y - ((i - 5) * gap_y)
+            
+        draw_slider(
+            c, 
+            x_pos, 
+            y_pos, 
+            slider_width, 
+            metric.get('left', ''), 
+            metric.get('right', ''), 
+            metric.get('value', 50)
+        )
+        
+    # 下部に分析コメント
+    c.setFont(FONT_SANS, 10)
+    c.setFillColor(C_MAIN_SHADOW)
+    current_features = json_data.get('current_worldview', {}).get('features', '')
+    draw_wrapped_text(c, "分析結果：\n" + current_features, 30*mm, 35*mm, FONT_SERIF, 11, 230*mm, 16)
+    
+    c.showPage()
+
+    # -----------------------------------------------
+    # P4. ロードマップ
+    # -----------------------------------------------
+    draw_header(c, "", 4)
+    c.setFont(FONT_SANS, 12)
+    c.setFillColor(C_ACCENT_BLUE)
+    c.drawString(20*mm, height - 25*mm, "03. FUTURE ROADMAP")
+    
+    roadmap_points = json_data.get('roadmap_steps', [])
+    y_pos = height - 50*mm
+    for i, point in enumerate(roadmap_points):
+        c.setFont(FONT_SANS, 36)
+        c.setFillColor(C_WARM_BEIGE)
+        step_num = f"0{i+1}"
+        c.drawString(30*mm, y_pos - 5*mm, step_num)
+        
+        title = point.get('title', '')
+        c.setFont(FONT_SERIF, 14)
+        c.setFillColor(C_MAIN_SHADOW)
+        c.drawString(60*mm, y_pos, title)
+        
+        desc = point.get('detail', '')
+        c.setFont(FONT_SANS, 10)
+        c.setFillColor(C_MAUVE_GRAY)
+        c.drawString(60*mm, y_pos - 6*mm, desc)
+        
+        c.setStrokeColor(C_ACCENT_BLUE)
+        c.setLineWidth(1)
+        c.line(60*mm, y_pos - 12*mm, width - 30*mm, y_pos - 12*mm)
+        y_pos -= 35*mm
+    c.showPage()
+    
+    # -----------------------------------------------
+    # P5. 私からの提案
+    # -----------------------------------------------
+    draw_header(c, "", 5)
+    c.setFont(FONT_SERIF, 20)
+    c.setFillColor(C_MAIN_SHADOW)
+    c.drawString(20*mm, height - 35*mm, "私からの提案。")
+    
+    proposals = json_data.get('final_proposals', [])
+    y_pos = height - 55*mm
+    for i, prop in enumerate(proposals):
+        point_title = prop.get('point', '')
+        c.setFont(FONT_SANS, 14)
+        c.setFillColor(C_ACCENT_BLUE)
+        c.drawString(25*mm, y_pos, f"◆ {point_title}")
+        y_pos -= 8*mm
+        detail_text = prop.get('detail', '')
+        c.setFillColor(C_MAIN_SHADOW)
+        draw_wrapped_text(c, detail_text, 28*mm, y_pos, FONT_SERIF, 11, 230*mm, 14)
+        y_pos -= 30*mm
+
+    c.setFillColor(C_FOREST_TEAL)
+    c.circle(width - 30*mm, 30*mm, 3*mm, fill=1, stroke=0)
+    c.setFont(FONT_SANS, 8)
+    c.drawCentredString(width - 30*mm, 22*mm, "Visionary")
+    c.showPage()
+
+    c.save()
+    buffer.seek(0)
+    return buffer
+
+# --- クイズデータ ---
+QUIZ_DATA = [
+    {"q": "Q1. 制作を始めるきっかけは？", "opts": ["内から湧き出る衝動・感情", "外部の要請や明確なコンセプト"], "type_a": "内から湧き出る衝動・感情"},
+    {"q": "Q2. アイデア出しの方法は？", "opts": ["走り書きや落書きから広げる", "マインドマップや箇条書きで整理する"], "type_a": "走り書きや落書きから広げる"},
+    {"q": "Q3. 配色を決める時は？", "opts": ["その瞬間の感覚や好み", "色彩理論やターゲット層への効果"], "type_a": "その瞬間の感覚や好み"},
+    {"q": "Q4. 作業環境は？", "opts": ["混沌としているが落ち着く", "整理整頓され機能的"], "type_a": "混沌としているが落ち着く"},
+    {"q": "Q5. 制作スケジュールは？", "opts": ["気分が乗った時に一気に進める", "毎日決まった時間にコツコツ進める"], "type_a": "気分が乗った時に一気に進める"},
+    {"q": "Q6. スランプに陥った時は？", "opts": ["別の刺激（映画・旅）を求める", "原因を分析し、基礎練習などをする"], "type_a": "別の刺激（映画・旅）を求める"},
+    {"q": "Q7. 作品の「完成」の判断基準は？", "opts": ["もうこれ以上触れないと感じた時", "予定していた要件を満たした時"], "type_a": "もうこれ以上触れないと感じた時"},
+    {"q": "Q8. 他人の評価に対しては？", "opts": ["好き嫌いが分かれても構わない", "多くの人に理解されるか気になる"], "type_a": "好き嫌いが分かれても構わない"},
+    {"q": "Q9. 制作中に新しいアイデアが浮かんだら？", "opts": ["予定を変更してでも試す", "今の作品を完成させてから次でやる"], "type_a": "予定を変更してでも試す"},
+    {"q": "Q10. 道具や機材へのこだわりは？", "opts": ["使い心地や愛着を重視", "スペックや効率を重視"], "type_a": "使い心地や愛着を重視"},
+    {"q": "Q11. 作品を通して伝えたいのは？", "opts": ["自分の内面世界や叫び", "社会へのメッセージや解決策"], "type_a": "自分の内面世界や叫び"},
+    {"q": "Q12. ラフスケッチの描き方は？", "opts": ["抽象的な線や形が多い", "具体的な構成や配置図に近い"], "type_a": "抽象的な線や形が多い"},
+    {"q": "Q13. 憧れるアーティストは？", "opts": ["破天荒で天才肌の人物", "知的で理論的な人物"], "type_a": "破天荒で天才肌の人物"},
+    {"q": "Q14. 締め切りに対する姿勢は？", "opts": ["ギリギリまで粘ってクオリティを上げたい", "余裕を持って早めに終わらせたい"], "type_a": "ギリギリまで粘ってクオリティを上げたい"},
+    {"q": "Q15. チーム制作については？", "opts": ["自分のペースが乱れるので苦手", "役割分担できて効率的なので好き"], "type_a": "自分のペースが乱れるので苦手"},
+    {"q": "Q16. 過去の自分の作品を見ると？", "opts": ["その時の感情が蘇る", "技術的な未熟さが気になる"], "type_a": "その時の感情が蘇る"},
+    {"q": "Q17. 新しい技術を学ぶ動機は？", "opts": ["表現したいものが作れるようになるから", "仕事の幅が広がりそうだから"], "type_a": "表現したいものが作れるようになるから"},
+    {"q": "Q18. 制作中のBGMは？", "opts": ["感情を高める曲を大音量で", "集中を妨げない環境音や無音"], "type_a": "感情を高める曲を大音量で"},
+    {"q": "Q19. タイトルの付け方は？", "opts": ["詩的・抽象的", "説明的・具体的"], "type_a": "詩的・抽象的"},
+    {"q": "Q20. SNSでの発信は？", "opts": ["作品の世界観だけを見せたい", "制作過程や思考もシェアしたい"], "type_a": "作品の世界観だけを見せたい"},
+    {"q": "Q21. 批評を受けた時の反応は？", "opts": ["感情的に反発してしまうことがある", "冷静に改善点として受け止める"], "type_a": "感情的に反発してしまうことがある"},
+    {"q": "Q22. 自分の作風を一言で言うなら？", "opts": ["エモーショナル・感覚的", "ロジカル・機能的"], "type_a": "エモーショナル・感覚的"},
+    {"q": "Q23. 目標設定の方法は？", "opts": ["大きな夢やビジョンを描く", "具体的な数値やステップを決める"], "type_a": "大きな夢やビジョンを描く"},
+    {"q": "Q24. 情報収集のスタイルは？", "opts": ["直感的に気になったものを深掘り", "体系的に幅広くチェック"], "type_a": "直感的に気になったものを深掘り"},
+    {"q": "Q25. 失敗作の扱いは？", "opts": ["勢いで捨ててしまう", "分析のために取っておく"], "type_a": "勢いで捨ててしまう"},
+    {"q": "Q26. 影響を受けやすいのは？", "opts": ["自然、音楽、夢などの体験", "本、論文、ニュースなどの情報"], "type_a": "自然、音楽、夢などの体験"},
+    {"q": "Q27. 制作において重要なのは？", "opts": ["「何を描くか」（主題）", "「どう描くか」（構成・技術）"], "type_a": "「何を描くか」（主題）"},
+    {"q": "Q28. 複雑な問題に直面したら？", "opts": ["直感を信じて突破する", "要素を分解して解決する"], "type_a": "直感を信じて突破する"},
+    {"q": "Q29. 完璧主義についてどう思う？", "opts": ["完成しなくても魂がこもっていればいい", "細部まで完璧でないと気が済まない"], "type_a": "完成しなくても魂がこもっていればいい"},
+    {"q": "Q30. あなたにとってアートとは？", "opts": ["生きることそのもの", "社会貢献や仕事の手段"], "type_a": "生きることそのもの"},
+]
+
+# --- Streamlit アプリ本体 ---
+
+st.set_page_config(page_title="Visionary Analysis", layout="wide") 
+st.title("Visionary Analysis: AI作家性・統合診断")
+st.write("「センス」を科学し、あなたの「世界観」を体系化する。")
+
+if 'step' not in st.session_state:
+    st.session_state.step = 1
+if 'quiz_result' not in st.session_state:
+    st.session_state.quiz_result = None
+if 'quiz_score_percent' not in st.session_state:
+    st.session_state.quiz_score_percent = 0
+
+if st.session_state.step == 1:
+    st.header("01. SENSE CHECK")
+    st.write("直感で回答。あなたの創作の源泉を探る。")
+    with st.form(key='quiz_form'):
+        answers = []
+        for i, item in enumerate(QUIZ_DATA):
+            ans = st.radio(item["q"], item["opts"], key=f"q{i}", horizontal=True)
+            answers.append((ans, item["type_a"]))
+        st.write("---")
+        submit_button = st.form_submit_button(label="Analyze Type")
+
+    if submit_button:
+        score_a = 0
+        for ans, type_a_val in answers:
+            if ans == type_a_val:
+                score_a += 1
+        percent = int((score_a / 30) * 100)
+        st.session_state.quiz_score_percent = percent
+        if score_a >= 20: st.session_state.quiz_result = f"直感・情熱型 (情熱度: {percent}%)"
+        elif score_a >= 16: st.session_state.quiz_result = f"バランス型・直感寄り (情熱度: {percent}%)"
+        elif score_a >= 11: st.session_state.quiz_result = f"バランス型・論理寄り (情熱度: {percent}%)"
+        else: st.session_state.quiz_result = f"論理・構築型 (情熱度: {percent}%)"
+        st.session_state.step = 2
+        st.rerun()
+
+elif st.session_state.step == 2:
+    st.header("02. VISION INTEGRATION")
+    st.success(f"TYPE: **{st.session_state.quiz_result}**")
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        st.subheader("Current Work (過去作品)")
+        past_files = st.file_uploader("Upload max 3 images", type=["jpg", "png", "jpeg"], accept_multiple_files=True, key="past")
+    with col2:
+        st.subheader("Ideal Vision (未来の理想)")
+        future_files = st.file_uploader("Upload max 3 images", type=["jpg", "png", "jpeg"], accept_multiple_files=True, key="future")
+
+    if past_files and future_files:
+        if len(past_files) > 3 or len(future_files) > 3:
+             st.warning("画像は各3枚まで。")
+        else:
+            if st.button("Generate Report (PDF)"):
+                past_images = [Image.open(f) for f in past_files]
+                future_images = [Image.open(f) for f in future_files]
+
+                prompt = f"""
+                あなたは洗練された美意識を持つアートディレクターです。
+                PDFスライド生成用のデータをJSON形式で作成してください。
+
+                【基本ルール】
+                ・主語は「私」または主語なし。
+                ・文体は「〜だ」「〜である」「体言止め」を使用。
+
+                【入力情報】
+                性格タイプ: {st.session_state.quiz_result}
+                (前半画像: 現在 / 後半画像: 理想)
+
+                【出力JSONフォーマット】
+                {{
+                    "catchphrase": "世界観を一言で表すキャッチコピー（15文字以内）",
+                    "formula": {{
+                        "values": {{ "word": "価値観ワード", "detail": "詳細（40文字）" }},
+                        "strengths": {{ "word": "得意表現ワード", "detail": "詳細（40文字）" }},
+                        "interests": {{ "word": "好きなことワード", "detail": "詳細（40文字）" }}
+                    }},
+                    "sense_metrics": [
+                        {{ "left": "シンプル", "right": "カオス", "value": 0-100 }},
+                        {{ "left": "具象", "right": "抽象", "value": 0-100 }},
+                        {{ "left": "静寂", "right": "躍動", "value": 0-100 }},
+                        {{ "left": "論理", "right": "直感", "value": 0-100 }},
+                        {{ "left": "伝統", "right": "革新", "value": 0-100 }},
+                        {{ "left": "内省", "right": "発信", "value": 0-100 }},
+                        {{ "left": "儚さ", "right": "永続", "value": 0-100 }},
+                        {{ "left": "感情", "right": "理性", "value": 0-100 }},
+                        {{ "left": "日常", "right": "幻想", "value": 0-100 }},
+                        {{ "left": "繊細", "right": "大胆", "value": 0-100 }}
+                    ],
+                    "current_worldview": {{ "features": "現在の特徴分析（100文字程度）" }},
+                    "roadmap_steps": [
+                        {{ "title": "STEP 1: 認識", "detail": "現状把握の助言" }},
+                        {{ "title": "STEP 2: 拡張", "detail": "取り入れるべき要素" }},
+                        {{ "title": "STEP 3: 到達", "detail": "最終的なスタイル" }}
+                    ],
+                    "final_proposals": [
+                        {{ "point": "提案1の要点", "detail": "詳細説明（60文字程度）" }},
+                        {{ "point": "提案2の要点", "detail": "詳細説明（60文字程度）" }},
+                        {{ "point": "提案3の要点", "detail": "詳細説明（60文字程度）" }}
+                    ]
+                }}
+                """
+                
+                contents = [prompt] + past_images + future_images
+
+                try:
+                    client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+                    with st.spinner("Analyzing Sense & Logic..."):
+                        response = client.models.generate_content(
+                            model='gemini-flash-latest',
+                            contents=contents,
+                            config=types.GenerateContentConfig(response_mime_type="application/json")
+                        )
+                        data = json.loads(response.text)
+                        
+                        pdf_file = create_pdf(data, st.session_state.quiz_result)
+                        st.download_button("📥 Download Analysis Report (PDF)", pdf_file, "Visionary_Analysis_Report.pdf", "application/pdf", use_container_width=True)
+                        st.success("Analysis Completed.")
+                        st.write(f"**{data['catchphrase']}**")
+
+                except Exception as e:
+                    st.error(f"Error: {e}")
+
+    elif st.button("Reset"):
+         st.session_state.step = 1
+         st.session_state.quiz_result = None
+         st.rerun()import streamlit as st
+import os
+from google import genai
+from google.genai import types
+from PIL import Image
+import json
+import io
+import datetime
+import pandas as pd
+
+# PDF生成用ライブラリ
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import A4, landscape
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.cidfonts import UnicodeCIDFont
+from reportlab.lib.units import mm
+from reportlab.lib.colors import HexColor
+
+# ---------------------------------------------------------
+# ▼▼▼ セキュリティ対応版: APIキーの設定 ▼▼▼
+if "GEMINI_API_KEY" in st.secrets:
+    os.environ["GEMINI_API_KEY"] = st.secrets["GEMINI_API_KEY"]
+else:
+    user_api_key = st.sidebar.text_input("Gemini APIキーを入力してください", type="password")
+    if user_api_key:
+        os.environ["GEMINI_API_KEY"] = user_api_key
+    else:
+        st.warning("⚠️ APIキー未設定：サイドバーにキーを入力するか、管理画面でSecretsを設定してください。")
+        st.stop()
+
+# ---------------------------------------------------------
+# 🎨 デザイン・配色設定
+# ---------------------------------------------------------
+
 # フォント登録 (情緒の明朝、論理のゴシック)
 pdfmetrics.registerFont(UnicodeCIDFont('HeiseiMin-W3')) # 明朝体（情緒・権威）
 pdfmetrics.registerFont(UnicodeCIDFont('HeiseiKakuGo-W5')) # ゴシック体（論理・構造）
