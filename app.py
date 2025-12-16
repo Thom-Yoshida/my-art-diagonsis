@@ -8,6 +8,42 @@ import io
 import datetime
 import pandas as pd
 
+# ==========================================
+# 🔒 セキュリティ: パスワード認証機能
+# ==========================================
+def check_password():
+    """パスワードが正しいかチェックする関数"""
+    # セッション（ブラウザを開いている間）にログイン状態を記録
+    if "password_correct" not in st.session_state:
+        st.session_state.password_correct = False
+
+    # すでにログイン済みなら何もしない（通過）
+    if st.session_state.password_correct:
+        return True
+
+    # 画面にパスワード入力欄を出す
+    st.header("🔒 ログインが必要です")
+    password_input = st.text_input("パスワードを入力してください", type="password")
+    
+    # Secretsから正解パスワードを取得（未設定なら警告）
+    if "APP_PASSWORD" not in st.secrets:
+        st.error("管理画面で Secrets に APP_PASSWORD を設定してください。")
+        return False
+
+    if password_input:
+        if password_input == st.secrets["APP_PASSWORD"]:
+            st.session_state.password_correct = True
+            st.rerun()  # 画面を再読み込みしてアプリを表示
+        else:
+            st.error("パスワードが間違っています")
+            
+    # まだログインしていない場合はここで処理を止める
+    st.stop()
+
+# 最初にこのチェックを実行（ここを通らないと下には進めない）
+check_password()
+# ==========================================
+
 # PDF生成用ライブラリ
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4, landscape
