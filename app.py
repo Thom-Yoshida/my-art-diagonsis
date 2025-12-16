@@ -365,4 +365,100 @@ if st.session_state.step == 1:
                 score_a += 1
         percent = int((score_a / 30) * 100)
         st.session_state.quiz_score_percent = percent
-        if score_a >= 20: st.session_state
+        if score_a >= 20: st.session_state.quiz_result = f"直感・情熱型 (情熱度: {percent}%)"
+        elif score_a >= 16: st.session_state.quiz_result = f"バランス型・直感寄り (情熱度: {percent}%)"
+        elif score_a >= 11: st.session_state.quiz_result = f"バランス型・論理寄り (情熱度: {percent}%)"
+        else: st.session_state.quiz_result = f"論理・構築型 (情熱度: {percent}%)"
+        st.session_state.step = 2
+        st.rerun()
+
+elif st.session_state.step == 2:
+    st.header("02. VISION INTEGRATION")
+    st.success(f"TYPE: **{st.session_state.quiz_result}**")
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        st.subheader("Current Work (過去作品)")
+        past_files = st.file_uploader("Upload max 3 images", type=["jpg", "png", "jpeg"], accept_multiple_files=True, key="past")
+    with col2:
+        st.subheader("Ideal Vision (未来の理想)")
+        future_files = st.file_uploader("Upload max 3 images", type=["jpg", "png", "jpeg"], accept_multiple_files=True, key="future")
+
+    if past_files and future_files:
+        if len(past_files) > 3 or len(future_files) > 3:
+             st.warning("画像は各3枚まで。")
+        else:
+            if st.button("Generate Report (PDF)"):
+                past_images = [Image.open(f) for f in past_files]
+                future_images = [Image.open(f) for f in future_files]
+
+                prompt = f"""
+                あなたは洗練された美意識を持つアートディレクターです。
+                PDFスライド生成用のデータをJSON形式で作成してください。
+
+                【基本ルール】
+                ・主語は「私」または主語なし。
+                ・文体は「〜だ」「〜である」「体言止め」を使用。
+
+                【入力情報】
+                性格タイプ: {st.session_state.quiz_result}
+                (前半画像: 現在 / 後半画像: 理想)
+
+                【出力JSONフォーマット】
+                {{
+                    "catchphrase": "世界観を一言で表すキャッチコピー（15文字以内）",
+                    "formula": {{
+                        "values": {{ "word": "価値観ワード", "detail": "詳細（40文字）" }},
+                        "strengths": {{ "word": "得意表現ワード", "detail": "詳細（40文字）" }},
+                        "interests": {{ "word": "好きなことワード", "detail": "詳細（40文字）" }}
+                    }},
+                    "sense_metrics": [
+                        {{ "left": "シンプル", "right": "カオス", "value": 0-100 }},
+                        {{ "left": "具象", "right": "抽象", "value": 0-100 }},
+                        {{ "left": "静寂", "right": "躍動", "value": 0-100 }},
+                        {{ "left": "論理", "right": "直感", "value": 0-100 }},
+                        {{ "left": "伝統", "right": "革新", "value": 0-100 }},
+                        {{ "left": "内省", "right": "発信", "value": 0-100 }},
+                        {{ "left": "儚さ", "right": "永続", "value": 0-100 }},
+                        {{ "left": "感情", "right": "理性", "value": 0-100 }},
+                        {{ "left": "日常", "right": "幻想", "value": 0-100 }},
+                        {{ "left": "繊細", "right": "大胆", "value": 0-100 }}
+                    ],
+                    "current_worldview": {{ "features": "現在の特徴分析（100文字程度）" }},
+                    "roadmap_steps": [
+                        {{ "title": "STEP 1: 認識", "detail": "現状把握の助言" }},
+                        {{ "title": "STEP 2: 拡張", "detail": "取り入れるべき要素" }},
+                        {{ "title": "STEP 3: 到達", "detail": "最終的なスタイル" }}
+                    ],
+                    "final_proposals": [
+                        {{ "point": "提案1の要点", "detail": "詳細説明（60文字程度）" }},
+                        {{ "point": "提案2の要点", "detail": "詳細説明（60文字程度）" }},
+                        {{ "point": "提案3の要点", "detail": "詳細説明（60文字程度）" }}
+                    ]
+                }}
+                """
+                
+                contents = [prompt] + past_images + future_images
+
+                try:
+                    client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+                    with st.spinner("Analyzing Sense & Logic..."):
+                        response = client.models.generate_content(
+                            model='gemini-flash-latest',
+                            contents=contents,
+                            config=types.GenerateContentConfig(response_mime_type="application/json")
+                        )
+                        data = json.loads(response.text)
+                        
+                        pdf_file = create_pdf(data, st.session_state.quiz_result)
+                        st.download_button("📥 Download Analysis Report (PDF)", pdf_file, "Visionary_Analysis_Report.pdf", "application/pdf", use_container_width=True)
+                        st.success("Analysis Completed.")
+                        st.write(f"**{data['catchphrase']}**")
+
+                except Exception as e:
+                    st.error(f"Error: {e}")
+
+    elif st.button("Reset"):
+         st.session_state.step = 1
+         st.session_state.quiz_result = None
+         st.rerun()
