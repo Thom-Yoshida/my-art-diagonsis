@@ -149,7 +149,7 @@ def create_pdf(json_data, quiz_summary):
     CONTENT_WIDTH = width - (MARGIN_X * 2)
     
     # -----------------------------------------------
-    # P1. 表紙 (タイトル + 10のキーワード)
+    # P1. 表紙 (タイトル + 過去・未来キーワード)
     # -----------------------------------------------
     draw_header(c, "", 1)
     
@@ -162,13 +162,20 @@ def create_pdf(json_data, quiz_summary):
     c.setFillColor(C_ACCENT_BLUE)
     c.drawCentredString(width/2, height/2 - 10*mm, "Worldview Analysis Report")
     
-    # ▼ 10個のキーワードを表示 ▼
-    keywords = json_data.get('ten_future_keywords', [])
-    kw_str = "  /  ".join(keywords)
-    c.setFont(FONT_SANS, 9)
+    # ▼ キーワード表示 ▼
+    c.setFont(FONT_SANS, 8)
     c.setFillColor(C_MAUVE_GRAY)
-    # 少し下部に配置
-    c.drawCentredString(width/2, height/2 - 40*mm, f"Future Keywords: {kw_str}")
+    
+    # 過去キーワード
+    past_kws = json_data.get('ten_past_keywords', [])
+    past_str = " / ".join(past_kws)
+    c.drawCentredString(width/2, height/2 - 35*mm, f"Past Origin: {past_str}")
+
+    # 未来キーワード
+    future_kws = json_data.get('ten_future_keywords', [])
+    future_str = " / ".join(future_kws)
+    c.setFillColor(C_FOREST_TEAL) # 未来は少し色を変える
+    c.drawCentredString(width/2, height/2 - 45*mm, f"Future Vision: {future_str}")
 
     date_str = datetime.datetime.now().strftime("%Y.%m.%d")
     c.setFont(FONT_SERIF, 10)
@@ -303,7 +310,7 @@ def create_pdf(json_data, quiz_summary):
     c.showPage()
     
     # -----------------------------------------------
-    # P5. 提案
+    # P5. 提案 & 名言
     # -----------------------------------------------
     draw_header(c, "", 5)
     c.setFont(FONT_SERIF, 20)
@@ -324,10 +331,31 @@ def create_pdf(json_data, quiz_summary):
         draw_wrapped_text(c, detail_text, MARGIN_X + 8*mm, y_pos, FONT_SERIF, 11, CONTENT_WIDTH - 10*mm, 14)
         y_pos -= 30*mm
 
+    # ▼ 名言エリア ▼
+    quote_data = json_data.get('inspiring_quote', {})
+    quote_text = quote_data.get('text', '')
+    quote_author = quote_data.get('author', '')
+    
+    if quote_text:
+        # 区切り線
+        c.setStrokeColor(C_WARM_BEIGE)
+        c.setLineWidth(0.5)
+        c.line(MARGIN_X, 50*mm, width - MARGIN_X, 50*mm)
+        
+        # 名言本文
+        c.setFont(FONT_SERIF, 14)
+        c.setFillColor(C_MAIN_SHADOW)
+        c.drawCentredString(width/2, 40*mm, f"“ {quote_text} ”")
+        
+        # 著者名
+        c.setFont(FONT_SANS, 10)
+        c.setFillColor(C_ACCENT_BLUE)
+        c.drawCentredString(width/2, 32*mm, f"- {quote_author}")
+
     c.setFillColor(C_FOREST_TEAL)
-    c.circle(width - MARGIN_X, 30*mm, 3*mm, fill=1, stroke=0)
+    c.circle(width - MARGIN_X, 22*mm, 3*mm, fill=1, stroke=0)
     c.setFont(FONT_SANS, 8)
-    c.drawCentredString(width - MARGIN_X, 22*mm, "Visionary")
+    c.drawCentredString(width - MARGIN_X, 14*mm, "Visionary")
     c.showPage()
 
     c.save()
@@ -370,10 +398,10 @@ QUIZ_DATA = [
 
 # --- Streamlit アプリ本体 ---
 
-st.set_page_config(page_title="Visionary Analysis", layout="wide") 
+st.set_page_config(page_title="世界観 総合診断ツール（β版）", layout="wide") 
 apply_custom_css()
 
-st.title("Visionary Analysis: AI作家性・統合診断")
+st.title("世界観 総合診断ツール（β版）")
 st.write("「センス」を科学し、あなたの「世界観」を体系化する。")
 
 if 'step' not in st.session_state:
@@ -392,7 +420,8 @@ if st.session_state.step == 1:
             ans = st.radio(item["q"], item["opts"], key=f"q{i}", horizontal=True)
             answers.append((ans, item["type_a"]))
         st.write("---")
-        submit_button = st.form_submit_button(label="Analyze Type")
+        # ボタン名変更
+        submit_button = st.form_submit_button(label="診断する")
 
     if submit_button:
         score_a = 0
@@ -424,7 +453,8 @@ elif st.session_state.step == 2:
         if len(past_files) > 3 or len(future_files) > 3:
              st.warning("画像は各3枚まで。")
         else:
-            if st.button("Generate Report (PDF)"):
+            # ボタン名変更
+            if st.button("結果を見る"):
                 past_images = [Image.open(f) for f in past_files]
                 future_images = [Image.open(f) for f in future_files]
 
@@ -433,12 +463,10 @@ elif st.session_state.step == 2:
                 ユーザーの「性格」「過去作品」「未来の理想」を分析し、
                 PDF生成用のデータをJSON形式で作成してください。
 
-                【重要：語り口とトーン】
-                ・ターゲット：偏差値55の高校3年生レベル。
-                ・難しい専門用語は使わず、噛み砕いた表現にする。
-                ・主語（「私は」「僕が」など）は一切使わない。
-                ・「〜だ」「〜である」や体言止めを使い、リズム良く。
-                ・上から目線ではなく、同じ目線で語りかけるような、温かみと芯のあるトーン。
+                【トーン】
+                ・偏差値55の高校3年生レベルのわかりやすい言葉。
+                ・主語（私は〜など）は無し。体言止めを多用。
+                ・上から目線ではなく、センスの良い先輩のようなトーン。
 
                 【入力情報】
                 性格タイプ: {st.session_state.quiz_result}
@@ -447,7 +475,8 @@ elif st.session_state.step == 2:
                 【出力JSONフォーマット】
                 {{
                     "catchphrase": "世界観を一言で表すキャッチコピー（15文字以内）",
-                    "ten_future_keywords": ["未来へ向かうキーワード1", "キーワード2", "3", "4", "5", "6", "7", "8", "9", "10"],
+                    "ten_past_keywords": ["過去作品から読み取れるキーワード1", "2", "3", "4", "5", "6", "7", "8", "9", "10"],
+                    "ten_future_keywords": ["未来へ向かうキーワード1", "2", "3", "4", "5", "6", "7", "8", "9", "10"],
                     "formula": {{
                         "values": {{ "word": "価値観ワード", "detail": "詳細（40文字）" }},
                         "strengths": {{ "word": "得意表現ワード", "detail": "詳細（40文字）" }},
@@ -475,7 +504,11 @@ elif st.session_state.step == 2:
                         {{ "point": "提案1の要点", "detail": "詳細説明（60文字程度）" }},
                         {{ "point": "提案2の要点", "detail": "詳細説明（60文字程度）" }},
                         {{ "point": "提案3の要点", "detail": "詳細説明（60文字程度）" }}
-                    ]
+                    ],
+                    "inspiring_quote": {{
+                        "text": "このユーザーの価値観と診断結果に最も響く、クリエイターや哲学者の名言",
+                        "author": "その名言の著者名"
+                    }}
                 }}
                 """
                 
@@ -495,9 +528,9 @@ elif st.session_state.step == 2:
                         st.download_button("📥 Download Analysis Report (PDF)", pdf_file, "Visionary_Analysis_Report.pdf", "application/pdf", use_container_width=True)
                         st.success("Analysis Completed.")
                         
-                        # --- Web画面上でもキーワードを表示 ---
                         st.subheader(f"Results: {data['catchphrase']}")
-                        st.write("Future Keywords: " + " / ".join(data.get('ten_future_keywords', [])))
+                        st.write(f"**Past Origin:** {' / '.join(data.get('ten_past_keywords', []))}")
+                        st.write(f"**Future Vision:** {' / '.join(data.get('ten_future_keywords', []))}")
 
                 except Exception as e:
                     st.error(f"Error: {e}")
