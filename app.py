@@ -58,6 +58,18 @@ def check_password():
 check_password()
 
 # ---------------------------------------------------------
+# 🖼 画像軽量化機能 (タイムアウト対策・追加機能)
+# ---------------------------------------------------------
+def resize_image_for_api(image, max_width=1024):
+    """AIに送る前に画像をリサイズして通信エラーを防ぐ"""
+    width_percent = (max_width / float(image.size[0]))
+    if width_percent < 1: # 指定より大きい場合のみ縮小
+        height_size = int((float(image.size[1]) * float(width_percent)))
+        # 高品質なリサイズ処理
+        return image.resize((max_width, height_size), Image.Resampling.LANCZOS)
+    return image
+
+# ---------------------------------------------------------
 # 📧 メール送信機能
 # ---------------------------------------------------------
 def send_email_with_pdf(user_email, pdf_buffer):
@@ -197,7 +209,7 @@ def create_pdf(json_data, quiz_summary):
     CONTENT_WIDTH = width - (MARGIN_X * 2)
     
     # -----------------------------------------------
-    # P1. 表紙 (cover.jpg) - キーワード削除
+    # P1. 表紙 (cover.jpg)
     # -----------------------------------------------
     bg_drawn = False
     try:
@@ -225,7 +237,7 @@ def create_pdf(json_data, quiz_summary):
     c.showPage()
 
     # -----------------------------------------------
-    # P2. キーワード対比 (NEW!)
+    # P2. キーワード対比
     # -----------------------------------------------
     draw_header(c, "", 2)
     c.setFont(FONT_SANS, 12)
@@ -510,8 +522,14 @@ if 'quiz_score_percent' not in st.session_state:
 
 if st.session_state.step == 1:
     st.header("01. SENSE CHECK")
-    st.markdown("##### 📧 結果を受け取るメールアドレス（任意）")
-    user_email_input = st.text_input("メールアドレスを入力してください", key="user_email")
+    st.markdown("##### 📝 基本情報（任意）")
+    col_input1, col_input2 = st.columns(2)
+    with col_input1:
+        # NEW CODE START: Name Input
+        user_name_input = st.text_input("お名前", key="user_name")
+        # NEW CODE END
+    with col_input2:
+        user_email_input = st.text_input("メールアドレス", key="user_email")
     st.write("直感で回答。あなたの創作の源泉を探る。")
 
     with st.form(key='quiz_form'):
@@ -553,8 +571,10 @@ elif st.session_state.step == 2:
              st.warning("画像は各3枚まで。")
         else:
             if st.button("診断結果を作成する"):
-                past_images = [Image.open(f) for f in past_files]
-                future_images = [Image.open(f) for f in future_files]
+                # NEW CODE START: Image Resizing
+                past_images = [resize_image_for_api(Image.open(f)) for f in past_files]
+                future_images = [resize_image_for_api(Image.open(f)) for f in future_files]
+                # NEW CODE END
 
                 prompt = f"""
                 あなたはThomYoshidaという、クリエイターに寄り添うアートディレクターです。
