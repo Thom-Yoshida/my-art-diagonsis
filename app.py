@@ -123,14 +123,12 @@ def apply_custom_css():
         h1, h2, h3 { font-family: "Hiragino Mincho ProN", serif !important; color: #2B2723 !important; }
         p, div, label { font-family: "Hiragino Kaku Gothic ProN", sans-serif; color: #2B2723; }
         
-        /* 通常ボタン */
         div.stButton > button {
             background-color: #7A96A0; color: white; border-radius: 24px; border: none;
             padding: 10px 24px; transition: all 0.3s ease;
         }
         div.stButton > button:hover { background-color: #528574; }
         
-        /* ダウンロードボタン（巨大化） */
         .stDownloadButton > button {
             width: 100% !important; height: 80px !important; font-size: 24px !important;
             font-weight: bold !important; background-color: #528574 !important;
@@ -154,7 +152,6 @@ def draw_organic_shape(c, x, y, size, color):
     c.setStrokeColor(color)
     c.circle(x, y, size, fill=1, stroke=0)
 
-# 通常ページ用のヘッダー（2ページ目以降）
 def draw_header(c, title, page_num):
     width, height = landscape(A4)
     c.setFillColor(C_BG_WHITE)
@@ -202,41 +199,43 @@ def create_pdf(json_data, quiz_summary):
     CONTENT_WIDTH = width - (MARGIN_X * 2)
     
     # -----------------------------------------------
-    # P1. 表紙 (背景画像あり)
+    # P1. 表紙 (cover.jpg)
     # -----------------------------------------------
-    # 背景画像を描画 (image_0.png が存在すること前提)
+    bg_drawn = False
     try:
-        c.drawImage("image_0.png", 0, 0, width=width, height=height, preserveAspectRatio=True, anchor='c')
+        # 表紙用画像 cover.jpg を探す
+        c.drawImage("cover.jpg", 0, 0, width=width, height=height, preserveAspectRatio=True, anchor='c')
+        bg_drawn = True
     except Exception:
-        # 画像がない場合は通常の白背景＋装飾
-        draw_header(c, "", 1)
+        draw_header(c, "", 1) # 画像なければ通常背景
 
-    # テキストは背景に合わせて白文字にする
+    # 背景があるなら文字は白、なければ黒
+    text_color = C_TEXT_WHITE if bg_drawn else C_MAIN_SHADOW
+    accent_color = C_MUTE_AMBER if bg_drawn else C_FOREST_TEAL
+
     c.setFont(FONT_SERIF, 40)
-    c.setFillColor(C_TEXT_WHITE) # 白文字
+    c.setFillColor(text_color)
     catchphrase = json_data.get('catchphrase', '無題')
     c.drawCentredString(width/2, height/2 + 15*mm, catchphrase)
     
     c.setFont(FONT_SANS, 14)
-    c.setFillColor(C_TEXT_WHITE) # 白文字
+    c.setFillColor(text_color)
     c.drawCentredString(width/2, height/2 - 10*mm, "Worldview Analysis Report")
     
-    # キーワード
     c.setFont(FONT_SANS, 9)
-    c.setFillColor(C_TEXT_WHITE) # 白文字
+    c.setFillColor(text_color)
     past_kws = json_data.get('ten_past_keywords', [])
     past_str = " / ".join(past_kws)
     c.drawCentredString(width/2, height/2 - 35*mm, f"Past Origin: {past_str}")
 
     future_kws = json_data.get('ten_future_keywords', [])
     future_str = " / ".join(future_kws)
-    # 未来はアクセントカラー（ただし背景が暗いので明るめの色で）
-    c.setFillColor(C_MUTE_AMBER) 
+    c.setFillColor(accent_color)
     c.drawCentredString(width/2, height/2 - 45*mm, f"Future Vision: {future_str}")
 
     date_str = datetime.datetime.now().strftime("%Y.%m.%d")
     c.setFont(FONT_SERIF, 10)
-    c.setFillColor(C_TEXT_WHITE) # 白文字
+    c.setFillColor(text_color)
     c.drawCentredString(width/2, 20*mm, f"Designed by ThomYoshida AI | {date_str}")
     
     c.showPage()
@@ -352,25 +351,40 @@ def create_pdf(json_data, quiz_summary):
     c.showPage()
     
     # -----------------------------------------------
-    # P5. 提案 & 名言
+    # P5. 提案 & 名言 (ending.jpg)
     # -----------------------------------------------
-    draw_header(c, "", 5)
+    # 最後のページ背景 ending.jpg
+    end_bg_drawn = False
+    try:
+        c.drawImage("ending.jpg", 0, 0, width=width, height=height, preserveAspectRatio=True, anchor='c')
+        end_bg_drawn = True
+    except Exception:
+        draw_header(c, "", 5)
+
+    # 背景があるなら白文字、なければ通常色
+    text_color_end = C_TEXT_WHITE if end_bg_drawn else C_MAIN_SHADOW
+    title_color_end = C_TEXT_WHITE if end_bg_drawn else C_ACCENT_BLUE
+    
+    # "私からの提案"
     c.setFont(FONT_SERIF, 20)
-    c.setFillColor(C_MAIN_SHADOW)
+    c.setFillColor(text_color_end)
     c.drawString(MARGIN_X, height - 35*mm, "私からの提案。")
+    
     proposals = json_data.get('final_proposals', [])
     y_pos = height - 55*mm
+    
     for i, prop in enumerate(proposals):
         point_title = prop.get('point', '')
         c.setFont(FONT_SANS, 14)
-        c.setFillColor(C_ACCENT_BLUE)
+        c.setFillColor(title_color_end) # 白または青
         c.drawString(MARGIN_X + 5*mm, y_pos, f"◆ {point_title}")
         y_pos -= 8*mm
         detail_text = prop.get('detail', '')
-        c.setFillColor(C_MAIN_SHADOW)
+        c.setFillColor(text_color_end) # 白または黒
         draw_wrapped_text(c, detail_text, MARGIN_X + 8*mm, y_pos, FONT_SERIF, 11, CONTENT_WIDTH - 10*mm, 14)
         y_pos -= 30*mm
 
+    # 名言エリア
     quote_data = json_data.get('inspiring_quote', {})
     quote_text = quote_data.get('text', '')
     quote_author = quote_data.get('author', '')
@@ -378,12 +392,15 @@ def create_pdf(json_data, quiz_summary):
         c.setStrokeColor(C_WARM_BEIGE)
         c.setLineWidth(0.5)
         c.line(MARGIN_X, 50*mm, width - MARGIN_X, 50*mm)
+        
         c.setFont(FONT_SERIF, 14)
-        c.setFillColor(C_MAIN_SHADOW)
+        c.setFillColor(text_color_end)
         c.drawCentredString(width/2, 40*mm, f"“ {quote_text} ”")
+        
         c.setFont(FONT_SANS, 10)
-        c.setFillColor(C_ACCENT_BLUE)
+        c.setFillColor(C_MUTE_AMBER if end_bg_drawn else C_ACCENT_BLUE) # 著者は色を変える
         c.drawCentredString(width/2, 32*mm, f"- {quote_author}")
+
     c.setFillColor(C_FOREST_TEAL)
     c.circle(width - MARGIN_X, 22*mm, 3*mm, fill=1, stroke=0)
     c.setFont(FONT_SANS, 8)
@@ -433,11 +450,11 @@ QUIZ_DATA = [
 st.set_page_config(page_title="世界観 総合診断ツール（β版）", layout="wide") 
 apply_custom_css()
 
-# ▼▼▼ 起動画面に画像を表示 ▼▼▼
+# ▼▼▼ 起動画面に cover.jpg を表示 ▼▼▼
 try:
-    st.image("image_0.png", use_column_width=True)
+    st.image("cover.jpg", use_column_width=True)
 except Exception:
-    pass # 画像がなくてもエラーにしない
+    pass 
 
 st.title("世界観 総合診断ツール（β版）")
 st.write("「センス」を科学し、あなたの「世界観」を体系化する。")
