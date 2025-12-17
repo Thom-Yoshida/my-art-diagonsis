@@ -8,42 +8,6 @@ import io
 import datetime
 import pandas as pd
 
-# ==========================================
-# 🔒 セキュリティ: パスワード認証機能
-# ==========================================
-def check_password():
-    """パスワードが正しいかチェックする関数"""
-    # セッション（ブラウザを開いている間）にログイン状態を記録
-    if "password_correct" not in st.session_state:
-        st.session_state.password_correct = False
-
-    # すでにログイン済みなら何もしない（通過）
-    if st.session_state.password_correct:
-        return True
-
-    # 画面にパスワード入力欄を出す
-    st.header("🔒 ログインが必要です")
-    password_input = st.text_input("パスワードを入力してください", type="password")
-    
-    # Secretsから正解パスワードを取得（未設定なら警告）
-    if "APP_PASSWORD" not in st.secrets:
-        st.error("管理画面で Secrets に APP_PASSWORD を設定してください。")
-        return False
-
-    if password_input:
-        if password_input == st.secrets["APP_PASSWORD"]:
-            st.session_state.password_correct = True
-            st.rerun()  # 画面を再読み込みしてアプリを表示
-        else:
-            st.error("パスワードが間違っています")
-            
-    # まだログインしていない場合はここで処理を止める
-    st.stop()
-
-# 最初にこのチェックを実行（ここを通らないと下には進めない）
-check_password()
-# ==========================================
-
 # PDF生成用ライブラリ
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4, landscape
@@ -64,16 +28,42 @@ else:
         st.warning("⚠️ APIキー未設定：サイドバーにキーを入力するか、管理画面でSecretsを設定してください。")
         st.stop()
 
+# ==========================================
+# 🔒 セキュリティ: パスワード認証機能
+# ==========================================
+def check_password():
+    if "password_correct" not in st.session_state:
+        st.session_state.password_correct = False
+    if st.session_state.password_correct:
+        return True
+    
+    if "APP_PASSWORD" not in st.secrets:
+        return True
+
+    st.header("🔒 ログインが必要です")
+    password_input = st.text_input("パスワードを入力してください", type="password")
+    
+    if password_input:
+        if password_input == st.secrets["APP_PASSWORD"]:
+            st.session_state.password_correct = True
+            st.rerun()
+        else:
+            st.error("パスワードが間違っています")
+    st.stop()
+
+check_password()
+
 # ---------------------------------------------------------
 # 🎨 デザイン・配色設定
 # ---------------------------------------------------------
 
-pdfmetrics.registerFont(UnicodeCIDFont('HeiseiMin-W3')) # 明朝体
-pdfmetrics.registerFont(UnicodeCIDFont('HeiseiKakuGo-W5')) # ゴシック体
-
+# PDF用フォント
+pdfmetrics.registerFont(UnicodeCIDFont('HeiseiMin-W3')) 
+pdfmetrics.registerFont(UnicodeCIDFont('HeiseiKakuGo-W5')) 
 FONT_SERIF = 'HeiseiMin-W3'
 FONT_SANS = 'HeiseiKakuGo-W5'
 
+# 配色パレット
 C_MAIN_SHADOW = HexColor('#2B2723')
 C_BG_WHITE    = HexColor('#F5F5F5')
 C_ACCENT_BLUE = HexColor('#7A96A0')
@@ -81,6 +71,26 @@ C_WARM_BEIGE  = HexColor('#D1C0AF')
 C_MAUVE_GRAY  = HexColor('#A39E99')
 C_FOREST_TEAL = HexColor('#528574')
 C_MUTE_AMBER  = HexColor('#D6AE60')
+
+# ==========================================
+# 🖌️ Web UI カスタムCSS
+# ==========================================
+def apply_custom_css():
+    st.markdown("""
+    <style>
+        .stApp { background-color: #F5F5F5; color: #2B2723; }
+        h1, h2, h3 { font-family: "Hiragino Mincho ProN", serif !important; color: #2B2723 !important; }
+        p, div, label { font-family: "Hiragino Kaku Gothic ProN", sans-serif; color: #2B2723; }
+        div.stButton > button {
+            background-color: #7A96A0; color: white; border-radius: 24px; border: none;
+            padding: 10px 24px; font-family: sans-serif; transition: all 0.3s ease;
+        }
+        div.stButton > button:hover { background-color: #528574; transform: translateY(-1px); }
+        .stTextInput > div > div > input { background-color: #FFFFFF; border: 1px solid #D1C0AF; border-radius: 8px; }
+        section[data-testid="stSidebar"] { background-color: #EBEBEB; }
+        div[role="radiogroup"] label > div:first-child { background-color: #7A96A0 !important; border-color: #7A96A0 !important; }
+    </style>
+    """, unsafe_allow_html=True)
 
 # ---------------------------------------------------------
 # 📝 PDF生成ロジック
@@ -95,13 +105,11 @@ def draw_header(c, title, page_num):
     width, height = landscape(A4)
     c.setFillColor(C_BG_WHITE)
     c.rect(0, 0, width, height, fill=1, stroke=0)
-    
     draw_organic_shape(c, 10*mm, height - 10*mm, 15*mm, C_WARM_BEIGE)
     draw_organic_shape(c, width - 10*mm, 10*mm, 20*mm, C_ACCENT_BLUE)
-    
     c.setFont(FONT_SANS, 9)
     c.setFillColor(C_MAUVE_GRAY)
-    c.drawRightString(width - 15*mm, 10*mm, f"{page_num}")
+    c.drawRightString(width - 36*mm, 10*mm, f"{page_num}")
 
 def draw_wrapped_text(c, text, x, y, font, size, max_width, leading):
     c.setFont(font, size)
@@ -110,36 +118,25 @@ def draw_wrapped_text(c, text, x, y, font, size, max_width, leading):
     text_obj.setLeading(leading)
     char_limit = int(max_width / (size * 0.8))
     for line in text.split('\n'):
+        if len(line) == 0:
+            text_obj.textLine("")
+            continue
         for i in range(0, len(line), char_limit):
             text_obj.textLine(line[i:i+char_limit])
     c.drawText(text_obj)
 
 def draw_slider(c, x, y, width_mm, left_text, right_text, value):
-    """対義語スライダーを描画する関数"""
     bar_width = width_mm * mm
-    
-    # テキスト (左)
     c.setFont(FONT_SERIF, 10)
     c.setFillColor(C_MAIN_SHADOW)
     c.drawRightString(x - 5*mm, y - 1*mm, left_text)
-    
-    # テキスト (右)
     c.drawString(x + bar_width + 5*mm, y - 1*mm, right_text)
-    
-    # バー（背景）
     c.setStrokeColor(C_MAUVE_GRAY)
     c.setLineWidth(0.5)
     c.line(x, y, x + bar_width, y)
-    
-    # 値のドット
-    # valueは0-100。0が左端、100が右端。
     dot_x = x + (value / 100) * bar_width
-    
-    # ドット（アクセント）
     c.setFillColor(C_FOREST_TEAL)
     c.circle(dot_x, y, 1.8*mm, fill=1, stroke=0)
-    
-    # 中央の目盛り（うっすら）
     c.setStrokeColor(C_WARM_BEIGE)
     c.line(x + bar_width/2, y - 1*mm, x + bar_width/2, y + 1*mm)
 
@@ -147,44 +144,54 @@ def create_pdf(json_data, quiz_summary):
     buffer = io.BytesIO()
     c = canvas.Canvas(buffer, pagesize=landscape(A4))
     width, height = landscape(A4)
+
+    MARGIN_X = width * 0.12 
+    CONTENT_WIDTH = width - (MARGIN_X * 2)
     
     # -----------------------------------------------
-    # P1. 表紙
+    # P1. 表紙 (タイトル + 10のキーワード)
     # -----------------------------------------------
     draw_header(c, "", 1)
     
     c.setFont(FONT_SERIF, 40)
     c.setFillColor(C_MAIN_SHADOW)
     catchphrase = json_data.get('catchphrase', '無題')
-    c.drawCentredString(width/2, height/2 + 10*mm, catchphrase)
+    c.drawCentredString(width/2, height/2 + 15*mm, catchphrase)
     
     c.setFont(FONT_SANS, 14)
     c.setFillColor(C_ACCENT_BLUE)
-    c.drawCentredString(width/2, height/2 - 15*mm, "Worldview Analysis Report")
+    c.drawCentredString(width/2, height/2 - 10*mm, "Worldview Analysis Report")
     
+    # ▼ 10個のキーワードを表示 ▼
+    keywords = json_data.get('ten_future_keywords', [])
+    kw_str = "  /  ".join(keywords)
+    c.setFont(FONT_SANS, 9)
+    c.setFillColor(C_MAUVE_GRAY)
+    # 少し下部に配置
+    c.drawCentredString(width/2, height/2 - 40*mm, f"Future Keywords: {kw_str}")
+
     date_str = datetime.datetime.now().strftime("%Y.%m.%d")
     c.setFont(FONT_SERIF, 10)
     c.setFillColor(C_MAIN_SHADOW)
-    c.drawCentredString(width/2, height/2 - 30*mm, f"Designed by AI Art Director | {date_str}")
+    c.drawCentredString(width/2, 20*mm, f"Designed by ThomYoshida AI | {date_str}")
     
     c.showPage()
 
     # -----------------------------------------------
-    # P2. 数式スライド (価値観 × 得意 × 好き ＝ 世界観)
+    # P2. 数式スライド
     # -----------------------------------------------
     draw_header(c, "", 2)
     c.setFont(FONT_SANS, 12)
     c.setFillColor(C_ACCENT_BLUE)
-    c.drawString(20*mm, height - 25*mm, "01. THE FORMULA")
+    c.drawString(MARGIN_X, height - 25*mm, "01. THE FORMULA")
     
     formula = json_data.get('formula', {})
     center_y = height/2 + 20*mm
     desc_y = height/2 - 5*mm
-    x1 = width * 0.2
-    x2 = width * 0.5
-    x3 = width * 0.8
+    x1 = MARGIN_X + (CONTENT_WIDTH * 0.15)
+    x2 = width / 2
+    x3 = width - MARGIN_X - (CONTENT_WIDTH * 0.15)
     
-    # 価値観
     c.setFont(FONT_SERIF, 18)
     c.setFillColor(C_MAIN_SHADOW)
     c.drawCentredString(x1, center_y + 10*mm, "『 価値観 』")
@@ -198,7 +205,6 @@ def create_pdf(json_data, quiz_summary):
     c.setFillColor(C_MUTE_AMBER)
     c.drawCentredString((x1+x2)/2, center_y, "×")
 
-    # 得意な表現
     c.setFont(FONT_SERIF, 18)
     c.setFillColor(C_MAIN_SHADOW)
     c.drawCentredString(x2, center_y + 10*mm, "『 得意な表現 』")
@@ -212,7 +218,6 @@ def create_pdf(json_data, quiz_summary):
     c.setFillColor(C_MUTE_AMBER)
     c.drawCentredString((x2+x3)/2, center_y, "×")
 
-    # 好きなこと
     c.setFont(FONT_SERIF, 18)
     c.setFillColor(C_MAIN_SHADOW)
     c.drawCentredString(x3, center_y + 10*mm, "『 好きなこと 』")
@@ -232,21 +237,19 @@ def create_pdf(json_data, quiz_summary):
     c.showPage()
 
     # -----------------------------------------------
-    # P3. チャート (対義語スライダー 10項目)
+    # P3. チャート
     # -----------------------------------------------
     draw_header(c, "", 3)
     c.setFont(FONT_SANS, 12)
     c.setFillColor(C_ACCENT_BLUE)
-    c.drawString(20*mm, height - 25*mm, "02. SENSE BALANCE")
+    c.drawString(MARGIN_X, height - 25*mm, "02. SENSE BALANCE")
     
     metrics = json_data.get('sense_metrics', [])
-    
-    # 2列レイアウト設定
-    left_col_x = 45*mm   # 左列のバー開始位置
-    right_col_x = 180*mm # 右列のバー開始位置
+    left_col_x = MARGIN_X + 25*mm   
+    right_col_x = (width / 2) + 25*mm 
     start_y = height - 50*mm
-    gap_y = 22*mm        # 行間
-    slider_width = 50    # スライダー幅(mm)
+    gap_y = 22*mm        
+    slider_width = 45
     
     for i, metric in enumerate(metrics[:10]):
         if i < 5:
@@ -255,22 +258,12 @@ def create_pdf(json_data, quiz_summary):
         else:
             x_pos = right_col_x
             y_pos = start_y - ((i - 5) * gap_y)
-            
-        draw_slider(
-            c, 
-            x_pos, 
-            y_pos, 
-            slider_width, 
-            metric.get('left', ''), 
-            metric.get('right', ''), 
-            metric.get('value', 50)
-        )
+        draw_slider(c, x_pos, y_pos, slider_width, metric.get('left', ''), metric.get('right', ''), metric.get('value', 50))
         
     c.setFont(FONT_SANS, 10)
     c.setFillColor(C_MAIN_SHADOW)
     current_features = json_data.get('current_worldview', {}).get('features', '')
-    draw_wrapped_text(c, "分析結果：\n" + current_features, 30*mm, 35*mm, FONT_SERIF, 11, 230*mm, 16)
-    
+    draw_wrapped_text(c, "分析結果：\n" + current_features, MARGIN_X, 35*mm, FONT_SERIF, 11, CONTENT_WIDTH, 16)
     c.showPage()
 
     # -----------------------------------------------
@@ -279,57 +272,62 @@ def create_pdf(json_data, quiz_summary):
     draw_header(c, "", 4)
     c.setFont(FONT_SANS, 12)
     c.setFillColor(C_ACCENT_BLUE)
-    c.drawString(20*mm, height - 25*mm, "03. FUTURE ROADMAP")
+    c.drawString(MARGIN_X, height - 25*mm, "03. FUTURE ROADMAP")
     
     roadmap_points = json_data.get('roadmap_steps', [])
     y_pos = height - 50*mm
+    num_x = MARGIN_X + 10*mm
+    text_x = MARGIN_X + 40*mm
+    line_end = width - MARGIN_X
+    
     for i, point in enumerate(roadmap_points):
         c.setFont(FONT_SANS, 36)
         c.setFillColor(C_WARM_BEIGE)
         step_num = f"0{i+1}"
-        c.drawString(30*mm, y_pos - 5*mm, step_num)
+        c.drawString(num_x, y_pos - 5*mm, step_num)
         
         title = point.get('title', '')
         c.setFont(FONT_SERIF, 14)
         c.setFillColor(C_MAIN_SHADOW)
-        c.drawString(60*mm, y_pos, title)
+        c.drawString(text_x, y_pos, title)
         
         desc = point.get('detail', '')
         c.setFont(FONT_SANS, 10)
         c.setFillColor(C_MAUVE_GRAY)
-        c.drawString(60*mm, y_pos - 6*mm, desc)
+        c.drawString(text_x, y_pos - 6*mm, desc)
         
         c.setStrokeColor(C_ACCENT_BLUE)
         c.setLineWidth(1)
-        c.line(60*mm, y_pos - 12*mm, width - 30*mm, y_pos - 12*mm)
+        c.line(text_x, y_pos - 12*mm, line_end, y_pos - 12*mm)
         y_pos -= 35*mm
     c.showPage()
     
     # -----------------------------------------------
-    # P5. 私からの提案
+    # P5. 提案
     # -----------------------------------------------
     draw_header(c, "", 5)
     c.setFont(FONT_SERIF, 20)
     c.setFillColor(C_MAIN_SHADOW)
-    c.drawString(20*mm, height - 35*mm, "私からの提案。")
+    c.drawString(MARGIN_X, height - 35*mm, "私からの提案。")
     
     proposals = json_data.get('final_proposals', [])
     y_pos = height - 55*mm
+    
     for i, prop in enumerate(proposals):
         point_title = prop.get('point', '')
         c.setFont(FONT_SANS, 14)
         c.setFillColor(C_ACCENT_BLUE)
-        c.drawString(25*mm, y_pos, f"◆ {point_title}")
+        c.drawString(MARGIN_X + 5*mm, y_pos, f"◆ {point_title}")
         y_pos -= 8*mm
         detail_text = prop.get('detail', '')
         c.setFillColor(C_MAIN_SHADOW)
-        draw_wrapped_text(c, detail_text, 28*mm, y_pos, FONT_SERIF, 11, 230*mm, 14)
+        draw_wrapped_text(c, detail_text, MARGIN_X + 8*mm, y_pos, FONT_SERIF, 11, CONTENT_WIDTH - 10*mm, 14)
         y_pos -= 30*mm
 
     c.setFillColor(C_FOREST_TEAL)
-    c.circle(width - 30*mm, 30*mm, 3*mm, fill=1, stroke=0)
+    c.circle(width - MARGIN_X, 30*mm, 3*mm, fill=1, stroke=0)
     c.setFont(FONT_SANS, 8)
-    c.drawCentredString(width - 30*mm, 22*mm, "Visionary")
+    c.drawCentredString(width - MARGIN_X, 22*mm, "Visionary")
     c.showPage()
 
     c.save()
@@ -373,6 +371,8 @@ QUIZ_DATA = [
 # --- Streamlit アプリ本体 ---
 
 st.set_page_config(page_title="Visionary Analysis", layout="wide") 
+apply_custom_css()
+
 st.title("Visionary Analysis: AI作家性・統合診断")
 st.write("「センス」を科学し、あなたの「世界観」を体系化する。")
 
@@ -429,12 +429,16 @@ elif st.session_state.step == 2:
                 future_images = [Image.open(f) for f in future_files]
 
                 prompt = f"""
-                あなたは洗練された美意識を持つアートディレクターです。
-                PDFスライド生成用のデータをJSON形式で作成してください。
+                あなたはThomYoshidaという、クリエイターに寄り添うアートディレクターです。
+                ユーザーの「性格」「過去作品」「未来の理想」を分析し、
+                PDF生成用のデータをJSON形式で作成してください。
 
-                【基本ルール】
-                ・主語は「私」または主語なし。
-                ・文体は「〜だ」「〜である」「体言止め」を使用。
+                【重要：語り口とトーン】
+                ・ターゲット：偏差値55の高校3年生レベル。
+                ・難しい専門用語は使わず、噛み砕いた表現にする。
+                ・主語（「私は」「僕が」など）は一切使わない。
+                ・「〜だ」「〜である」や体言止めを使い、リズム良く。
+                ・上から目線ではなく、同じ目線で語りかけるような、温かみと芯のあるトーン。
 
                 【入力情報】
                 性格タイプ: {st.session_state.quiz_result}
@@ -443,6 +447,7 @@ elif st.session_state.step == 2:
                 【出力JSONフォーマット】
                 {{
                     "catchphrase": "世界観を一言で表すキャッチコピー（15文字以内）",
+                    "ten_future_keywords": ["未来へ向かうキーワード1", "キーワード2", "3", "4", "5", "6", "7", "8", "9", "10"],
                     "formula": {{
                         "values": {{ "word": "価値観ワード", "detail": "詳細（40文字）" }},
                         "strengths": {{ "word": "得意表現ワード", "detail": "詳細（40文字）" }},
@@ -489,7 +494,10 @@ elif st.session_state.step == 2:
                         pdf_file = create_pdf(data, st.session_state.quiz_result)
                         st.download_button("📥 Download Analysis Report (PDF)", pdf_file, "Visionary_Analysis_Report.pdf", "application/pdf", use_container_width=True)
                         st.success("Analysis Completed.")
-                        st.write(f"**{data['catchphrase']}**")
+                        
+                        # --- Web画面上でもキーワードを表示 ---
+                        st.subheader(f"Results: {data['catchphrase']}")
+                        st.write("Future Keywords: " + " / ".join(data.get('ten_future_keywords', [])))
 
                 except Exception as e:
                     st.error(f"Error: {e}")
