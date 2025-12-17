@@ -7,6 +7,10 @@ import json
 import io
 import datetime
 import pandas as pd
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from email.mime.application import MIMEApplication
 
 # PDF生成用ライブラリ
 from reportlab.pdfgen import canvas
@@ -54,6 +58,58 @@ def check_password():
 check_password()
 
 # ---------------------------------------------------------
+# 📧 メール送信機能
+# ---------------------------------------------------------
+def send_email_with_pdf(user_email, pdf_buffer):
+    """PDFを添付して主催者と参加者にメールを送る"""
+    # Secretsから送信元の情報を取得
+    if "GMAIL_ADDRESS" not in st.secrets or "GMAIL_APP_PASSWORD" not in st.secrets:
+        st.warning("⚠️ メール設定（GMAIL_ADDRESS, GMAIL_APP_PASSWORD）がSecretsにないため、メール送信はスキップされました。ダウンロードのみ可能です。")
+        return False
+
+    sender_email = st.secrets["GMAIL_ADDRESS"]
+    sender_password = st.secrets["GMAIL_APP_PASSWORD"]
+    
+    # 送信先（主催者 + 参加者）
+    organizer_email = "thomyoshida@gmail.com"
+    recipients = [organizer_email]
+    if user_email:
+        recipients.append(user_email)
+
+    subject = "【世界観診断結果】Visionary Analysis Report"
+    body = """
+    世界観診断にご参加いただきありがとうございます。
+    あなたの診断結果レポート（PDF）を添付いたしました。
+    
+    Visionary Analysis Tool
+    """
+
+    # メールの作成
+    msg = MIMEMultipart()
+    msg['From'] = sender_email
+    msg['To'] = ", ".join(recipients)
+    msg['Subject'] = subject
+    msg.attach(MIMEText(body, 'plain'))
+
+    # PDF添付
+    pdf_buffer.seek(0)
+    part = MIMEApplication(pdf_buffer.read(), Name="Visionary_Analysis.pdf")
+    part['Content-Disposition'] = 'attachment; filename="Visionary_Analysis.pdf"'
+    msg.attach(part)
+
+    # 送信処理
+    try:
+        server = smtplib.SMTP('smtp.gmail.com', 587)
+        server.starttls()
+        server.login(sender_email, sender_password)
+        server.sendmail(sender_email, recipients, msg.as_string())
+        server.quit()
+        return True
+    except Exception as e:
+        st.error(f"メール送信エラー: {e}")
+        return False
+
+# ---------------------------------------------------------
 # 🎨 デザイン・配色設定
 # ---------------------------------------------------------
 
@@ -81,21 +137,41 @@ def apply_custom_css():
         .stApp { background-color: #F5F5F5; color: #2B2723; }
         h1, h2, h3 { font-family: "Hiragino Mincho ProN", serif !important; color: #2B2723 !important; }
         p, div, label { font-family: "Hiragino Kaku Gothic ProN", sans-serif; color: #2B2723; }
+        
+        /* 通常のボタン */
         div.stButton > button {
             background-color: #7A96A0; color: white; border-radius: 24px; border: none;
-            padding: 10px 24px; font-family: sans-serif; transition: all 0.3s ease;
+            padding: 10px 24px; transition: all 0.3s ease;
         }
-        div.stButton > button:hover { background-color: #528574; transform: translateY(-1px); }
+        div.stButton > button:hover { background-color: #528574; }
+        
+        /* ダウンロードボタンの特別装飾（巨大化・視認性UP） */
+        .stDownloadButton > button {
+            width: 100% !important;
+            height: 80px !important;
+            font-size: 24px !important;
+            font-weight: bold !important;
+            background-color: #528574 !important; /* フォレストティール */
+            color: #FFFFFF !important;
+            border-radius: 12px !important;
+            border: 2px solid #2B2723 !important;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2) !important;
+        }
+        .stDownloadButton > button:hover {
+            background-color: #2B2723 !important;
+            color: #D6AE60 !important;
+            transform: translateY(-2px);
+        }
+
         .stTextInput > div > div > input { background-color: #FFFFFF; border: 1px solid #D1C0AF; border-radius: 8px; }
         section[data-testid="stSidebar"] { background-color: #EBEBEB; }
-        div[role="radiogroup"] label > div:first-child { background-color: #7A96A0 !important; border-color: #7A96A0 !important; }
     </style>
     """, unsafe_allow_html=True)
 
 # ---------------------------------------------------------
 # 📝 PDF生成ロジック
 # ---------------------------------------------------------
-
+# (省略: 描画関数は変更なしのため、そのまま利用)
 def draw_organic_shape(c, x, y, size, color):
     c.setFillColor(color)
     c.setStrokeColor(color)
@@ -144,54 +220,40 @@ def create_pdf(json_data, quiz_summary):
     buffer = io.BytesIO()
     c = canvas.Canvas(buffer, pagesize=landscape(A4))
     width, height = landscape(A4)
-
     MARGIN_X = width * 0.12 
     CONTENT_WIDTH = width - (MARGIN_X * 2)
     
-    # -----------------------------------------------
-    # P1. 表紙 (タイトル + 過去・未来キーワード)
-    # -----------------------------------------------
+    # P1. 表紙
     draw_header(c, "", 1)
-    
     c.setFont(FONT_SERIF, 40)
     c.setFillColor(C_MAIN_SHADOW)
     catchphrase = json_data.get('catchphrase', '無題')
     c.drawCentredString(width/2, height/2 + 15*mm, catchphrase)
-    
     c.setFont(FONT_SANS, 14)
     c.setFillColor(C_ACCENT_BLUE)
     c.drawCentredString(width/2, height/2 - 10*mm, "Worldview Analysis Report")
     
-    # ▼ キーワード表示 ▼
     c.setFont(FONT_SANS, 8)
     c.setFillColor(C_MAUVE_GRAY)
-    
-    # 過去キーワード
     past_kws = json_data.get('ten_past_keywords', [])
     past_str = " / ".join(past_kws)
     c.drawCentredString(width/2, height/2 - 35*mm, f"Past Origin: {past_str}")
-
-    # 未来キーワード
     future_kws = json_data.get('ten_future_keywords', [])
     future_str = " / ".join(future_kws)
-    c.setFillColor(C_FOREST_TEAL) # 未来は少し色を変える
+    c.setFillColor(C_FOREST_TEAL) 
     c.drawCentredString(width/2, height/2 - 45*mm, f"Future Vision: {future_str}")
 
     date_str = datetime.datetime.now().strftime("%Y.%m.%d")
     c.setFont(FONT_SERIF, 10)
     c.setFillColor(C_MAIN_SHADOW)
     c.drawCentredString(width/2, 20*mm, f"Designed by ThomYoshida AI | {date_str}")
-    
     c.showPage()
 
-    # -----------------------------------------------
-    # P2. 数式スライド
-    # -----------------------------------------------
+    # P2. 数式
     draw_header(c, "", 2)
     c.setFont(FONT_SANS, 12)
     c.setFillColor(C_ACCENT_BLUE)
     c.drawString(MARGIN_X, height - 25*mm, "01. THE FORMULA")
-    
     formula = json_data.get('formula', {})
     center_y = height/2 + 20*mm
     desc_y = height/2 - 5*mm
@@ -207,11 +269,9 @@ def create_pdf(json_data, quiz_summary):
     c.drawCentredString(x1, center_y, formula.get('values', {}).get('word', '---'))
     c.setFillColor(C_MAUVE_GRAY)
     draw_wrapped_text(c, formula.get('values', {}).get('detail', ''), x1 - 35*mm, desc_y, FONT_SERIF, 9, 70*mm, 12)
-
     c.setFont(FONT_SERIF, 30)
     c.setFillColor(C_MUTE_AMBER)
     c.drawCentredString((x1+x2)/2, center_y, "×")
-
     c.setFont(FONT_SERIF, 18)
     c.setFillColor(C_MAIN_SHADOW)
     c.drawCentredString(x2, center_y + 10*mm, "『 得意な表現 』")
@@ -220,11 +280,9 @@ def create_pdf(json_data, quiz_summary):
     c.drawCentredString(x2, center_y, formula.get('strengths', {}).get('word', '---'))
     c.setFillColor(C_MAUVE_GRAY)
     draw_wrapped_text(c, formula.get('strengths', {}).get('detail', ''), x2 - 35*mm, desc_y, FONT_SERIF, 9, 70*mm, 12)
-
     c.setFont(FONT_SERIF, 30)
     c.setFillColor(C_MUTE_AMBER)
     c.drawCentredString((x2+x3)/2, center_y, "×")
-
     c.setFont(FONT_SERIF, 18)
     c.setFillColor(C_MAIN_SHADOW)
     c.drawCentredString(x3, center_y + 10*mm, "『 好きなこと 』")
@@ -233,31 +291,25 @@ def create_pdf(json_data, quiz_summary):
     c.drawCentredString(x3, center_y, formula.get('interests', {}).get('word', '---'))
     c.setFillColor(C_MAUVE_GRAY)
     draw_wrapped_text(c, formula.get('interests', {}).get('detail', ''), x3 - 35*mm, desc_y, FONT_SERIF, 9, 70*mm, 12)
-
     c.setFont(FONT_SERIF, 40)
     c.setFillColor(C_MUTE_AMBER)
     c.drawCentredString(width/2, desc_y - 40*mm, "||")
     c.setFont(FONT_SERIF, 32)
     c.setFillColor(C_MAIN_SHADOW)
     c.drawCentredString(width/2, desc_y - 60*mm, json_data.get('catchphrase', '世界観'))
-    
     c.showPage()
 
-    # -----------------------------------------------
     # P3. チャート
-    # -----------------------------------------------
     draw_header(c, "", 3)
     c.setFont(FONT_SANS, 12)
     c.setFillColor(C_ACCENT_BLUE)
     c.drawString(MARGIN_X, height - 25*mm, "02. SENSE BALANCE")
-    
     metrics = json_data.get('sense_metrics', [])
     left_col_x = MARGIN_X + 25*mm   
     right_col_x = (width / 2) + 25*mm 
     start_y = height - 50*mm
     gap_y = 22*mm        
     slider_width = 45
-    
     for i, metric in enumerate(metrics[:10]):
         if i < 5:
             x_pos = left_col_x
@@ -266,60 +318,48 @@ def create_pdf(json_data, quiz_summary):
             x_pos = right_col_x
             y_pos = start_y - ((i - 5) * gap_y)
         draw_slider(c, x_pos, y_pos, slider_width, metric.get('left', ''), metric.get('right', ''), metric.get('value', 50))
-        
     c.setFont(FONT_SANS, 10)
     c.setFillColor(C_MAIN_SHADOW)
     current_features = json_data.get('current_worldview', {}).get('features', '')
     draw_wrapped_text(c, "分析結果：\n" + current_features, MARGIN_X, 35*mm, FONT_SERIF, 11, CONTENT_WIDTH, 16)
     c.showPage()
 
-    # -----------------------------------------------
     # P4. ロードマップ
-    # -----------------------------------------------
     draw_header(c, "", 4)
     c.setFont(FONT_SANS, 12)
     c.setFillColor(C_ACCENT_BLUE)
     c.drawString(MARGIN_X, height - 25*mm, "03. FUTURE ROADMAP")
-    
     roadmap_points = json_data.get('roadmap_steps', [])
     y_pos = height - 50*mm
     num_x = MARGIN_X + 10*mm
     text_x = MARGIN_X + 40*mm
     line_end = width - MARGIN_X
-    
     for i, point in enumerate(roadmap_points):
         c.setFont(FONT_SANS, 36)
         c.setFillColor(C_WARM_BEIGE)
         step_num = f"0{i+1}"
         c.drawString(num_x, y_pos - 5*mm, step_num)
-        
         title = point.get('title', '')
         c.setFont(FONT_SERIF, 14)
         c.setFillColor(C_MAIN_SHADOW)
         c.drawString(text_x, y_pos, title)
-        
         desc = point.get('detail', '')
         c.setFont(FONT_SANS, 10)
         c.setFillColor(C_MAUVE_GRAY)
         c.drawString(text_x, y_pos - 6*mm, desc)
-        
         c.setStrokeColor(C_ACCENT_BLUE)
         c.setLineWidth(1)
         c.line(text_x, y_pos - 12*mm, line_end, y_pos - 12*mm)
         y_pos -= 35*mm
     c.showPage()
     
-    # -----------------------------------------------
     # P5. 提案 & 名言
-    # -----------------------------------------------
     draw_header(c, "", 5)
     c.setFont(FONT_SERIF, 20)
     c.setFillColor(C_MAIN_SHADOW)
     c.drawString(MARGIN_X, height - 35*mm, "私からの提案。")
-    
     proposals = json_data.get('final_proposals', [])
     y_pos = height - 55*mm
-    
     for i, prop in enumerate(proposals):
         point_title = prop.get('point', '')
         c.setFont(FONT_SANS, 14)
@@ -331,27 +371,19 @@ def create_pdf(json_data, quiz_summary):
         draw_wrapped_text(c, detail_text, MARGIN_X + 8*mm, y_pos, FONT_SERIF, 11, CONTENT_WIDTH - 10*mm, 14)
         y_pos -= 30*mm
 
-    # ▼ 名言エリア ▼
     quote_data = json_data.get('inspiring_quote', {})
     quote_text = quote_data.get('text', '')
     quote_author = quote_data.get('author', '')
-    
     if quote_text:
-        # 区切り線
         c.setStrokeColor(C_WARM_BEIGE)
         c.setLineWidth(0.5)
         c.line(MARGIN_X, 50*mm, width - MARGIN_X, 50*mm)
-        
-        # 名言本文
         c.setFont(FONT_SERIF, 14)
         c.setFillColor(C_MAIN_SHADOW)
         c.drawCentredString(width/2, 40*mm, f"“ {quote_text} ”")
-        
-        # 著者名
         c.setFont(FONT_SANS, 10)
         c.setFillColor(C_ACCENT_BLUE)
         c.drawCentredString(width/2, 32*mm, f"- {quote_author}")
-
     c.setFillColor(C_FOREST_TEAL)
     c.circle(width - MARGIN_X, 22*mm, 3*mm, fill=1, stroke=0)
     c.setFont(FONT_SANS, 8)
@@ -413,14 +445,17 @@ if 'quiz_score_percent' not in st.session_state:
 
 if st.session_state.step == 1:
     st.header("01. SENSE CHECK")
+    # --- メール入力欄を追加 ---
+    st.markdown("##### 📧 結果を受け取るメールアドレス（任意）")
+    user_email_input = st.text_input("メールアドレスを入力してください", key="user_email")
     st.write("直感で回答。あなたの創作の源泉を探る。")
+
     with st.form(key='quiz_form'):
         answers = []
         for i, item in enumerate(QUIZ_DATA):
             ans = st.radio(item["q"], item["opts"], key=f"q{i}", horizontal=True)
             answers.append((ans, item["type_a"]))
         st.write("---")
-        # ボタン名変更
         submit_button = st.form_submit_button(label="診断する")
 
     if submit_button:
@@ -453,8 +488,7 @@ elif st.session_state.step == 2:
         if len(past_files) > 3 or len(future_files) > 3:
              st.warning("画像は各3枚まで。")
         else:
-            # ボタン名変更
-            if st.button("結果を見る"):
+            if st.button("診断結果を作成する"):
                 past_images = [Image.open(f) for f in past_files]
                 future_images = [Image.open(f) for f in future_files]
 
@@ -466,7 +500,6 @@ elif st.session_state.step == 2:
                 【トーン】
                 ・偏差値55の高校3年生レベルのわかりやすい言葉。
                 ・主語（私は〜など）は無し。体言止めを多用。
-                ・上から目線ではなく、センスの良い先輩のようなトーン。
 
                 【入力情報】
                 性格タイプ: {st.session_state.quiz_result}
@@ -516,7 +549,7 @@ elif st.session_state.step == 2:
 
                 try:
                     client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
-                    with st.spinner("Analyzing Sense & Logic..."):
+                    with st.spinner("世界観を統合中..."):
                         response = client.models.generate_content(
                             model='gemini-flash-latest',
                             contents=contents,
@@ -525,17 +558,30 @@ elif st.session_state.step == 2:
                         data = json.loads(response.text)
                         
                         pdf_file = create_pdf(data, st.session_state.quiz_result)
-                        st.download_button("📥 Download Analysis Report (PDF)", pdf_file, "Visionary_Analysis_Report.pdf", "application/pdf", use_container_width=True)
-                        st.success("Analysis Completed.")
                         
-                        st.subheader(f"Results: {data['catchphrase']}")
-                        st.write(f"**Past Origin:** {' / '.join(data.get('ten_past_keywords', []))}")
-                        st.write(f"**Future Vision:** {' / '.join(data.get('ten_future_keywords', []))}")
+                        # --- 画面表示制御 ---
+                        st.balloons() # 完了演出
+                        st.success("診断が完了しました。レポートを受け取ってください。")
+
+                        # ダウンロードボタンのみを表示（結果テキストは非表示）
+                        st.download_button(
+                            label="📥 診断レポートをダウンロードする",
+                            data=pdf_file,
+                            file_name="Visionary_Analysis_Report.pdf",
+                            mime="application/pdf",
+                            use_container_width=True
+                        )
+                        
+                        # --- メール送信処理 (任意) ---
+                        if "user_email" in st.session_state and st.session_state.user_email:
+                            email_status = send_email_with_pdf(st.session_state.user_email, pdf_buffer=pdf_file)
+                            if email_status:
+                                st.success(f"📧 {st.session_state.user_email} にもレポートを送信しました。")
 
                 except Exception as e:
                     st.error(f"Error: {e}")
 
-    elif st.button("Reset"):
+    elif st.button("最初からやり直す"):
          st.session_state.step = 1
          st.session_state.quiz_result = None
          st.rerun()
