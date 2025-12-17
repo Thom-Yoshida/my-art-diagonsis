@@ -61,43 +61,30 @@ check_password()
 # 📧 メール送信機能
 # ---------------------------------------------------------
 def send_email_with_pdf(user_email, pdf_buffer):
-    """PDFを添付して主催者と参加者にメールを送る"""
-    # Secretsから送信元の情報を取得
     if "GMAIL_ADDRESS" not in st.secrets or "GMAIL_APP_PASSWORD" not in st.secrets:
-        st.warning("⚠️ メール設定（GMAIL_ADDRESS, GMAIL_APP_PASSWORD）がSecretsにないため、メール送信はスキップされました。ダウンロードのみ可能です。")
         return False
-
     sender_email = st.secrets["GMAIL_ADDRESS"]
     sender_password = st.secrets["GMAIL_APP_PASSWORD"]
-    
-    # 送信先（主催者 + 参加者）
     organizer_email = "thomyoshida@gmail.com"
     recipients = [organizer_email]
     if user_email:
         recipients.append(user_email)
-
     subject = "【世界観診断結果】Visionary Analysis Report"
     body = """
     世界観診断にご参加いただきありがとうございます。
     あなたの診断結果レポート（PDF）を添付いたしました。
     
-    Visionary Analysis Tool
+    Visionary Analysis Tool by ThomYoshida
     """
-
-    # メールの作成
     msg = MIMEMultipart()
     msg['From'] = sender_email
     msg['To'] = ", ".join(recipients)
     msg['Subject'] = subject
     msg.attach(MIMEText(body, 'plain'))
-
-    # PDF添付
     pdf_buffer.seek(0)
     part = MIMEApplication(pdf_buffer.read(), Name="Visionary_Analysis.pdf")
     part['Content-Disposition'] = 'attachment; filename="Visionary_Analysis.pdf"'
     msg.attach(part)
-
-    # 送信処理
     try:
         server = smtplib.SMTP('smtp.gmail.com', 587)
         server.starttls()
@@ -112,14 +99,11 @@ def send_email_with_pdf(user_email, pdf_buffer):
 # ---------------------------------------------------------
 # 🎨 デザイン・配色設定
 # ---------------------------------------------------------
-
-# PDF用フォント
 pdfmetrics.registerFont(UnicodeCIDFont('HeiseiMin-W3')) 
 pdfmetrics.registerFont(UnicodeCIDFont('HeiseiKakuGo-W5')) 
 FONT_SERIF = 'HeiseiMin-W3'
 FONT_SANS = 'HeiseiKakuGo-W5'
 
-# 配色パレット
 C_MAIN_SHADOW = HexColor('#2B2723')
 C_BG_WHITE    = HexColor('#F5F5F5')
 C_ACCENT_BLUE = HexColor('#7A96A0')
@@ -127,6 +111,7 @@ C_WARM_BEIGE  = HexColor('#D1C0AF')
 C_MAUVE_GRAY  = HexColor('#A39E99')
 C_FOREST_TEAL = HexColor('#528574')
 C_MUTE_AMBER  = HexColor('#D6AE60')
+C_TEXT_WHITE  = HexColor('#FFFFFF') # 背景写真用の白文字
 
 # ==========================================
 # 🖌️ Web UI カスタムCSS
@@ -138,31 +123,24 @@ def apply_custom_css():
         h1, h2, h3 { font-family: "Hiragino Mincho ProN", serif !important; color: #2B2723 !important; }
         p, div, label { font-family: "Hiragino Kaku Gothic ProN", sans-serif; color: #2B2723; }
         
-        /* 通常のボタン */
+        /* 通常ボタン */
         div.stButton > button {
             background-color: #7A96A0; color: white; border-radius: 24px; border: none;
             padding: 10px 24px; transition: all 0.3s ease;
         }
         div.stButton > button:hover { background-color: #528574; }
         
-        /* ダウンロードボタンの特別装飾（巨大化・視認性UP） */
+        /* ダウンロードボタン（巨大化） */
         .stDownloadButton > button {
-            width: 100% !important;
-            height: 80px !important;
-            font-size: 24px !important;
-            font-weight: bold !important;
-            background-color: #528574 !important; /* フォレストティール */
-            color: #FFFFFF !important;
-            border-radius: 12px !important;
+            width: 100% !important; height: 80px !important; font-size: 24px !important;
+            font-weight: bold !important; background-color: #528574 !important;
+            color: #FFFFFF !important; border-radius: 12px !important;
             border: 2px solid #2B2723 !important;
             box-shadow: 0 4px 10px rgba(0,0,0,0.2) !important;
         }
         .stDownloadButton > button:hover {
-            background-color: #2B2723 !important;
-            color: #D6AE60 !important;
-            transform: translateY(-2px);
+            background-color: #2B2723 !important; color: #D6AE60 !important; transform: translateY(-2px);
         }
-
         .stTextInput > div > div > input { background-color: #FFFFFF; border: 1px solid #D1C0AF; border-radius: 8px; }
         section[data-testid="stSidebar"] { background-color: #EBEBEB; }
     </style>
@@ -171,12 +149,12 @@ def apply_custom_css():
 # ---------------------------------------------------------
 # 📝 PDF生成ロジック
 # ---------------------------------------------------------
-# (省略: 描画関数は変更なしのため、そのまま利用)
 def draw_organic_shape(c, x, y, size, color):
     c.setFillColor(color)
     c.setStrokeColor(color)
     c.circle(x, y, size, fill=1, stroke=0)
 
+# 通常ページ用のヘッダー（2ページ目以降）
 def draw_header(c, title, page_num):
     width, height = landscape(A4)
     c.setFillColor(C_BG_WHITE)
@@ -223,33 +201,49 @@ def create_pdf(json_data, quiz_summary):
     MARGIN_X = width * 0.12 
     CONTENT_WIDTH = width - (MARGIN_X * 2)
     
-    # P1. 表紙
-    draw_header(c, "", 1)
+    # -----------------------------------------------
+    # P1. 表紙 (背景画像あり)
+    # -----------------------------------------------
+    # 背景画像を描画 (image_0.png が存在すること前提)
+    try:
+        c.drawImage("image_0.png", 0, 0, width=width, height=height, preserveAspectRatio=True, anchor='c')
+    except Exception:
+        # 画像がない場合は通常の白背景＋装飾
+        draw_header(c, "", 1)
+
+    # テキストは背景に合わせて白文字にする
     c.setFont(FONT_SERIF, 40)
-    c.setFillColor(C_MAIN_SHADOW)
+    c.setFillColor(C_TEXT_WHITE) # 白文字
     catchphrase = json_data.get('catchphrase', '無題')
     c.drawCentredString(width/2, height/2 + 15*mm, catchphrase)
+    
     c.setFont(FONT_SANS, 14)
-    c.setFillColor(C_ACCENT_BLUE)
+    c.setFillColor(C_TEXT_WHITE) # 白文字
     c.drawCentredString(width/2, height/2 - 10*mm, "Worldview Analysis Report")
     
-    c.setFont(FONT_SANS, 8)
-    c.setFillColor(C_MAUVE_GRAY)
+    # キーワード
+    c.setFont(FONT_SANS, 9)
+    c.setFillColor(C_TEXT_WHITE) # 白文字
     past_kws = json_data.get('ten_past_keywords', [])
     past_str = " / ".join(past_kws)
     c.drawCentredString(width/2, height/2 - 35*mm, f"Past Origin: {past_str}")
+
     future_kws = json_data.get('ten_future_keywords', [])
     future_str = " / ".join(future_kws)
-    c.setFillColor(C_FOREST_TEAL) 
+    # 未来はアクセントカラー（ただし背景が暗いので明るめの色で）
+    c.setFillColor(C_MUTE_AMBER) 
     c.drawCentredString(width/2, height/2 - 45*mm, f"Future Vision: {future_str}")
 
     date_str = datetime.datetime.now().strftime("%Y.%m.%d")
     c.setFont(FONT_SERIF, 10)
-    c.setFillColor(C_MAIN_SHADOW)
+    c.setFillColor(C_TEXT_WHITE) # 白文字
     c.drawCentredString(width/2, 20*mm, f"Designed by ThomYoshida AI | {date_str}")
+    
     c.showPage()
 
+    # -----------------------------------------------
     # P2. 数式
+    # -----------------------------------------------
     draw_header(c, "", 2)
     c.setFont(FONT_SANS, 12)
     c.setFillColor(C_ACCENT_BLUE)
@@ -299,7 +293,9 @@ def create_pdf(json_data, quiz_summary):
     c.drawCentredString(width/2, desc_y - 60*mm, json_data.get('catchphrase', '世界観'))
     c.showPage()
 
+    # -----------------------------------------------
     # P3. チャート
+    # -----------------------------------------------
     draw_header(c, "", 3)
     c.setFont(FONT_SANS, 12)
     c.setFillColor(C_ACCENT_BLUE)
@@ -324,7 +320,9 @@ def create_pdf(json_data, quiz_summary):
     draw_wrapped_text(c, "分析結果：\n" + current_features, MARGIN_X, 35*mm, FONT_SERIF, 11, CONTENT_WIDTH, 16)
     c.showPage()
 
+    # -----------------------------------------------
     # P4. ロードマップ
+    # -----------------------------------------------
     draw_header(c, "", 4)
     c.setFont(FONT_SANS, 12)
     c.setFillColor(C_ACCENT_BLUE)
@@ -353,7 +351,9 @@ def create_pdf(json_data, quiz_summary):
         y_pos -= 35*mm
     c.showPage()
     
+    # -----------------------------------------------
     # P5. 提案 & 名言
+    # -----------------------------------------------
     draw_header(c, "", 5)
     c.setFont(FONT_SERIF, 20)
     c.setFillColor(C_MAIN_SHADOW)
@@ -433,6 +433,12 @@ QUIZ_DATA = [
 st.set_page_config(page_title="世界観 総合診断ツール（β版）", layout="wide") 
 apply_custom_css()
 
+# ▼▼▼ 起動画面に画像を表示 ▼▼▼
+try:
+    st.image("image_0.png", use_column_width=True)
+except Exception:
+    pass # 画像がなくてもエラーにしない
+
 st.title("世界観 総合診断ツール（β版）")
 st.write("「センス」を科学し、あなたの「世界観」を体系化する。")
 
@@ -445,7 +451,6 @@ if 'quiz_score_percent' not in st.session_state:
 
 if st.session_state.step == 1:
     st.header("01. SENSE CHECK")
-    # --- メール入力欄を追加 ---
     st.markdown("##### 📧 結果を受け取るメールアドレス（任意）")
     user_email_input = st.text_input("メールアドレスを入力してください", key="user_email")
     st.write("直感で回答。あなたの創作の源泉を探る。")
@@ -559,11 +564,9 @@ elif st.session_state.step == 2:
                         
                         pdf_file = create_pdf(data, st.session_state.quiz_result)
                         
-                        # --- 画面表示制御 ---
-                        st.balloons() # 完了演出
+                        st.balloons()
                         st.success("診断が完了しました。レポートを受け取ってください。")
 
-                        # ダウンロードボタンのみを表示（結果テキストは非表示）
                         st.download_button(
                             label="📥 診断レポートをダウンロードする",
                             data=pdf_file,
@@ -572,7 +575,6 @@ elif st.session_state.step == 2:
                             use_container_width=True
                         )
                         
-                        # --- メール送信処理 (任意) ---
                         if "user_email" in st.session_state and st.session_state.user_email:
                             email_status = send_email_with_pdf(st.session_state.user_email, pdf_buffer=pdf_file)
                             if email_status:
