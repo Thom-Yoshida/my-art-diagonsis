@@ -196,8 +196,6 @@ def draw_wrapped_text(c, text, x, y, font, size, max_width, leading):
     text_obj = c.beginText(x, y)
     text_obj.setFont(font, size)
     text_obj.setLeading(leading)
-    # 概算: フォントサイズの0.9倍を1文字幅と仮定して文字数を計算
-    # 25文字入れたいなら max_width を 25 * size * 0.9 くらいに設定して呼ぶ
     char_limit = int(max_width / (size * 0.9))
     if char_limit < 1: char_limit = 1
     
@@ -215,25 +213,16 @@ def draw_slider(c, x, y, width_mm, left_text, right_text, value):
     c.setFillColor(C_MAIN_SHADOW)
     c.drawRightString(x - 5*mm, y - 1*mm, left_text)
     c.drawString(x + bar_width + 5*mm, y - 1*mm, right_text)
-    
-    # 軸の描画（矢印付き）
     c.setStrokeColor(C_MAUVE_GRAY)
     c.setLineWidth(0.5)
     c.line(x, y, x + bar_width, y)
-    
-    # 左矢印
     c.line(x, y, x + 1.5*mm, y + 1.5*mm)
     c.line(x, y, x + 1.5*mm, y - 1.5*mm)
-    # 右矢印
     c.line(x + bar_width, y, x + bar_width - 1.5*mm, y + 1.5*mm)
     c.line(x + bar_width, y, x + bar_width - 1.5*mm, y - 1.5*mm)
-
-    # 現在値のドット
     dot_x = x + (value / 100) * bar_width
     c.setFillColor(C_FOREST_TEAL)
     c.circle(dot_x, y, 1.8*mm, fill=1, stroke=0)
-    
-    # 中央の印
     c.setStrokeColor(C_WARM_BEIGE)
     c.line(x + bar_width/2, y - 1*mm, x + bar_width/2, y + 1*mm)
 
@@ -269,7 +258,7 @@ def create_pdf(json_data, quiz_summary):
     c.showPage()
 
     # -----------------------------------------------
-    # P2. キーワード対比
+    # P2. キーワード対比 (12個ずつ)
     # -----------------------------------------------
     draw_header(c, "", 2)
     c.setFont(FONT_SANS, 12)
@@ -279,37 +268,40 @@ def create_pdf(json_data, quiz_summary):
     c.setFillColor(C_MUTE_AMBER)
     c.drawCentredString(width/2, height/2, "▶︎")
     
+    # 左側
     c.setFont(FONT_SERIF, 20)
     c.setFillColor(C_MAIN_SHADOW)
     c.drawCentredString(width/3, height - 45*mm, "PAST / ORIGIN")
     c.setStrokeColor(C_MAUVE_GRAY)
     c.line(width/3 - 30*mm, height - 50*mm, width/3 + 30*mm, height - 50*mm)
     
-    past_kws = json_data.get('ten_past_keywords', [])
-    c.setFont(FONT_SANS, 12)
+    past_kws = json_data.get('twelve_past_keywords', [])
+    c.setFont(FONT_SANS, 11) # 数が増えたので少し小さく
     c.setFillColor(C_MAUVE_GRAY)
-    start_y = height - 65*mm
-    for kw in past_kws:
+    start_y = height - 60*mm
+    gap_y = 9*mm
+    for kw in past_kws[:12]: # 最大12個
         c.drawCentredString(width/3, start_y, kw)
-        start_y -= 10*mm
+        start_y -= gap_y
 
+    # 右側
     c.setFont(FONT_SERIF, 20)
     c.setFillColor(C_FOREST_TEAL)
     c.drawCentredString(width*2/3, height - 45*mm, "FUTURE / VISION")
     c.setStrokeColor(C_FOREST_TEAL)
     c.line(width*2/3 - 30*mm, height - 50*mm, width*2/3 + 30*mm, height - 50*mm)
     
-    future_kws = json_data.get('ten_future_keywords', [])
-    c.setFont(FONT_SANS, 12)
+    future_kws = json_data.get('twelve_future_keywords', [])
+    c.setFont(FONT_SANS, 11)
     c.setFillColor(C_MAIN_SHADOW)
-    start_y = height - 65*mm
-    for kw in future_kws:
+    start_y = height - 60*mm
+    for kw in future_kws[:12]:
         c.drawCentredString(width*2/3, start_y, kw)
-        start_y -= 10*mm
+        start_y -= gap_y
     c.showPage()
 
     # -----------------------------------------------
-    # P3. 数式 (The Formula) - デザイン調整
+    # P3. 数式 (The Formula)
     # -----------------------------------------------
     draw_header(c, "", 3)
     c.setFont(FONT_SANS, 12)
@@ -317,15 +309,12 @@ def create_pdf(json_data, quiz_summary):
     c.drawString(MARGIN_X, height - 25*mm, "02. THE FORMULA")
     
     formula = json_data.get('formula', {})
-    center_y = height/2 + 35*mm # 全体的に少し上に
-    desc_y = height/2 + 5*mm    # 解説文の開始位置
-    
-    # 3つの要素のX座標
+    center_y = height/2 + 35*mm
+    desc_y = height/2 + 5*mm
     x1 = MARGIN_X + (CONTENT_WIDTH * 0.15)
     x2 = width / 2
     x3 = width - MARGIN_X - (CONTENT_WIDTH * 0.15)
     
-    # 円の描画 (キーワードを囲む)
     circle_r = 16*mm
     c.setStrokeColor(C_FOREST_TEAL)
     c.setLineWidth(1)
@@ -333,11 +322,10 @@ def create_pdf(json_data, quiz_summary):
     c.circle(x2, center_y, circle_r, fill=0, stroke=1)
     c.circle(x3, center_y, circle_r, fill=0, stroke=1)
 
-    # キーワード描画
     c.setFont(FONT_SERIF, 14)
     c.setFillColor(C_MAIN_SHADOW)
     c.drawCentredString(x1, center_y + 6*mm, "Values")
-    c.setFont(FONT_SANS, 11) # 少し小さくして入るように
+    c.setFont(FONT_SANS, 11)
     c.setFillColor(C_FOREST_TEAL)
     c.drawCentredString(x1, center_y - 4*mm, formula.get('values', {}).get('word', '---'))
 
@@ -353,34 +341,29 @@ def create_pdf(json_data, quiz_summary):
     c.drawCentredString(x3, center_y + 6*mm, "Interests")
     c.setFont(FONT_SANS, 11)
     c.setFillColor(C_FOREST_TEAL)
-    c.drawCentredString(x3, center_y - 4*mm, formula.get('interests', {}).get('word', '---'))
+    # 具体的なジャンルなどを表示するため、少し文字が長くなる可能性がある
+    draw_wrapped_text(c, formula.get('interests', {}).get('word', '---'), x3 - 15*mm, center_y - 2*mm, FONT_SANS, 10, 30*mm, 10)
 
-    # 掛け算記号
     c.setFont(FONT_SERIF, 24)
     c.setFillColor(C_MUTE_AMBER)
     c.drawCentredString((x1+x2)/2, center_y, "×")
     c.drawCentredString((x2+x3)/2, center_y, "×")
 
-    # 解説文 (全文が見えるように調整)
     c.setFillColor(C_MAUVE_GRAY)
-    # 幅を確保して描画 (文字サイズ9, 行間12)
-    # 70mm幅あれば改行しても十分入る
     draw_wrapped_text(c, formula.get('values', {}).get('detail', ''), x1 - 30*mm, desc_y, FONT_SERIF, 9, 60*mm, 12)
     draw_wrapped_text(c, formula.get('strengths', {}).get('detail', ''), x2 - 30*mm, desc_y, FONT_SERIF, 9, 60*mm, 12)
     draw_wrapped_text(c, formula.get('interests', {}).get('detail', ''), x3 - 30*mm, desc_y, FONT_SERIF, 9, 60*mm, 12)
 
-    # イコールと結果
     c.setFont(FONT_SERIF, 40)
     c.setFillColor(C_MUTE_AMBER)
     c.drawCentredString(width/2, desc_y - 40*mm, "||")
     c.setFont(FONT_SERIF, 32)
     c.setFillColor(C_MAIN_SHADOW)
     c.drawCentredString(width/2, desc_y - 60*mm, json_data.get('catchphrase', '世界観'))
-    
     c.showPage()
 
     # -----------------------------------------------
-    # P4. チャート (Sense Balance)
+    # P4. チャート
     # -----------------------------------------------
     draw_header(c, "", 4)
     c.setFont(FONT_SANS, 12)
@@ -406,15 +389,11 @@ def create_pdf(json_data, quiz_summary):
     c.setFont(FONT_SANS, 10)
     c.setFillColor(C_MAIN_SHADOW)
     current_features = json_data.get('current_worldview', {}).get('features', '')
-    
-    # 分析結果：20文字程度で改行
-    # 幅計算: 20文字 * 11pt * 0.9(係数) * 0.352(mm換算) ≒ 70mm程度あればOK
-    # 余裕を持って 85mm 程度に設定
     draw_wrapped_text(c, "分析結果：\n" + current_features, MARGIN_X, 35*mm, FONT_SERIF, 11, 85*mm, 16)
     c.showPage()
 
     # -----------------------------------------------
-    # P5. ロードマップ (Future Roadmap)
+    # P5. ロードマップ
     # -----------------------------------------------
     draw_header(c, "", 5)
     c.setFont(FONT_SANS, 12)
@@ -432,39 +411,73 @@ def create_pdf(json_data, quiz_summary):
         c.setFillColor(C_WARM_BEIGE)
         step_num = f"0{i+1}"
         c.drawString(num_x, y_pos - 5*mm, step_num)
-        
         title = point.get('title', '')
         c.setFont(FONT_SERIF, 14)
         c.setFillColor(C_MAIN_SHADOW)
         c.drawString(text_x, y_pos, title)
-        
         desc = point.get('detail', '')
         c.setFont(FONT_SANS, 10)
         c.setFillColor(C_MAUVE_GRAY)
         draw_wrapped_text(c, desc, text_x, y_pos - 6*mm, FONT_SANS, 9, CONTENT_WIDTH - 40*mm, 12)
-        
         c.setStrokeColor(C_ACCENT_BLUE)
         c.setLineWidth(1)
         c.line(text_x, y_pos - 25*mm, line_end, y_pos - 25*mm)
         y_pos -= 45*mm
     c.showPage()
+
+    # -----------------------------------------------
+    # P6. アーキタイプ (NEW) - 偉人・アーティスト
+    # -----------------------------------------------
+    draw_header(c, "", 6)
+    c.setFont(FONT_SANS, 12)
+    c.setFillColor(C_ACCENT_BLUE)
+    c.drawString(MARGIN_X, height - 25*mm, "05. SOUL ARCHETYPE")
+
+    c.setFont(FONT_SERIF, 20)
+    c.setFillColor(C_MAIN_SHADOW)
+    c.drawString(MARGIN_X, height - 40*mm, "あなたを過去の偉人・作家に例えるなら")
+
+    archetypes = json_data.get('artist_archetypes', [])
+    y_pos = height - 60*mm
+    
+    for i, arch in enumerate(archetypes[:3]):
+        # 名前
+        name = arch.get('name', '')
+        c.setFont(FONT_SERIF, 16)
+        c.setFillColor(C_FOREST_TEAL)
+        c.drawString(MARGIN_X + 5*mm, y_pos, f"◆ {name}")
+        
+        # 解説
+        desc = arch.get('detail', '')
+        c.setFont(FONT_SANS, 10)
+        c.setFillColor(C_MAUVE_GRAY)
+        draw_wrapped_text(c, desc, MARGIN_X + 10*mm, y_pos - 8*mm, FONT_SERIF, 10, CONTENT_WIDTH - 20*mm, 14)
+        
+        # 区切り線
+        if i < 2:
+            c.setStrokeColor(C_WARM_BEIGE)
+            c.setLineWidth(0.5)
+            c.line(MARGIN_X + 5*mm, y_pos - 30*mm, width - MARGIN_X - 5*mm, y_pos - 30*mm)
+        
+        y_pos -= 40*mm
+
+    c.showPage()
     
     # -----------------------------------------------
-    # P6. 提案 (Next Vision)
+    # P7. 提案 (Next Vision)
     # -----------------------------------------------
     end_bg_drawn = False
     try:
         c.drawImage("ending.jpg", 0, 0, width=width, height=height, preserveAspectRatio=True, anchor='c')
         end_bg_drawn = True
     except Exception:
-        draw_header(c, "", 6)
+        draw_header(c, "", 7)
 
     text_color_end = C_TEXT_WHITE if end_bg_drawn else C_MAIN_SHADOW
     title_color_end = C_TEXT_WHITE if end_bg_drawn else C_ACCENT_BLUE
     
     c.setFont(FONT_SERIF, 20)
     c.setFillColor(text_color_end)
-    # タイトル変更
     c.drawString(MARGIN_X, height - 35*mm, "Next Vision -次への鍵-")
     
     proposals = json_data.get('final_proposals', [])
@@ -480,8 +493,6 @@ def create_pdf(json_data, quiz_summary):
         c.setFillColor(text_color_end)
         
         # 25文字程度で改行するための幅設定
-        # 25文字 * 10pt * 0.9 * 0.352 ≒ 80-90mm
-        # ここでは 110mm 程度に設定して、助詞などで自然に折り返されるのを狙う
         draw_wrapped_text(c, detail_text, MARGIN_X + 8*mm, y_pos, FONT_SERIF, 10, 110*mm, 14)
         y_pos -= 35*mm
 
@@ -492,11 +503,9 @@ def create_pdf(json_data, quiz_summary):
         c.setStrokeColor(C_WARM_BEIGE)
         c.setLineWidth(0.5)
         c.line(MARGIN_X, 50*mm, width - MARGIN_X, 50*mm)
-        
         c.setFont(FONT_SERIF, 14)
         c.setFillColor(text_color_end)
         c.drawCentredString(width/2, 40*mm, f"“ {quote_text} ”")
-        
         c.setFont(FONT_SANS, 10)
         c.setFillColor(C_MUTE_AMBER if end_bg_drawn else C_ACCENT_BLUE)
         c.drawCentredString(width/2, 32*mm, f"- {quote_author}")
@@ -635,12 +644,12 @@ elif st.session_state.step == 2:
                 【出力JSONフォーマット】
                 {{
                     "catchphrase": "世界観を一言で表すキャッチコピー（15文字以内）",
-                    "ten_past_keywords": ["過去作品から読み取れるキーワード1", "2", "3", "4", "5", "6", "7", "8", "9", "10"],
-                    "ten_future_keywords": ["未来へ向かうキーワード1", "2", "3", "4", "5", "6", "7", "8", "9", "10"],
+                    "twelve_past_keywords": ["過去1", "過去2", "過去3", "過去4", "過去5", "過去6", "過去7", "過去8", "過去9", "過去10", "過去11", "過去12"],
+                    "twelve_future_keywords": ["未来1", "未来2", "未来3", "未来4", "未来5", "未来6", "未来7", "未来8", "未来9", "未来10", "未来11", "未来12"],
                     "formula": {{
                         "values": {{ "word": "価値観ワード", "detail": "詳細（40文字）" }},
                         "strengths": {{ "word": "得意表現ワード", "detail": "詳細（40文字）" }},
-                        "interests": {{ "word": "好きなことワード", "detail": "詳細（40文字）" }}
+                        "interests": {{ "word": "好きなこと（具体的なジャンルや物）", "detail": "詳細（40文字）" }}
                     }},
                     "sense_metrics": [
                         {{ "left": "シンプル", "right": "カオス", "value": 0-100 }},
@@ -659,6 +668,11 @@ elif st.session_state.step == 2:
                         {{ "title": "STEP 1: 認識", "detail": "現状の課題と、それをどう捉えるかのアドバイス（60文字）" }},
                         {{ "title": "STEP 2: 拡張", "detail": "具体的なインプットや試すべき手法の提案（例：〇〇という映画を見る、〇〇素材を使うなど）（80文字）" }},
                         {{ "title": "STEP 3: 到達", "detail": "最終的なスタイルの具体イメージ（80文字）" }}
+                    ],
+                    "artist_archetypes": [
+                        {{ "name": "人物名1", "detail": "なぜその人物に近いのかの解説（60文字程度）" }},
+                        {{ "name": "人物名2", "detail": "なぜその人物に近いのかの解説（60文字程度）" }},
+                        {{ "name": "人物名3", "detail": "なぜその人物に近いのかの解説（60文字程度）" }}
                     ],
                     "final_proposals": [
                         {{ "point": "具体的な作品アイデア案1", "detail": "テーマ、素材、表現方法などの具体的なアイデア例（参考レベルで）（100文字程度）" }},
