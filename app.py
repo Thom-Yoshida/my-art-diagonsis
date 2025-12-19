@@ -11,6 +11,8 @@ import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.application import MIMEApplication
+import gspread
+from oauth2client.service_account import ServiceAccountCredentials
 
 # PDF生成用ライブラリ
 from reportlab.pdfgen import canvas
@@ -58,16 +60,33 @@ def check_password():
 check_password()
 
 # ---------------------------------------------------------
-# 🖼 画像軽量化機能 (タイムアウト対策・追加機能)
+# 🖼 画像軽量化機能
 # ---------------------------------------------------------
 def resize_image_for_api(image, max_width=1024):
     """AIに送る前に画像をリサイズして通信エラーを防ぐ"""
     width_percent = (max_width / float(image.size[0]))
-    if width_percent < 1: # 指定より大きい場合のみ縮小
+    if width_percent < 1:
         height_size = int((float(image.size[1]) * float(width_percent)))
-        # 高品質なリサイズ処理
         return image.resize((max_width, height_size), Image.Resampling.LANCZOS)
     return image
+
+# ---------------------------------------------------------
+# 📊 顧客リスト保存機能 (Google Sheets)
+# ---------------------------------------------------------
+def save_to_google_sheets(name, email, diagnosis_type):
+    if "gcp_service_account" not in st.secrets:
+        return False
+    try:
+        scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
+        creds = ServiceAccountCredentials.from_json_keyfile_dict(dict(st.secrets["gcp_service_account"]), scope)
+        client = gspread.authorize(creds)
+        sheet = client.open("customer_list").sheet1
+        now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        sheet.append_row([now, name, email, diagnosis_type])
+        return True
+    except Exception as e:
+        st.error(f"リスト保存エラー: {e}")
+        return False
 
 # ---------------------------------------------------------
 # 📧 メール送信機能
@@ -177,7 +196,11 @@ def draw_wrapped_text(c, text, x, y, font, size, max_width, leading):
     text_obj = c.beginText(x, y)
     text_obj.setFont(font, size)
     text_obj.setLeading(leading)
-    char_limit = int(max_width / (size * 0.8))
+    # 概算: フォントサイズの0.9倍を1文字幅と仮定して文字数を計算
+    # 25文字入れたいなら max_width を 25 * size * 0.9 くらいに設定して呼ぶ
+    char_limit = int(max_width / (size * 0.9))
+    if char_limit < 1: char_limit = 1
+    
     for line in text.split('\n'):
         if len(line) == 0:
             text_obj.textLine("")
@@ -192,12 +215,25 @@ def draw_slider(c, x, y, width_mm, left_text, right_text, value):
     c.setFillColor(C_MAIN_SHADOW)
     c.drawRightString(x - 5*mm, y - 1*mm, left_text)
     c.drawString(x + bar_width + 5*mm, y - 1*mm, right_text)
+    
+    # 軸の描画（矢印付き）
     c.setStrokeColor(C_MAUVE_GRAY)
     c.setLineWidth(0.5)
     c.line(x, y, x + bar_width, y)
+    
+    # 左矢印
+    c.line(x, y, x + 1.5*mm, y + 1.5*mm)
+    c.line(x, y, x + 1.5*mm, y - 1.5*mm)
+    # 右矢印
+    c.line(x + bar_width, y, x + bar_width - 1.5*mm, y + 1.5*mm)
+    c.line(x + bar_width, y, x + bar_width - 1.5*mm, y - 1.5*mm)
+
+    # 現在値のドット
     dot_x = x + (value / 100) * bar_width
     c.setFillColor(C_FOREST_TEAL)
     c.circle(dot_x, y, 1.8*mm, fill=1, stroke=0)
+    
+    # 中央の印
     c.setStrokeColor(C_WARM_BEIGE)
     c.line(x + bar_width/2, y - 1*mm, x + bar_width/2, y + 1*mm)
 
@@ -209,7 +245,7 @@ def create_pdf(json_data, quiz_summary):
     CONTENT_WIDTH = width - (MARGIN_X * 2)
     
     # -----------------------------------------------
-    # P1. 表紙 (cover.jpg)
+    # P1. 表紙
     # -----------------------------------------------
     bg_drawn = False
     try:
@@ -217,23 +253,19 @@ def create_pdf(json_data, quiz_summary):
         bg_drawn = True
     except Exception:
         draw_header(c, "", 1)
-
     text_color = C_TEXT_WHITE if bg_drawn else C_MAIN_SHADOW
     
     c.setFont(FONT_SERIF, 40)
     c.setFillColor(text_color)
     catchphrase = json_data.get('catchphrase', '無題')
     c.drawCentredString(width/2, height/2 + 5*mm, catchphrase)
-    
     c.setFont(FONT_SANS, 14)
     c.setFillColor(text_color)
     c.drawCentredString(width/2, height/2 - 15*mm, "Worldview Analysis Report")
-    
     date_str = datetime.datetime.now().strftime("%Y.%m.%d")
     c.setFont(FONT_SERIF, 10)
     c.setFillColor(text_color)
     c.drawCentredString(width/2, 20*mm, f"Designed by ThomYoshida AI | {date_str}")
-    
     c.showPage()
 
     # -----------------------------------------------
@@ -243,19 +275,16 @@ def create_pdf(json_data, quiz_summary):
     c.setFont(FONT_SANS, 12)
     c.setFillColor(C_ACCENT_BLUE)
     c.drawString(MARGIN_X, height - 25*mm, "01. KEYWORD CONTRAST")
-
-    # 中央の矢印
     c.setFont(FONT_SERIF, 30)
     c.setFillColor(C_MUTE_AMBER)
     c.drawCentredString(width/2, height/2, "▶︎")
     
-    # 左側：PAST / ORIGIN
     c.setFont(FONT_SERIF, 20)
     c.setFillColor(C_MAIN_SHADOW)
     c.drawCentredString(width/3, height - 45*mm, "PAST / ORIGIN")
     c.setStrokeColor(C_MAUVE_GRAY)
     c.line(width/3 - 30*mm, height - 50*mm, width/3 + 30*mm, height - 50*mm)
-
+    
     past_kws = json_data.get('ten_past_keywords', [])
     c.setFont(FONT_SANS, 12)
     c.setFillColor(C_MAUVE_GRAY)
@@ -264,13 +293,12 @@ def create_pdf(json_data, quiz_summary):
         c.drawCentredString(width/3, start_y, kw)
         start_y -= 10*mm
 
-    # 右側：FUTURE / VISION
     c.setFont(FONT_SERIF, 20)
     c.setFillColor(C_FOREST_TEAL)
     c.drawCentredString(width*2/3, height - 45*mm, "FUTURE / VISION")
     c.setStrokeColor(C_FOREST_TEAL)
     c.line(width*2/3 - 30*mm, height - 50*mm, width*2/3 + 30*mm, height - 50*mm)
-
+    
     future_kws = json_data.get('ten_future_keywords', [])
     c.setFont(FONT_SANS, 12)
     c.setFillColor(C_MAIN_SHADOW)
@@ -278,11 +306,10 @@ def create_pdf(json_data, quiz_summary):
     for kw in future_kws:
         c.drawCentredString(width*2/3, start_y, kw)
         start_y -= 10*mm
-
     c.showPage()
 
     # -----------------------------------------------
-    # P3. 数式 (The Formula)
+    # P3. 数式 (The Formula) - デザイン調整
     # -----------------------------------------------
     draw_header(c, "", 3)
     c.setFont(FONT_SANS, 12)
@@ -290,47 +317,59 @@ def create_pdf(json_data, quiz_summary):
     c.drawString(MARGIN_X, height - 25*mm, "02. THE FORMULA")
     
     formula = json_data.get('formula', {})
-    center_y = height/2 + 20*mm
-    desc_y = height/2 - 5*mm
+    center_y = height/2 + 35*mm # 全体的に少し上に
+    desc_y = height/2 + 5*mm    # 解説文の開始位置
+    
+    # 3つの要素のX座標
     x1 = MARGIN_X + (CONTENT_WIDTH * 0.15)
     x2 = width / 2
     x3 = width - MARGIN_X - (CONTENT_WIDTH * 0.15)
     
-    c.setFont(FONT_SERIF, 18)
-    c.setFillColor(C_MAIN_SHADOW)
-    c.drawCentredString(x1, center_y + 10*mm, "『 価値観 』")
-    c.setFont(FONT_SANS, 14)
-    c.setFillColor(C_FOREST_TEAL)
-    c.drawCentredString(x1, center_y, formula.get('values', {}).get('word', '---'))
-    c.setFillColor(C_MAUVE_GRAY)
-    draw_wrapped_text(c, formula.get('values', {}).get('detail', ''), x1 - 35*mm, desc_y, FONT_SERIF, 9, 70*mm, 12)
+    # 円の描画 (キーワードを囲む)
+    circle_r = 16*mm
+    c.setStrokeColor(C_FOREST_TEAL)
+    c.setLineWidth(1)
+    c.circle(x1, center_y, circle_r, fill=0, stroke=1)
+    c.circle(x2, center_y, circle_r, fill=0, stroke=1)
+    c.circle(x3, center_y, circle_r, fill=0, stroke=1)
 
-    c.setFont(FONT_SERIF, 30)
+    # キーワード描画
+    c.setFont(FONT_SERIF, 14)
+    c.setFillColor(C_MAIN_SHADOW)
+    c.drawCentredString(x1, center_y + 6*mm, "Values")
+    c.setFont(FONT_SANS, 11) # 少し小さくして入るように
+    c.setFillColor(C_FOREST_TEAL)
+    c.drawCentredString(x1, center_y - 4*mm, formula.get('values', {}).get('word', '---'))
+
+    c.setFont(FONT_SERIF, 14)
+    c.setFillColor(C_MAIN_SHADOW)
+    c.drawCentredString(x2, center_y + 6*mm, "Strengths")
+    c.setFont(FONT_SANS, 11)
+    c.setFillColor(C_FOREST_TEAL)
+    c.drawCentredString(x2, center_y - 4*mm, formula.get('strengths', {}).get('word', '---'))
+
+    c.setFont(FONT_SERIF, 14)
+    c.setFillColor(C_MAIN_SHADOW)
+    c.drawCentredString(x3, center_y + 6*mm, "Interests")
+    c.setFont(FONT_SANS, 11)
+    c.setFillColor(C_FOREST_TEAL)
+    c.drawCentredString(x3, center_y - 4*mm, formula.get('interests', {}).get('word', '---'))
+
+    # 掛け算記号
+    c.setFont(FONT_SERIF, 24)
     c.setFillColor(C_MUTE_AMBER)
     c.drawCentredString((x1+x2)/2, center_y, "×")
-
-    c.setFont(FONT_SERIF, 18)
-    c.setFillColor(C_MAIN_SHADOW)
-    c.drawCentredString(x2, center_y + 10*mm, "『 得意な表現 』")
-    c.setFont(FONT_SANS, 14)
-    c.setFillColor(C_FOREST_TEAL)
-    c.drawCentredString(x2, center_y, formula.get('strengths', {}).get('word', '---'))
-    c.setFillColor(C_MAUVE_GRAY)
-    draw_wrapped_text(c, formula.get('strengths', {}).get('detail', ''), x2 - 35*mm, desc_y, FONT_SERIF, 9, 70*mm, 12)
-
-    c.setFont(FONT_SERIF, 30)
-    c.setFillColor(C_MUTE_AMBER)
     c.drawCentredString((x2+x3)/2, center_y, "×")
 
-    c.setFont(FONT_SERIF, 18)
-    c.setFillColor(C_MAIN_SHADOW)
-    c.drawCentredString(x3, center_y + 10*mm, "『 好きなこと 』")
-    c.setFont(FONT_SANS, 14)
-    c.setFillColor(C_FOREST_TEAL)
-    c.drawCentredString(x3, center_y, formula.get('interests', {}).get('word', '---'))
+    # 解説文 (全文が見えるように調整)
     c.setFillColor(C_MAUVE_GRAY)
-    draw_wrapped_text(c, formula.get('interests', {}).get('detail', ''), x3 - 35*mm, desc_y, FONT_SERIF, 9, 70*mm, 12)
+    # 幅を確保して描画 (文字サイズ9, 行間12)
+    # 70mm幅あれば改行しても十分入る
+    draw_wrapped_text(c, formula.get('values', {}).get('detail', ''), x1 - 30*mm, desc_y, FONT_SERIF, 9, 60*mm, 12)
+    draw_wrapped_text(c, formula.get('strengths', {}).get('detail', ''), x2 - 30*mm, desc_y, FONT_SERIF, 9, 60*mm, 12)
+    draw_wrapped_text(c, formula.get('interests', {}).get('detail', ''), x3 - 30*mm, desc_y, FONT_SERIF, 9, 60*mm, 12)
 
+    # イコールと結果
     c.setFont(FONT_SERIF, 40)
     c.setFillColor(C_MUTE_AMBER)
     c.drawCentredString(width/2, desc_y - 40*mm, "||")
@@ -367,7 +406,11 @@ def create_pdf(json_data, quiz_summary):
     c.setFont(FONT_SANS, 10)
     c.setFillColor(C_MAIN_SHADOW)
     current_features = json_data.get('current_worldview', {}).get('features', '')
-    draw_wrapped_text(c, "分析結果：\n" + current_features, MARGIN_X, 35*mm, FONT_SERIF, 11, CONTENT_WIDTH, 16)
+    
+    # 分析結果：20文字程度で改行
+    # 幅計算: 20文字 * 11pt * 0.9(係数) * 0.352(mm換算) ≒ 70mm程度あればOK
+    # 余裕を持って 85mm 程度に設定
+    draw_wrapped_text(c, "分析結果：\n" + current_features, MARGIN_X, 35*mm, FONT_SERIF, 11, 85*mm, 16)
     c.showPage()
 
     # -----------------------------------------------
@@ -398,17 +441,16 @@ def create_pdf(json_data, quiz_summary):
         desc = point.get('detail', '')
         c.setFont(FONT_SANS, 10)
         c.setFillColor(C_MAUVE_GRAY)
-        # 具体例が入るため、行間広めで
         draw_wrapped_text(c, desc, text_x, y_pos - 6*mm, FONT_SANS, 9, CONTENT_WIDTH - 40*mm, 12)
         
         c.setStrokeColor(C_ACCENT_BLUE)
         c.setLineWidth(1)
-        c.line(text_x, y_pos - 25*mm, line_end, y_pos - 25*mm) # ライン位置調整
-        y_pos -= 45*mm # 間隔調整
+        c.line(text_x, y_pos - 25*mm, line_end, y_pos - 25*mm)
+        y_pos -= 45*mm
     c.showPage()
     
     # -----------------------------------------------
-    # P6. 提案 & 名言 (Proposals & Ending) - ending.jpg
+    # P6. 提案 (Next Vision)
     # -----------------------------------------------
     end_bg_drawn = False
     try:
@@ -422,7 +464,8 @@ def create_pdf(json_data, quiz_summary):
     
     c.setFont(FONT_SERIF, 20)
     c.setFillColor(text_color_end)
-    c.drawString(MARGIN_X, height - 35*mm, "私からの提案とアイデア。")
+    # タイトル変更
+    c.drawString(MARGIN_X, height - 35*mm, "Next Vision -次への鍵-")
     
     proposals = json_data.get('final_proposals', [])
     y_pos = height - 55*mm
@@ -435,9 +478,12 @@ def create_pdf(json_data, quiz_summary):
         y_pos -= 8*mm
         detail_text = prop.get('detail', '')
         c.setFillColor(text_color_end)
-        # 文字数が増えるので小さめのフォントでしっかり
-        draw_wrapped_text(c, detail_text, MARGIN_X + 8*mm, y_pos, FONT_SERIF, 10, CONTENT_WIDTH - 10*mm, 13)
-        y_pos -= 35*mm # 間隔広げる
+        
+        # 25文字程度で改行するための幅設定
+        # 25文字 * 10pt * 0.9 * 0.352 ≒ 80-90mm
+        # ここでは 110mm 程度に設定して、助詞などで自然に折り返されるのを狙う
+        draw_wrapped_text(c, detail_text, MARGIN_X + 8*mm, y_pos, FONT_SERIF, 10, 110*mm, 14)
+        y_pos -= 35*mm
 
     quote_data = json_data.get('inspiring_quote', {})
     quote_text = quote_data.get('text', '')
@@ -525,9 +571,7 @@ if st.session_state.step == 1:
     st.markdown("##### 📝 基本情報（任意）")
     col_input1, col_input2 = st.columns(2)
     with col_input1:
-        # NEW CODE START: Name Input
         user_name_input = st.text_input("お名前", key="user_name")
-        # NEW CODE END
     with col_input2:
         user_email_input = st.text_input("メールアドレス", key="user_email")
     st.write("直感で回答。あなたの創作の源泉を探る。")
@@ -571,10 +615,8 @@ elif st.session_state.step == 2:
              st.warning("画像は各3枚まで。")
         else:
             if st.button("診断結果を作成する"):
-                # NEW CODE START: Image Resizing
                 past_images = [resize_image_for_api(Image.open(f)) for f in past_files]
                 future_images = [resize_image_for_api(Image.open(f)) for f in future_files]
-                # NEW CODE END
 
                 prompt = f"""
                 あなたはThomYoshidaという、クリエイターに寄り添うアートディレクターです。
@@ -655,6 +697,16 @@ elif st.session_state.step == 2:
                             use_container_width=True
                         )
                         
+                        # --- リスト保存 ---
+                        if "user_name" in st.session_state and "user_email" in st.session_state:
+                             if st.session_state.user_name and st.session_state.user_email:
+                                 save_to_google_sheets(
+                                     st.session_state.user_name,
+                                     st.session_state.user_email,
+                                     st.session_state.quiz_result
+                                 )
+
+                        # --- メール送信 ---
                         if "user_email" in st.session_state and st.session_state.user_email:
                             email_status = send_email_with_pdf(st.session_state.user_email, pdf_buffer=pdf_file)
                             if email_status:
