@@ -174,7 +174,7 @@ def apply_custom_css():
     """, unsafe_allow_html=True)
 
 # ---------------------------------------------------------
-# 📝 PDF生成ロジック
+# 📝 PDF生成ロジック (Helper Functions)
 # ---------------------------------------------------------
 def draw_organic_shape(c, x, y, size, color):
     c.setFillColor(color)
@@ -191,20 +191,73 @@ def draw_header(c, title, page_num):
     c.setFillColor(C_MAUVE_GRAY)
     c.drawRightString(width - 36*mm, 10*mm, f"{page_num}")
 
-def draw_wrapped_text(c, text, x, y, font, size, max_width, leading):
+def wrap_text_smart(text, max_char_count):
+    """
+    助詞や読点など、区切りの良い場所で改行するスマートラップ関数
+    max_char_count: 1行の最大文字数目安
+    """
+    if not text:
+        return []
+
+    # 区切り文字（助詞など）
+    # 優先度が高い順にチェック
+    delimiters = ['、', '。', 'て', 'に', 'を', 'は', 'が', 'と', 'へ', 'で', 'や', 'の', 'も', 'し', 'い', 'か', 'ね', 'よ']
+    
+    lines = []
+    current_line = ""
+    
+    # テキストを走査
+    i = 0
+    while i < len(text):
+        char = text[i]
+        current_line += char
+        i += 1
+        
+        # 最大文字数に近づいたら（例えば90%を超えたら）改行ポイントを探し始める
+        if len(current_line) >= max_char_count * 0.9:
+            # 次の文字も含めてチェックする（文末など）
+            
+            # まだ最大文字数には達していないが、今まさに区切り文字なら改行候補
+            if char in delimiters:
+                lines.append(current_line)
+                current_line = ""
+                continue
+            
+            # 最大文字数を超えてしまった場合
+            if len(current_line) >= max_char_count:
+                # 強制改行するが、もし直近(過去3文字以内)に区切り文字があったらそこで切ったほうが綺麗かも
+                # ここではシンプルに強制改行
+                lines.append(current_line)
+                current_line = ""
+
+    if current_line:
+        lines.append(current_line)
+        
+    return lines
+
+def draw_wrapped_text(c, text, x, y, font, size, max_width, leading, is_smart_wrap=True):
     c.setFont(font, size)
     text_obj = c.beginText(x, y)
     text_obj.setFont(font, size)
     text_obj.setLeading(leading)
-    char_limit = int(max_width / (size * 0.9))
-    if char_limit < 1: char_limit = 1
     
-    for line in text.split('\n'):
-        if len(line) == 0:
-            text_obj.textLine("")
-            continue
-        for i in range(0, len(line), char_limit):
-            text_obj.textLine(line[i:i+char_limit])
+    # 1文字あたりの幅（mm）を概算。日本語フォントは大体サイズpt * 0.352mm * 係数
+    char_width_mm = size * 0.352 * 0.9 # 係数調整
+    max_chars = int(max_width / char_width_mm)
+    
+    if is_smart_wrap:
+        lines = wrap_text_smart(text, max_chars)
+        for line in lines:
+            text_obj.textLine(line)
+    else:
+        # 従来の単純文字数カット
+        for line in text.split('\n'):
+            if len(line) == 0:
+                text_obj.textLine("")
+                continue
+            for i in range(0, len(line), max_chars):
+                text_obj.textLine(line[i:i+max_chars])
+                
     c.drawText(text_obj)
 
 def draw_slider(c, x, y, width_mm, left_text, right_text, value):
@@ -213,16 +266,25 @@ def draw_slider(c, x, y, width_mm, left_text, right_text, value):
     c.setFillColor(C_MAIN_SHADOW)
     c.drawRightString(x - 5*mm, y - 1*mm, left_text)
     c.drawString(x + bar_width + 5*mm, y - 1*mm, right_text)
+    
+    # 軸の描画（矢印付き）
     c.setStrokeColor(C_MAUVE_GRAY)
     c.setLineWidth(0.5)
     c.line(x, y, x + bar_width, y)
+    
+    # 左矢印
     c.line(x, y, x + 1.5*mm, y + 1.5*mm)
     c.line(x, y, x + 1.5*mm, y - 1.5*mm)
+    # 右矢印
     c.line(x + bar_width, y, x + bar_width - 1.5*mm, y + 1.5*mm)
     c.line(x + bar_width, y, x + bar_width - 1.5*mm, y - 1.5*mm)
+
+    # 現在値のドット
     dot_x = x + (value / 100) * bar_width
     c.setFillColor(C_FOREST_TEAL)
     c.circle(dot_x, y, 1.8*mm, fill=1, stroke=0)
+    
+    # 中央の印
     c.setStrokeColor(C_WARM_BEIGE)
     c.line(x + bar_width/2, y - 1*mm, x + bar_width/2, y + 1*mm)
 
@@ -258,7 +320,7 @@ def create_pdf(json_data, quiz_summary):
     c.showPage()
 
     # -----------------------------------------------
-    # P2. キーワード対比 (12個ずつ)
+    # P2. キーワード対比 (12個ずつ・関連度順)
     # -----------------------------------------------
     draw_header(c, "", 2)
     c.setFont(FONT_SANS, 12)
@@ -276,11 +338,12 @@ def create_pdf(json_data, quiz_summary):
     c.line(width/3 - 30*mm, height - 50*mm, width/3 + 30*mm, height - 50*mm)
     
     past_kws = json_data.get('twelve_past_keywords', [])
-    c.setFont(FONT_SANS, 11) # 数が増えたので少し小さく
+    c.setFont(FONT_SANS, 11)
     c.setFillColor(C_MAUVE_GRAY)
+    # 12個をバランスよく配置
     start_y = height - 60*mm
     gap_y = 9*mm
-    for kw in past_kws[:12]: # 最大12個
+    for kw in past_kws[:12]:
         c.drawCentredString(width/3, start_y, kw)
         start_y -= gap_y
 
@@ -301,7 +364,7 @@ def create_pdf(json_data, quiz_summary):
     c.showPage()
 
     # -----------------------------------------------
-    # P3. 数式 (The Formula)
+    # P3. 数式 (The Formula) - デザイン調整
     # -----------------------------------------------
     draw_header(c, "", 3)
     c.setFont(FONT_SANS, 12)
@@ -315,6 +378,7 @@ def create_pdf(json_data, quiz_summary):
     x2 = width / 2
     x3 = width - MARGIN_X - (CONTENT_WIDTH * 0.15)
     
+    # 円で囲む
     circle_r = 16*mm
     c.setStrokeColor(C_FOREST_TEAL)
     c.setLineWidth(1)
@@ -322,6 +386,7 @@ def create_pdf(json_data, quiz_summary):
     c.circle(x2, center_y, circle_r, fill=0, stroke=1)
     c.circle(x3, center_y, circle_r, fill=0, stroke=1)
 
+    # Values
     c.setFont(FONT_SERIF, 14)
     c.setFillColor(C_MAIN_SHADOW)
     c.drawCentredString(x1, center_y + 6*mm, "Values")
@@ -329,6 +394,7 @@ def create_pdf(json_data, quiz_summary):
     c.setFillColor(C_FOREST_TEAL)
     c.drawCentredString(x1, center_y - 4*mm, formula.get('values', {}).get('word', '---'))
 
+    # Strengths
     c.setFont(FONT_SERIF, 14)
     c.setFillColor(C_MAIN_SHADOW)
     c.drawCentredString(x2, center_y + 6*mm, "Strengths")
@@ -336,13 +402,14 @@ def create_pdf(json_data, quiz_summary):
     c.setFillColor(C_FOREST_TEAL)
     c.drawCentredString(x2, center_y - 4*mm, formula.get('strengths', {}).get('word', '---'))
 
+    # Interests (具体的な物)
     c.setFont(FONT_SERIF, 14)
     c.setFillColor(C_MAIN_SHADOW)
     c.drawCentredString(x3, center_y + 6*mm, "Interests")
-    c.setFont(FONT_SANS, 11)
+    c.setFont(FONT_SANS, 10) # 具体的なので文字数多いかも
     c.setFillColor(C_FOREST_TEAL)
-    # 具体的なジャンルなどを表示するため、少し文字が長くなる可能性がある
-    draw_wrapped_text(c, formula.get('interests', {}).get('word', '---'), x3 - 15*mm, center_y - 2*mm, FONT_SANS, 10, 30*mm, 10)
+    # 具体的なのでラップする可能性あり
+    draw_wrapped_text(c, formula.get('interests', {}).get('word', '---'), x3 - 15*mm, center_y - 2*mm, FONT_SANS, 10, 30*mm, 10, is_smart_wrap=False)
 
     c.setFont(FONT_SERIF, 24)
     c.setFillColor(C_MUTE_AMBER)
@@ -350,9 +417,10 @@ def create_pdf(json_data, quiz_summary):
     c.drawCentredString((x2+x3)/2, center_y, "×")
 
     c.setFillColor(C_MAUVE_GRAY)
-    draw_wrapped_text(c, formula.get('values', {}).get('detail', ''), x1 - 30*mm, desc_y, FONT_SERIF, 9, 60*mm, 12)
-    draw_wrapped_text(c, formula.get('strengths', {}).get('detail', ''), x2 - 30*mm, desc_y, FONT_SERIF, 9, 60*mm, 12)
-    draw_wrapped_text(c, formula.get('interests', {}).get('detail', ''), x3 - 30*mm, desc_y, FONT_SERIF, 9, 60*mm, 12)
+    # 解説文 (助詞改行)
+    draw_wrapped_text(c, formula.get('values', {}).get('detail', ''), x1 - 30*mm, desc_y, FONT_SERIF, 9, 60*mm, 14)
+    draw_wrapped_text(c, formula.get('strengths', {}).get('detail', ''), x2 - 30*mm, desc_y, FONT_SERIF, 9, 60*mm, 14)
+    draw_wrapped_text(c, formula.get('interests', {}).get('detail', ''), x3 - 30*mm, desc_y, FONT_SERIF, 9, 60*mm, 14)
 
     c.setFont(FONT_SERIF, 40)
     c.setFillColor(C_MUTE_AMBER)
@@ -389,7 +457,9 @@ def create_pdf(json_data, quiz_summary):
     c.setFont(FONT_SANS, 10)
     c.setFillColor(C_MAIN_SHADOW)
     current_features = json_data.get('current_worldview', {}).get('features', '')
-    draw_wrapped_text(c, "分析結果：\n" + current_features, MARGIN_X, 35*mm, FONT_SERIF, 11, 85*mm, 16)
+    
+    # 20文字程度で改行（75mm幅程度）
+    draw_wrapped_text(c, "分析結果：\n" + current_features, MARGIN_X, 35*mm, FONT_SERIF, 11, 75*mm, 18)
     c.showPage()
 
     # -----------------------------------------------
@@ -411,14 +481,17 @@ def create_pdf(json_data, quiz_summary):
         c.setFillColor(C_WARM_BEIGE)
         step_num = f"0{i+1}"
         c.drawString(num_x, y_pos - 5*mm, step_num)
+        
         title = point.get('title', '')
         c.setFont(FONT_SERIF, 14)
         c.setFillColor(C_MAIN_SHADOW)
         c.drawString(text_x, y_pos, title)
+        
         desc = point.get('detail', '')
         c.setFont(FONT_SANS, 10)
         c.setFillColor(C_MAUVE_GRAY)
-        draw_wrapped_text(c, desc, text_x, y_pos - 6*mm, FONT_SANS, 9, CONTENT_WIDTH - 40*mm, 12)
+        draw_wrapped_text(c, desc, text_x, y_pos - 6*mm, FONT_SANS, 9, CONTENT_WIDTH - 40*mm, 14)
+        
         c.setStrokeColor(C_ACCENT_BLUE)
         c.setLineWidth(1)
         c.line(text_x, y_pos - 25*mm, line_end, y_pos - 25*mm)
@@ -426,7 +499,7 @@ def create_pdf(json_data, quiz_summary):
     c.showPage()
 
     # -----------------------------------------------
-    # P6. アーキタイプ (NEW) - 偉人・アーティスト
+    # P6. アーキタイプ (偉人・アーティスト)
     # -----------------------------------------------
     draw_header(c, "", 6)
     c.setFont(FONT_SANS, 12)
@@ -451,9 +524,9 @@ def create_pdf(json_data, quiz_summary):
         desc = arch.get('detail', '')
         c.setFont(FONT_SANS, 10)
         c.setFillColor(C_MAUVE_GRAY)
-        draw_wrapped_text(c, desc, MARGIN_X + 10*mm, y_pos - 8*mm, FONT_SERIF, 10, CONTENT_WIDTH - 20*mm, 14)
+        # 幅広めに
+        draw_wrapped_text(c, desc, MARGIN_X + 10*mm, y_pos - 8*mm, FONT_SERIF, 10, CONTENT_WIDTH - 20*mm, 15)
         
-        # 区切り線
         if i < 2:
             c.setStrokeColor(C_WARM_BEIGE)
             c.setLineWidth(0.5)
@@ -466,18 +539,13 @@ def create_pdf(json_data, quiz_summary):
     # -----------------------------------------------
     # P7. 提案 (Next Vision)
     # -----------------------------------------------
-    end_bg_drawn = False
-    try:
-        c.drawImage("ending.jpg", 0, 0, width=width, height=height, preserveAspectRatio=True, anchor='c')
-        end_bg_drawn = True
-    except Exception:
-        draw_header(c, "", 7)
+    draw_header(c, "", 7)
+    c.setFont(FONT_SANS, 12)
+    c.setFillColor(C_ACCENT_BLUE)
+    c.drawString(MARGIN_X, height - 25*mm, "06. NEXT VISION") # 番号修正
 
-    text_color_end = C_TEXT_WHITE if end_bg_drawn else C_MAIN_SHADOW
-    title_color_end = C_TEXT_WHITE if end_bg_drawn else C_ACCENT_BLUE
-    
     c.setFont(FONT_SERIF, 20)
-    c.setFillColor(text_color_end)
+    c.setFillColor(C_MAIN_SHADOW)
     c.drawString(MARGIN_X, height - 35*mm, "Next Vision -次への鍵-")
     
     proposals = json_data.get('final_proposals', [])
@@ -486,29 +554,62 @@ def create_pdf(json_data, quiz_summary):
     for i, prop in enumerate(proposals):
         point_title = prop.get('point', '')
         c.setFont(FONT_SANS, 14)
-        c.setFillColor(title_color_end)
+        c.setFillColor(C_ACCENT_BLUE)
         c.drawString(MARGIN_X + 5*mm, y_pos, f"◆ {point_title}")
         y_pos -= 8*mm
         detail_text = prop.get('detail', '')
-        c.setFillColor(text_color_end)
+        c.setFillColor(C_MAIN_SHADOW)
         
-        # 25文字程度で改行するための幅設定
-        draw_wrapped_text(c, detail_text, MARGIN_X + 8*mm, y_pos, FONT_SERIF, 10, 110*mm, 14)
+        # 25文字程度で改行（90-100mm幅）
+        draw_wrapped_text(c, detail_text, MARGIN_X + 8*mm, y_pos, FONT_SERIF, 10, 100*mm, 15)
         y_pos -= 35*mm
+    
+    c.showPage()
 
+    # -----------------------------------------------
+    # P8. 最後の名言 (ENDING)
+    # -----------------------------------------------
+    end_bg_drawn = False
+    try:
+        c.drawImage("ending.jpg", 0, 0, width=width, height=height, preserveAspectRatio=True, anchor='c')
+        end_bg_drawn = True
+    except Exception:
+        draw_header(c, "", 8)
+
+    text_color_end = C_TEXT_WHITE if end_bg_drawn else C_MAIN_SHADOW
+    
     quote_data = json_data.get('inspiring_quote', {})
     quote_text = quote_data.get('text', '')
     quote_author = quote_data.get('author', '')
+    
+    # 中央に堂々と配置
     if quote_text:
-        c.setStrokeColor(C_WARM_BEIGE)
-        c.setLineWidth(0.5)
-        c.line(MARGIN_X, 50*mm, width - MARGIN_X, 50*mm)
-        c.setFont(FONT_SERIF, 14)
+        c.setFont(FONT_SERIF, 20)
         c.setFillColor(text_color_end)
-        c.drawCentredString(width/2, 40*mm, f"“ {quote_text} ”")
-        c.setFont(FONT_SANS, 10)
+        # 名言自体もスマートラップ
+        # 1行が長くなりすぎないように幅制限
+        quote_y = height/2 + 10*mm
+        # まずラップして描画
+        text_obj = c.beginText(0, 0) # ダミー
+        # 名言は中央揃えしたいが、ReportLabのTextObjectは左揃え基本。
+        # ここではシンプルに、1行ずつ中央揃えで描画する関数を即席で作るか、
+        # 既存の draw_wrapped_text は左揃えなので、
+        # drawCentredString を複数行やる形にする
+        
+        # 簡易ラップ（スペースや助詞で区切る）
+        lines = wrap_text_smart(quote_text, 25) # 25文字くらいで折り返し
+        
+        # 行数分だけ上にずらす
+        total_height = len(lines) * 12*mm
+        start_y = height/2 + (total_height / 2)
+        
+        for line in lines:
+            c.drawCentredString(width/2, start_y, f"{line}")
+            start_y -= 12*mm
+        
+        c.setFont(FONT_SANS, 12)
         c.setFillColor(C_MUTE_AMBER if end_bg_drawn else C_ACCENT_BLUE)
-        c.drawCentredString(width/2, 32*mm, f"- {quote_author}")
+        c.drawCentredString(width/2, start_y - 10*mm, f"- {quote_author}")
 
     c.setFillColor(C_FOREST_TEAL)
     c.circle(width - MARGIN_X, 22*mm, 3*mm, fill=1, stroke=0)
