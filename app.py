@@ -228,30 +228,239 @@ def send_email_with_pdf(user_email, pdf_buffer):
         print(f"Email Error: {e}")
         return False
 
+# # ---------------------------------------------------------
+# 4. PDF生成ロジック (Helper Functions & Main)
 # ---------------------------------------------------------
-# 4. PDF生成ロジック
-# ---------------------------------------------------------
+
+# --- テキスト描画のヘルパー関数 ---
+def wrap_text_smart(text, max_char_count):
+    """助詞や読点で改行するスマートラップ関数"""
+    if not text: return []
+    delimiters = ['、', '。', 'て', 'に', 'を', 'は', 'が', 'と', 'へ', 'で', 'や', 'の', 'も', 'し', 'い', 'か', 'ね', 'よ']
+    lines = []
+    current_line = ""
+    i = 0
+    while i < len(text):
+        char = text[i]
+        current_line += char
+        i += 1
+        if len(current_line) >= max_char_count * 0.9:
+            if char in delimiters:
+                lines.append(current_line)
+                current_line = ""
+                continue
+            if len(current_line) >= max_char_count:
+                lines.append(current_line)
+                current_line = ""
+    if current_line: lines.append(current_line)
+    return lines
+
+def draw_wrapped_text(c, text, x, y, font, size, max_width, leading, is_smart_wrap=True):
+    c.setFont(font, size)
+    text_obj = c.beginText(x, y)
+    text_obj.setFont(font, size)
+    text_obj.setLeading(leading)
+    char_width_mm = size * 0.352 * 0.9 
+    max_chars = int(max_width / char_width_mm)
+    
+    if is_smart_wrap:
+        lines = wrap_text_smart(text, max_chars)
+        for line in lines: text_obj.textLine(line)
+    else:
+        # 単純ラップ
+        for line in text.split('\n'):
+            for i in range(0, len(line), max_chars):
+                text_obj.textLine(line[i:i+max_chars])
+    c.drawText(text_obj)
+
+def draw_header(c, title, page_num):
+    """ヘッダー装飾"""
+    width, height = landscape(A4)
+    # 背景リセット
+    c.setFillColor(HexColor('#F5F5F5'))
+    c.rect(0, 0, width, height, fill=1, stroke=0)
+    
+    # 装飾
+    c.setFillColor(HexColor(COLORS['sub']))
+    c.circle(width - 10*mm, 10*mm, 20*mm, fill=1, stroke=0)
+    
+    c.setFont(FONT_SANS, 9)
+    c.setFillColor(HexColor('#A39E99'))
+    c.drawRightString(width - 36*mm, 10*mm, f"{page_num}")
+
+def draw_slider(c, x, y, width_mm, left_text, right_text, value):
+    """スライダー型チャート描画"""
+    bar_width = width_mm * mm
+    c.setFont(FONT_SERIF, 10)
+    c.setFillColor(HexColor('#2B2723'))
+    c.drawRightString(x - 5*mm, y - 1*mm, left_text)
+    c.drawString(x + bar_width + 5*mm, y - 1*mm, right_text)
+    
+    c.setStrokeColor(HexColor('#A39E99'))
+    c.setLineWidth(0.5)
+    c.line(x, y, x + bar_width, y)
+    
+    # ドット
+    dot_x = x + (value / 100) * bar_width
+    c.setFillColor(HexColor(COLORS['forest']))
+    c.circle(dot_x, y, 1.8*mm, fill=1, stroke=0)
+
+# --- PDF生成メイン関数 ---
 def create_pdf(json_data):
     buffer = io.BytesIO()
     c = canvas.Canvas(buffer, pagesize=landscape(A4))
     width, height = landscape(A4)
+    MARGIN_X = width * 0.12
+    CONTENT_WIDTH = width - (MARGIN_X * 2)
     
-    # 簡易デザイン（表紙のみ例示）
+    # P1. 表紙
     c.setFillColor(HexColor('#F5F5F5'))
     c.rect(0, 0, width, height, fill=1, stroke=0)
     c.setFillColor(HexColor('#2B2723'))
-    c.setFont(FONT_SERIF, 32)
-    c.drawCentredString(width/2, height/2 + 10*mm, json_data.get('catchphrase', 'Visionary Report'))
-    c.setFont(FONT_SANS, 12)
-    c.drawCentredString(width/2, height/2 - 10*mm, "Worldview Analysis Report")
-    c.setFont(FONT_SANS, 10)
-    c.drawCentredString(width/2, 20*mm, "Designed by ThomYoshida AI")
+    c.setFont(FONT_SERIF, 40)
+    c.drawCentredString(width/2, height/2 + 5*mm, json_data.get('catchphrase', 'Visionary Report'))
+    c.setFont(FONT_SANS, 14)
+    c.drawCentredString(width/2, height/2 - 15*mm, "Worldview Analysis Report")
+    c.setFont(FONT_SERIF, 10)
+    c.drawCentredString(width/2, 20*mm, f"Designed by ThomYoshida AI | {datetime.datetime.now().strftime('%Y.%m.%d')}")
     c.showPage()
+
+    # P2. KEYWORD CONTRAST
+    draw_header(c, "", 2)
+    c.setFont(FONT_SANS, 12)
+    c.setFillColor(HexColor(COLORS['sub']))
+    c.drawString(MARGIN_X, height - 25*mm, "01. KEYWORD CONTRAST")
     
+    # Left: Past
+    c.setFont(FONT_SERIF, 20)
+    c.setFillColor(HexColor('#2B2723'))
+    c.drawCentredString(width/3, height - 45*mm, "PAST / ORIGIN")
+    past_kws = json_data.get('twelve_past_keywords', [])
+    c.setFont(FONT_SANS, 11)
+    c.setFillColor(HexColor('#A39E99'))
+    y = height - 60*mm
+    for kw in past_kws[:8]: # スペースの都合で8個表示
+        c.drawCentredString(width/3, y, kw)
+        y -= 9*mm
+
+    # Right: Future
+    c.setFont(FONT_SERIF, 20)
+    c.setFillColor(HexColor(COLORS['forest']))
+    c.drawCentredString(width*2/3, height - 45*mm, "FUTURE / VISION")
+    future_kws = json_data.get('twelve_future_keywords', [])
+    c.setFont(FONT_SANS, 11)
+    c.setFillColor(HexColor('#2B2723'))
+    y = height - 60*mm
+    for kw in future_kws[:8]:
+        c.drawCentredString(width*2/3, y, kw)
+        y -= 9*mm
+    c.showPage()
+
+    # P3. THE FORMULA
+    draw_header(c, "", 3)
+    c.setFont(FONT_SANS, 12)
+    c.setFillColor(HexColor(COLORS['sub']))
+    c.drawString(MARGIN_X, height - 25*mm, "02. THE FORMULA")
+    
+    formula = json_data.get('formula', {})
+    cy = height/2 + 20*mm
+    
+    # 3つの要素
+    elements = [
+        ("Values", formula.get('values', {}).get('word', '-'), width*0.25),
+        ("Strengths", formula.get('strengths', {}).get('word', '-'), width*0.5),
+        ("Interests", formula.get('interests', {}).get('word', '-'), width*0.75)
+    ]
+    
+    for title, word, x in elements:
+        c.setFont(FONT_SERIF, 14)
+        c.setFillColor(HexColor('#2B2723'))
+        c.drawCentredString(x, cy + 10*mm, title)
+        c.setFont(FONT_SANS, 12)
+        c.setFillColor(HexColor(COLORS['forest']))
+        c.drawCentredString(x, cy, word)
+    
+    c.setFont(FONT_SERIF, 24)
+    c.setFillColor(HexColor(COLORS['accent']))
+    c.drawCentredString(width*0.375, cy + 5*mm, "×")
+    c.drawCentredString(width*0.625, cy + 5*mm, "×")
+    
+    # Catchphrase again
+    c.setFont(FONT_SERIF, 32)
+    c.setFillColor(HexColor('#2B2723'))
+    c.drawCentredString(width/2, cy - 50*mm, json_data.get('catchphrase', ''))
+    c.showPage()
+
+    # P4. SENSE BALANCE
+    draw_header(c, "", 4)
+    c.setFont(FONT_SANS, 12)
+    c.setFillColor(HexColor(COLORS['sub']))
+    c.drawString(MARGIN_X, height - 25*mm, "03. SENSE BALANCE")
+    
+    metrics = json_data.get('sense_metrics', [])
+    y = height - 50*mm
+    for i, m in enumerate(metrics[:8]): # 8個まで
+        x = MARGIN_X + 20*mm if i < 4 else width/2 + 20*mm
+        curr_y = y - (i % 4) * 20*mm
+        draw_slider(c, x, curr_y, 40, m.get('left'), m.get('right'), m.get('value'))
+    c.showPage()
+
+    # P5. ROADMAP
+    draw_header(c, "", 5)
+    c.setFont(FONT_SANS, 12)
+    c.setFillColor(HexColor(COLORS['sub']))
+    c.drawString(MARGIN_X, height - 25*mm, "04. FUTURE ROADMAP")
+    
+    steps = json_data.get('roadmap_steps', [])
+    y = height - 50*mm
+    for i, step in enumerate(steps):
+        c.setFont(FONT_SANS, 30)
+        c.setFillColor(HexColor(COLORS['accent']))
+        c.drawString(MARGIN_X, y - 5*mm, f"0{i+1}")
+        
+        c.setFont(FONT_SERIF, 14)
+        c.setFillColor(HexColor('#2B2723'))
+        c.drawString(MARGIN_X + 25*mm, y, step.get('title', ''))
+        
+        c.setFillColor(HexColor('#A39E99'))
+        draw_wrapped_text(c, step.get('detail', ''), MARGIN_X + 25*mm, y - 8*mm, FONT_SANS, 10, 120*mm, 14)
+        y -= 35*mm
+    c.showPage()
+
+    # P6. ARCHETYPE & NEXT VISION
+    draw_header(c, "", 6)
+    c.setFont(FONT_SANS, 12)
+    c.setFillColor(HexColor(COLORS['sub']))
+    c.drawString(MARGIN_X, height - 25*mm, "05. SOUL ARCHETYPE")
+    
+    archs = json_data.get('artist_archetypes', [])
+    if archs:
+        a = archs[0] # 1人だけ代表で表示
+        c.setFont(FONT_SERIF, 20)
+        c.setFillColor(HexColor(COLORS['forest']))
+        c.drawString(MARGIN_X, height - 40*mm, f"◆ {a.get('name')}")
+        c.setFillColor(HexColor('#2B2723'))
+        draw_wrapped_text(c, a.get('detail', ''), MARGIN_X, height - 50*mm, FONT_SERIF, 10, 150*mm, 15)
+
+    # Next Vision
+    c.setFont(FONT_SANS, 12)
+    c.setFillColor(HexColor(COLORS['sub']))
+    c.drawString(MARGIN_X, height - 90*mm, "06. NEXT VISION")
+    
+    proposals = json_data.get('final_proposals', [])
+    y = height - 105*mm
+    for p in proposals[:2]:
+        c.setFont(FONT_SANS, 12)
+        c.setFillColor(HexColor('#2B2723'))
+        c.drawString(MARGIN_X, y, f"・{p.get('point')}")
+        draw_wrapped_text(c, p.get('detail', ''), MARGIN_X + 5*mm, y - 5*mm, FONT_SANS, 9, 150*mm, 12)
+        y -= 25*mm
+
+    c.showPage()
     c.save()
     buffer.seek(0)
     return buffer
-
+    
 # ---------------------------------------------------------
 # 5. Web UI コンポーネント (The Experience Layer)
 # ---------------------------------------------------------
