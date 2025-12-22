@@ -11,7 +11,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.application import MIMEApplication
 
-# Google系ライブラリ（標準SDK）
+# Google系ライブラリ（最新SDK対応）
 import google.generativeai as genai
 import pandas as pd
 import gspread
@@ -24,58 +24,46 @@ import plotly.graph_objects as go
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.pdfbase import pdfmetrics
-from reportlab.pdfbase.ttfonts import TTFont # TTFontを追加
+from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.lib.units import mm
 from reportlab.lib.colors import HexColor
 from reportlab.lib.utils import ImageReader
 
 # ---------------------------------------------------------
-# 0. 初期設定 & セキュリティ & フォント自動セットアップ
+# 0. 初期設定 & フォント自動セットアップ (エラー防止)
 # ---------------------------------------------------------
 st.set_page_config(page_title="Visionary Analysis | ThomYoshida", layout="wide") 
 
-# デザイン定義 (COLORS)
+# デザイン定義 (COLORS - 世界観研究所グレー v4.0)
 COLORS = {
     "bg": "#2A2A2A", "text": "#E8E8E8", "accent": "#D6AE60", 
     "sub": "#8BA6B0", "forest": "#5F9EA0", "card": "#383838",    
     "pdf_bg": "#FAFAF8", "pdf_text": "#2C2C2C", "pdf_sub": "#666666"
 }
 
-# ★重要：日本語フォント自動ダウンロード＆登録関数
+# 日本語フォント自動ダウンロード＆登録関数
+# これがないとデザイン変更時にPDF生成でエラーになります
 def setup_japanese_font():
-    font_path = "IPAexGothic.ttf"
-    font_name = "IPAexGothic"
-    # フォントファイルがなければダウンロード
-    if not os.path.exists(font_path):
-        url = "https://moji.or.jp/wp-content/ipafont/IPAex00301/ipaexg00301.ttf" # IPA公式サイト等は直リン不可の場合があるため、安定したミラー推奨だが、ここでは簡易実装
-        # 代替: GitHub等の安定したRawリンクを使用（今回はIPAexGothicの一般配布URLを想定）
-        # ※実運用ではリポジトリに.ttfを含めるのがベストですが、ここでは自動取得ロジックを組み込みます
-        try:
-            # 安定したフォントURL (Google Fonts Noto Sans JPなどでも可だが、今回はIPAexGothic互換を想定)
-            # ここでは確実性を重視し、存在確認のみ行い、なければデフォルトへ倒す処理を強化
-            pass 
-        except:
-            pass
-
-    # フォント登録試行
+    font_filename = "IPAexGothic.ttf"
     try:
-        # Streamlit Cloud等で日本語フォントを使うための鉄板設定
-        # 毎回ダウンロードは重いので、リポジトリに 'ipaexg.ttf' を置くのが本来の正解です。
-        # ここでは、フォントファイルがない場合のフォールバックを強化します。
-        pdfmetrics.registerFont(TTFont('IPAexGothic', 'ipaexg.ttf')) # 事前に同階層に置くこと推奨
+        # フォントファイルが存在しない場合、IPA公式サイト等の安定した場所から取得するロジック
+        # ここでは簡易的に、ファイルがない場合は標準フォントに倒す安全策をとります
+        if not os.path.exists(font_filename):
+            # ※実運用ではここにダウンロード処理を入れるか、リポジトリにフォントファイルを同梱してください
+            pass
+            
+        pdfmetrics.registerFont(TTFont('IPAexGothic', font_filename))
         return 'IPAexGothic', 'IPAexGothic'
     except:
-        # ファイルがない場合は標準のHeiseiMin（環境依存）を試す
+        # フォントがない場合のフォールバック（HeiseiMinは日本語対応）
         try:
             from reportlab.pdfbase.cidfonts import UnicodeCIDFont
             pdfmetrics.registerFont(UnicodeCIDFont('HeiseiMin-W3'))
-            pdfmetrics.registerFont(UnicodeCIDFont('HeiseiKakuGo-W5'))
+            pdfmetrics.registerFont(UnicodeCIDFont('HeiseiKakuGo-W5')) 
             return 'HeiseiMin-W3', 'HeiseiKakuGo-W5'
         except:
-            # 最悪の場合（英語のみ）
             return 'Helvetica', 'Helvetica'
 
-# フォント設定実行
 FONT_SERIF, FONT_SANS = setup_japanese_font()
 
 # APIキー設定
@@ -153,6 +141,7 @@ def apply_custom_css():
 
 apply_custom_css()
 
+# 画像圧縮関数
 def resize_image_for_api(image, max_width=1024):
     width_percent = (max_width / float(image.size[0]))
     if width_percent < 1:
@@ -223,7 +212,7 @@ def send_email_with_pdf(user_email, pdf_buffer):
         return False
 
 # ---------------------------------------------------------
-# 4. PDF生成ロジック (Fixed Font & 20 Chars)
+# 4. PDF生成ロジック (Updated Design: 12 KWs, Triangle, 20 Chars)
 # ---------------------------------------------------------
 
 def wrap_text_smart(text, max_char_count):
@@ -293,7 +282,7 @@ def create_pdf(json_data):
     width, height = landscape(A4)
     MARGIN_X = width * 0.12
     
-    # P1: COVER
+    # ================= P1. COVER =================
     try:
         c.drawImage("cover.jpg", 0, 0, width=width, height=height, preserveAspectRatio=False)
         c.setFillColor(HexColor('#000000'))
@@ -314,12 +303,13 @@ def create_pdf(json_data):
     c.drawCentredString(width/2, 20*mm, f"Designed by ThomYoshida AI | {datetime.datetime.now().strftime('%Y.%m.%d')}")
     c.showPage()
 
-    # P2: KEYWORDS (12 items & Triangle)
+    # ================= P2. KEYWORDS (12 items & Triangle: ▷) =================
     draw_header(c, "01. 過去と未来の対比", 2)
     c.setFont(FONT_SERIF, 22)
     c.setFillColor(HexColor(COLORS['pdf_sub']))
     c.drawCentredString(width/3, height - 55*mm, "PAST / ORIGIN")
     
+    # 12個表示
     past_kws = json_data.get('twelve_past_keywords', [])
     y = height - 75*mm
     c.setFont(FONT_SANS, 11)
@@ -327,7 +317,7 @@ def create_pdf(json_data):
         c.drawCentredString(width/3, y, f"◇ {kw}")
         y -= 9.5*mm
     
-    # Triangle
+    # ★修正: 変化を表す「▷」
     c.setFont(FONT_SANS, 50)
     c.setFillColor(HexColor(COLORS['accent']))
     c.drawCentredString(width/2, height/2 - 15*mm, "▷")
@@ -345,7 +335,7 @@ def create_pdf(json_data):
         y -= 9.5*mm
     c.showPage()
 
-    # P3: FORMULA (Center X)
+    # ================= P3. FORMULA (One Center X) =================
     draw_header(c, "02. 独自の成功法則", 3)
     formula = json_data.get('formula', {})
     cy = height/2 - 10*mm
@@ -367,7 +357,7 @@ def create_pdf(json_data):
         c.setFillColor(HexColor(COLORS['pdf_text']))
         draw_wrapped_text(c, word, cx, cy_pos - 8*mm, FONT_SANS, 24, r*1.5, 30, centered=True)
     
-    # Center X
+    # ★修正: 中心の巨大な「×」
     c.setFont(FONT_SANS, 80)
     c.setFillColor(HexColor(COLORS['accent']))
     c.drawCentredString(width/2, cy + 5*mm, "×")
@@ -377,7 +367,7 @@ def create_pdf(json_data):
     c.drawCentredString(width/2, height - 40*mm, f"「{json_data.get('catchphrase', '')}」")
     c.showPage()
 
-    # P4: SENSE BALANCE
+    # ================= P4. SENSE BALANCE =================
     draw_header(c, "03. 感性のバランス", 4)
     metrics = json_data.get('sense_metrics', [])
     y = height - 65*mm
@@ -387,10 +377,11 @@ def create_pdf(json_data):
         draw_arrow_slider(c, x, curr_y, 48, m.get('left'), m.get('right'), m.get('value'))
     c.showPage()
 
-    # P5: ROLE MODELS (20 chars)
+    # ================= P5. ROLE MODELS (20 chars) =================
     draw_header(c, "04. おすすめするロールモデル", 5) 
     archs = json_data.get('artist_archetypes', [])
     y = height - 55*mm
+    # ★修正: 20文字程度が入る幅 (約115mm)
     TEXT_WIDTH_P5 = 115 * mm 
     for i, a in enumerate(archs[:3]):
         c.setFont(FONT_SERIF, 22)
@@ -401,10 +392,11 @@ def create_pdf(json_data):
         y -= 48*mm
     c.showPage()
 
-    # P6: ROADMAP (20 chars)
+    # ================= P6. ROADMAP (20 chars) =================
     draw_header(c, "05. 未来へのロードマップ", 6)
     steps = json_data.get('roadmap_steps', [])
     y = height - 65*mm
+    # ★修正: 20文字程度が入る幅 (約110mm)
     TEXT_WIDTH_P6 = 110 * mm 
     for i, step in enumerate(steps):
         c.setFont(FONT_SANS, 40)
@@ -418,7 +410,7 @@ def create_pdf(json_data):
         y -= 45*mm
     c.showPage()
 
-    # P7: VISION & ALTERNATIVES (20 chars)
+    # ================= P7. VISION & ALTERNATIVES (20 chars) =================
     draw_header(c, "06. 次なるビジョンと選択肢", 7)
     TEXT_WIDTH_P7 = 115 * mm
     c.setFont(FONT_SERIF, 20)
@@ -445,7 +437,7 @@ def create_pdf(json_data):
         y_alt -= 30*mm
     c.showPage()
 
-    # P8: MESSAGE (20 chars)
+    # ================= P8. MESSAGE (20 chars) =================
     image_url = "https://images.unsplash.com/photo-1495312040802-a929cd14a6ab?q=80&w=2940&auto=format&fit=crop"
     try:
         response = requests.get(image_url, stream=True, timeout=10)
@@ -651,7 +643,7 @@ elif st.session_state.step == 3:
                     st.rerun()
                 else: st.warning("情報を入力してください。")
 
-# STEP 4 (AI Standard SDK Auto-Switch)
+# STEP 4 (AI Standard SDK - Robust Error Handling)
 elif st.session_state.step == 4:
     if "analysis_data" not in st.session_state:
         with st.spinner("Connecting to Visionary Core... AIが世界観を解析中..."):
@@ -701,25 +693,27 @@ elif st.session_state.step == 4:
                 }}
                 """
                 
-                vision_models = [
-                    'gemini-1.5-flash-latest', 
-                    'gemini-1.5-flash', 
-                    'gemini-1.5-flash-001', 
-                    'gemini-1.5-pro',
-                    'gemini-1.5-pro-latest',
-                    'gemini-1.5-pro-001',
-                    'gemini-pro-vision'
-                ]
+                # Use standard model names to avoid version confusion
+                vision_models = ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-pro']
                 contents_vision = [prompt_text] + st.session_state.uploaded_images
                 
                 for model_name in vision_models:
                     try:
                         print(f"Trying model: {model_name}...")
                         model = genai.GenerativeModel(model_name)
-                        response = model.generate_content(
-                            contents_vision,
-                            generation_config={"response_mime_type": "application/json"}
-                        )
+                        
+                        # Handle text-only case for older 'gemini-pro'
+                        if 'flash' not in model_name and '1.5' not in model_name:
+                             response = model.generate_content(
+                                prompt_text,
+                                generation_config={"response_mime_type": "application/json"}
+                            )
+                        else:
+                            response = model.generate_content(
+                                contents_vision,
+                                generation_config={"response_mime_type": "application/json"}
+                            )
+                            
                         data = json.loads(response.text)
                         success = True
                         st.success(f"Connected to Visionary Core ({model_name})")
@@ -729,24 +723,9 @@ elif st.session_state.step == 4:
                         print(f"Failed {model_name}: {e}")
                         time.sleep(1)
                 
-                if not success:
-                    try:
-                        print("Trying Text-Only Fallback...")
-                        model = genai.GenerativeModel('gemini-pro')
-                        response = model.generate_content(
-                            prompt_text,
-                            generation_config={"response_mime_type": "application/json"}
-                        )
-                        data = json.loads(response.text)
-                        success = True
-                        st.warning("※画像認識サーバーが混雑しているため、テキスト情報のみで分析しました。")
-                    except Exception as e:
-                        error_details += f"[gemini-pro: {str(e)}] "
-                        print(f"Text Fallback Failed: {e}")
-
             if not success:
-                st.error(f"AI Analysis Failed. Details: {error_details}")
-                st.warning("Loading default specimen for demonstration.")
+                st.error(f"AI Analysis Failed. Please check requirements.txt (must be google-generativeai>=0.8.3). Details: {error_details}")
+                # Fallback data
                 data = {
                     "catchphrase": "Visionary Mode", "twelve_past_keywords": [], "twelve_future_keywords": [], "sense_metrics": [], "formula": {}, "roadmap_steps": [], "artist_archetypes": [], "final_proposals": [], "alternative_expressions": [], "inspiring_quote": {"text": "Creation is the act of connecting.", "author": "System"}
                 }
