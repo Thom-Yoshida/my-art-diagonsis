@@ -73,7 +73,7 @@ def check_password():
 check_password()
 
 # ---------------------------------------------------------
-# 1. 診断データ (30 Questions)
+# 1. 診断データ (30 Questions - Full Version)
 # ---------------------------------------------------------
 QUIZ_DATA = [
     {"q": "Q1. 制作を始めるきっかけは？", "opts": ["内から湧き出る衝動・感情", "外部の要請や明確なコンセプト"], "type_a": "内から湧き出る衝動・感情"},
@@ -127,7 +127,9 @@ def apply_custom_css():
 
 apply_custom_css()
 
+# ★重要: 画像圧縮関数 (API制限対策)
 def resize_image_for_api(image, max_width=1024):
+    """画像をAPI送信に適したサイズにリサイズする"""
     width_percent = (max_width / float(image.size[0]))
     if width_percent < 1:
         height_size = int((float(image.size[1]) * float(width_percent)))
@@ -164,14 +166,12 @@ def load_data_from_sheets():
         sheet = client.open(sheet_name).sheet1
         data = sheet.get_all_values()
         if len(data) < 1: return pd.DataFrame()
-        
         df = pd.DataFrame(data)
         new_header = df.iloc[0] 
         df = df[1:] 
         df.columns = new_header
         return df
-    except Exception as e:
-        return pd.DataFrame()
+    except Exception: return pd.DataFrame()
 
 def send_email_with_pdf(user_email, pdf_buffer):
     if "GMAIL_ADDRESS" not in st.secrets or "GMAIL_APP_PASSWORD" not in st.secrets: return False
@@ -433,7 +433,6 @@ def create_pdf(json_data):
     q_author = quote_data.get('author', '')
 
     c.setFillColor(TEXT_COLOR_END)
-    # 15文字で折り返すよう max_width を設定 (150mm)
     draw_wrapped_text(c, q_text, width/2, height/2 + 20*mm, FONT_SERIF, 28, 150*mm, 36, centered=True)
     c.setFont(FONT_SANS, 18)
     c.setFillColor(ACCENT_COLOR_END)
@@ -529,6 +528,7 @@ with st.sidebar:
 
 if 'step' not in st.session_state: st.session_state.step = 1
 if 'quiz_result' not in st.session_state: st.session_state.quiz_result = None
+if 'uploaded_images' not in st.session_state: st.session_state.uploaded_images = []
 
 # STEP 1
 if st.session_state.step == 1:
@@ -575,8 +575,23 @@ elif st.session_state.step == 2:
         st.markdown("#### Future Vision")
         future_files = st.file_uploader("Ideal (Max 3)", type=["jpg", "png"], accept_multiple_files=True, key="future")
     if st.button("次へ進む（レポート作成へ）"):
-        if not past_files: st.error("画像をアップロードしてください。")
+        # ★メタ修正: ここで画像を保存して永続化する
+        if not past_files:
+            st.error("分析のために、少なくとも1枚の作品画像をアップロードしてください。")
         else:
+            st.session_state.uploaded_images = [] # リセット
+            # 過去作品の圧縮・保存
+            for f in past_files:
+                img = Image.open(f)
+                resized_img = resize_image_for_api(img)
+                st.session_state.uploaded_images.append(resized_img)
+            # 未来イメージの圧縮・保存
+            if future_files:
+                for f in future_files:
+                    img = Image.open(f)
+                    resized_img = resize_image_for_api(img)
+                    st.session_state.uploaded_images.append(resized_img)
+            
             st.session_state.step = 3
             st.rerun()
 
@@ -609,6 +624,7 @@ elif st.session_state.step == 4:
                 for attempt in range(max_retries):
                     try:
                         client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+                        
                         prompt = f"""
                         あなたは世界的なアートディレクター Thom Yoshida です。
                         ユーザーの「専門分野」と「診断タイプ」に基づき、その人の世界観を分析し、
@@ -649,10 +665,13 @@ elif st.session_state.step == 4:
                             }}
                         }}
                         """
-                        # ★モデルを安定版 gemini-pro に指定
+                        # ★メタ修正: ここで画像データをプロンプトに含める
+                        contents = [prompt] + st.session_state.uploaded_images
+                        
+                        # ★モデルを安定版 gemini-1.5-flash に指定 (画像認識対応)
                         response = client.models.generate_content(
-                            model='gemini-pro', 
-                            contents=prompt,
+                            model='gemini-1.5-flash', 
+                            contents=contents,
                             config=types.GenerateContentConfig(response_mime_type="application/json")
                         )
                         data = json.loads(response.text)
