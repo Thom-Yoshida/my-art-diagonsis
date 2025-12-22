@@ -658,27 +658,58 @@ elif st.session_state.step == 4:
             # contents = [prompt] + [images...]
             # response = client.models.generate_content(...)
             # data = json.loads(response.text)
+           # ▼▼▼ ここから貼り付け開始 ▼▼▼
             
-            # デモ用ダミーデータ（テスト時はAPI節約のためこちらを使用）
+            # デモ用ダミーデータ（PDF生成に必要な全項目を網羅した完全版）
             data = {
+                # 1. 表紙・タイトル
                 "catchphrase": "静寂の青き建築家",
+                
+                # 2. キーワード対比 (P2用)
+                # ※ここが足りないとP2が空白になります
+                "twelve_past_keywords": ["混沌", "模倣", "ノイズ", "迷い", "多弁", "装飾", "迎合", "未熟"],
+                "twelve_future_keywords": ["静寂", "本質", "余白", "確信", "沈黙", "構造", "孤高", "洗練"],
+                
+                # 3. センスバランス (P4用)
+                # ※left, rightのキーがないとエラーになります
                 "sense_metrics": [
-                    {"right": "抽象", "value": 80}, {"right": "論理", "value": 60},
-                    {"right": "静寂", "value": 90}, {"right": "革新", "value": 40},
-                    {"right": "永続", "value": 70}
+                    {"left": "具象", "right": "抽象", "value": 80}, 
+                    {"left": "感情", "right": "論理", "value": 60},
+                    {"left": "喧騒", "right": "静寂", "value": 90}, 
+                    {"left": "伝統", "right": "革新", "value": 40},
+                    {"left": "儚さ", "right": "永続", "value": 70},
+                    {"left": "日常", "right": "幻想", "value": 75},
+                    {"left": "繊細", "right": "大胆", "value": 50},
+                    {"left": "内向", "right": "外交", "value": 30}
                 ],
+                
+                # 4. 数式 (P3用)
                 "formula": {
-                    "values": {"word": "静謐"},
-                    "strengths": {"word": "構図力"},
-                    "interests": {"word": "建築"}
-                }
+                    "values": {"word": "静謐", "detail": "ノイズのない世界"},
+                    "strengths": {"word": "構図力", "detail": "黄金比への理解"},
+                    "interests": {"word": "ブルータリズム", "detail": "コンクリート建築"}
+                },
+                
+                # 5. ロードマップ (P5用)
+                "roadmap_steps": [
+                    {"title": "余白の再定義", "detail": "画面の8割を余白にする勇気を持つことから始める。"},
+                    {"title": "光の指向性", "detail": "拡散光ではなく、意図的なサイドライトを用いてドラマを作る。"},
+                    {"title": "シリーズ化", "detail": "単写真ではなく、3枚1組の組写真として物語を構成する。"}
+                ],
+                
+                # 6. アーキタイプ (P6上段用)
+                "artist_archetypes": [
+                    {"name": "アンドレアス・グルスキー", "detail": "俯瞰的な視点と、幾何学的な構造美を追求する姿勢が共鳴しています。"}
+                ],
+                
+                # 7. ネクストビジョン (P6下段用)
+                "final_proposals": [
+                    {"point": "無機質な被写体選び", "detail": "植物などの有機物ではなく、ビルや階段などの構造物を撮る。"},
+                    {"point": "彩度を落とす", "detail": "色は情報のノイズになり得るため、彩度を-20%する。"}
+                ]
             }
-            # ---------------------------
             
-            st.session_state.analysis_data = data
-            pdf_buffer = create_pdf(data)
-            send_email_with_pdf(st.session_state.user_email, pdf_buffer)
-            st.rerun()
+            # ▲▲▲ ここまで貼り付け終了 ▲▲▲
             
     else:
         data = st.session_state.analysis_data
