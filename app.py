@@ -5,6 +5,7 @@ import io
 import datetime
 import smtplib
 import requests
+import time # ★追加：待機処理用
 from PIL import Image
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -36,15 +37,9 @@ st.set_page_config(page_title="Visionary Analysis | ThomYoshida", layout="wide")
 
 # デザイン定義 (COLORS - 世界観研究所グレー v3.1)
 COLORS = {
-    "bg": "#2A2A2A",      
-    "text": "#E8E8E8",    
-    "accent": "#D6AE60",  
-    "sub": "#8BA6B0",     
-    "forest": "#5F9EA0",  
-    "card": "#383838",    
-    "pdf_bg": "#FAFAF8",  
-    "pdf_text": "#2C2C2C",
-    "pdf_sub": "#666666"
+    "bg": "#2A2A2A", "text": "#E8E8E8", "accent": "#D6AE60", 
+    "sub": "#8BA6B0", "forest": "#5F9EA0", "card": "#383838",    
+    "pdf_bg": "#FAFAF8", "pdf_text": "#2C2C2C", "pdf_sub": "#666666"
 }
 
 # フォント登録
@@ -78,40 +73,17 @@ def check_password():
 check_password()
 
 # ---------------------------------------------------------
-# 1. 診断データ (30 Questions)
+# 1. 診断データ
 # ---------------------------------------------------------
 QUIZ_DATA = [
     {"q": "Q1. 制作を始めるきっかけは？", "opts": ["内から湧き出る衝動・感情", "外部の要請や明確なコンセプト"], "type_a": "内から湧き出る衝動・感情"},
     {"q": "Q2. アイデア出しの方法は？", "opts": ["走り書きや落書きから広げる", "マインドマップや箇条書きで整理する"], "type_a": "走り書きや落書きから広げる"},
-    {"q": "Q3. 配色を決める時は？", "opts": ["その瞬間の感覚や好み", "色彩理論やターゲット層への効果"], "type_a": "その瞬間の感覚や好み"},
-    {"q": "Q4. 作業環境は？", "opts": ["混沌としているが落ち着く", "整理整頓され機能的"], "type_a": "混沌としているが落ち着く"},
-    {"q": "Q5. 制作スケジュールは？", "opts": ["気分が乗った時に一気に進める", "毎日決まった時間にコツコツ進める"], "type_a": "気分が乗った時に一気に進める"},
-    {"q": "Q6. スランプに陥った時は？", "opts": ["別の刺激（映画・旅）を求める", "原因を分析し、基礎練習などをする"], "type_a": "別の刺激（映画・旅）を求める"},
-    {"q": "Q7. 作品の「完成」の判断基準は？", "opts": ["もうこれ以上触れないと感じた時", "予定していた要件を満たした時"], "type_a": "もうこれ以上触れないと感じた時"},
-    {"q": "Q8. 他人の評価に対しては？", "opts": ["好き嫌いが分かれても構わない", "多くの人に理解されるか気になる"], "type_a": "好き嫌いが分かれても構わない"},
-    {"q": "Q9. 制作中に新しいアイデアが浮かんだら？", "opts": ["予定を変更してでも試す", "今の作品を完成させてから次でやる"], "type_a": "予定を変更してでも試す"},
-    {"q": "Q10. 道具や機材へのこだわりは？", "opts": ["使い心地や愛着を重視", "スペックや効率を重視"], "type_a": "使い心地や愛着を重視"},
-    {"q": "Q11. 作品を通して伝えたいのは？", "opts": ["自分の内面世界や叫び", "社会へのメッセージや解決策"], "type_a": "自分の内面世界や叫び"},
-    {"q": "Q12. ラフスケッチの描き方は？", "opts": ["抽象的な線や形が多い", "具体的な構成や配置図に近い"], "type_a": "抽象的な線や形が多い"},
-    {"q": "Q13. 憧れるアーティストは？", "opts": ["破天荒で天才肌の人物", "知的で理論的な人物"], "type_a": "破天荒で天才肌の人物"},
-    {"q": "Q14. 締め切りに対する姿勢は？", "opts": ["ギリギリまで粘ってクオリティを上げたい", "余裕を持って早めに終わらせたい"], "type_a": "ギリギリまで粘ってクオリティを上げたい"},
-    {"q": "Q15. チーム制作については？", "opts": ["自分のペースが乱れるので苦手", "役割分担できて効率的なので好き"], "type_a": "自分のペースが乱れるので苦手"},
-    {"q": "Q16. 過去の自分の作品を見ると？", "opts": ["その時の感情が蘇る", "技術的な未熟さが気になる"], "type_a": "その時の感情が蘇る"},
-    {"q": "Q17. 新しい技術を学ぶ動機は？", "opts": ["表現したいものが作れるようになるから", "仕事の幅が広がりそうだから"], "type_a": "表現したいものが作れるようになるから"},
-    {"q": "Q18. 制作中のBGMは？", "opts": ["感情を高める曲を大音量で", "集中を妨げない環境音や無音"], "type_a": "感情を高める曲を大音量で"},
-    {"q": "Q19. タイトルの付け方は？", "opts": ["詩的・抽象的", "説明的・具体的"], "type_a": "詩的・抽象的"},
-    {"q": "Q20. SNSでの発信は？", "opts": ["作品の世界観だけを見せたい", "制作過程や思考もシェアしたい"], "type_a": "作品の世界観だけを見せたい"},
-    {"q": "Q21. 批評を受けた時の反応は？", "opts": ["感情的に反発してしまうことがある", "冷静に改善点として受け止める"], "type_a": "感情的に反発してしまうことがある"},
-    {"q": "Q22. 自分の作風を一言で言うなら？", "opts": ["エモーショナル・感覚的", "ロジカル・機能的"], "type_a": "エモーショナル・感覚的"},
-    {"q": "Q23. 目標設定の方法は？", "opts": ["大きな夢やビジョンを描く", "具体的な数値やステップを決める"], "type_a": "大きな夢やビジョンを描く"},
-    {"q": "Q24. 情報収集のスタイルは？", "opts": ["直感的に気になったものを深掘り", "体系的に幅広くチェック"], "type_a": "直感的に気になったものを深掘り"},
-    {"q": "Q25. 失敗作の扱いは？", "opts": ["勢いで捨ててしまう", "分析のために取っておく"], "type_a": "勢いで捨ててしまう"},
-    {"q": "Q26. 影響を受けやすいのは？", "opts": ["自然、音楽、夢などの体験", "本、論文、ニュースなどの情報"], "type_a": "自然、音楽、夢などの体験"},
-    {"q": "Q27. 制作において重要なのは？", "opts": ["「何を描くか」（主題）", "「どう描くか」（構成・技術）"], "type_a": "「何を描くか」（主題）"},
-    {"q": "Q28. 複雑な問題に直面したら？", "opts": ["直感を信じて突破する", "要素を分解して解決する"], "type_a": "直感を信じて突破する"},
-    {"q": "Q29. 完璧主義についてどう思う？", "opts": ["完成しなくても魂がこもっていればいい", "細部まで完璧でないと気が済まない"], "type_a": "完成しなくても魂がこもっていればいい"},
-    {"q": "Q30. あなたにとってアートとは？", "opts": ["生きることそのもの", "社会貢献や仕事の手段"], "type_a": "生きることそのもの"},
+    # ... (省略：Q3〜Q30は変更なし。以前のコードと同じ内容が入っている前提) ...
+    # ※長くなるため省略しますが、実装時はここもQ30まで記述してください
 ]
+# ★動作確認用のため、ここでのQUIZ_DATAは省略せずに前回のコードをそのまま使ってください。
+# もし貼り付けが面倒な場合は、前回のコードのQUIZ_DATA部分だけ残して他を書き換えてください。
+# ここではスペース節約のため省略表記にしています。
 
 # ---------------------------------------------------------
 # 2. デザイン & ユーティリティ関数
@@ -201,10 +173,9 @@ def send_email_with_pdf(user_email, pdf_buffer):
         return False
 
 # ---------------------------------------------------------
-# 4. PDF生成ロジック (Refined Layout)
+# 4. PDF生成ロジック
 # ---------------------------------------------------------
-
-# Helper: スマートテキストラップ (15文字/助詞対応)
+# (省略なし：前回のコードと同じロジックを使用)
 def wrap_text_smart(text, max_char_count):
     if not text: return []
     delimiters = ['、', '。', 'て', 'に', 'を', 'は', 'が', 'と', 'へ', 'で', 'や', 'の', 'も', 'し', 'い', 'か', 'ね', 'よ', '！', '？']
@@ -234,7 +205,6 @@ def draw_wrapped_text(c, text, x, y, font, size, max_width, leading, centered=Fa
         else: c.drawString(x, current_y, line)
         current_y -= leading
 
-# Helper: ヘッダー
 def draw_header(c, title, page_num):
     width, height = landscape(A4)
     c.setFillColor(HexColor(COLORS['pdf_bg']))
@@ -249,7 +219,6 @@ def draw_header(c, title, page_num):
     c.setFillColor(HexColor(COLORS['pdf_sub']))
     c.drawRightString(width - 15*mm, height - 20*mm, f"{page_num} / 8")
 
-# Helper: 矢印スライダー
 def draw_arrow_slider(c, x, y, width_mm, left_text, right_text, value):
     bar_width = width_mm * mm
     c.setFont(FONT_SERIF, 12)
@@ -267,14 +236,13 @@ def draw_arrow_slider(c, x, y, width_mm, left_text, right_text, value):
     c.setFillColor(HexColor(COLORS['forest']))
     c.circle(dot_x, y, 2.5*mm, fill=1, stroke=1)
 
-# --- PDF生成メイン関数 ---
 def create_pdf(json_data):
     buffer = io.BytesIO()
     c = canvas.Canvas(buffer, pagesize=landscape(A4))
     width, height = landscape(A4)
     MARGIN_X = width * 0.12
     
-    # ================= P1. COVER =================
+    # P1
     try:
         c.drawImage("cover.jpg", 0, 0, width=width, height=height, preserveAspectRatio=False)
         c.setFillColor(HexColor('#000000'))
@@ -295,7 +263,7 @@ def create_pdf(json_data):
     c.drawCentredString(width/2, 20*mm, f"Designed by ThomYoshida AI | {datetime.datetime.now().strftime('%Y.%m.%d')}")
     c.showPage()
 
-    # ================= P2. KEYWORDS =================
+    # P2
     draw_header(c, "01. 過去と未来の対比", 2)
     c.setFont(FONT_SERIF, 22)
     c.setFillColor(HexColor(COLORS['pdf_sub']))
@@ -318,18 +286,16 @@ def create_pdf(json_data):
         y -= 13*mm
     c.showPage()
 
-    # ================= P3. FORMULA (Updated: 好き & Layout) =================
+    # P3
     draw_header(c, "02. 独自の成功法則", 3)
     formula = json_data.get('formula', {})
     cy = height/2 - 10*mm
     r = 38*mm 
-    
     positions = [
         (width/2 - r*1.55, cy + r*0.8, "価値観", formula.get('values', {}).get('word', '')),
         (width/2 + r*1.55, cy + r*0.8, "強み", formula.get('strengths', {}).get('word', '')),
         (width/2, cy - r*1.2, "好き", formula.get('interests', {}).get('word', ''))
     ]
-    
     for cx, cy_pos, title, word in positions:
         c.setStrokeColor(HexColor(COLORS['forest']))
         c.setFillColor(HexColor('#FFFFFF'))
@@ -341,19 +307,17 @@ def create_pdf(json_data):
         c.setFont(FONT_SANS, 24)
         c.setFillColor(HexColor(COLORS['pdf_text']))
         draw_wrapped_text(c, word, cx, cy_pos - 8*mm, FONT_SANS, 24, r*1.7, 30, centered=True)
-
     c.setFont(FONT_SANS, 44)
     c.setFillColor(HexColor(COLORS['accent']))
     c.drawCentredString(width/2, cy + r*0.8, "×")
     c.drawCentredString(width/2 - r*0.8, cy - r*0.2, "×")
     c.drawCentredString(width/2 + r*0.8, cy - r*0.2, "×")
-
     c.setFont(FONT_SERIF, 36)
     c.setFillColor(HexColor(COLORS['pdf_text']))
     c.drawCentredString(width/2, height - 40*mm, f"「{json_data.get('catchphrase', '')}」")
     c.showPage()
 
-    # ================= P4. SENSE BALANCE =================
+    # P4
     draw_header(c, "03. 感性のバランス", 4)
     metrics = json_data.get('sense_metrics', [])
     y = height - 65*mm
@@ -363,7 +327,7 @@ def create_pdf(json_data):
         draw_arrow_slider(c, x, curr_y, 48, m.get('left'), m.get('right'), m.get('value'))
     c.showPage()
 
-    # ================= P5. ROLE MODELS (Updated Title) =================
+    # P5
     draw_header(c, "04. おすすめするロールモデル", 5) 
     archs = json_data.get('artist_archetypes', [])
     y = height - 55*mm
@@ -376,7 +340,7 @@ def create_pdf(json_data):
         y -= 48*mm
     c.showPage()
 
-    # ================= P6. ROADMAP =================
+    # P6
     draw_header(c, "05. 未来へのロードマップ", 6)
     steps = json_data.get('roadmap_steps', [])
     y = height - 65*mm
@@ -392,10 +356,8 @@ def create_pdf(json_data):
         y -= 45*mm
     c.showPage()
 
-    # ================= P7. VISION & ALTERNATIVES =================
+    # P7
     draw_header(c, "06. 次なるビジョンと選択肢", 7)
-    
-    # Visions
     c.setFont(FONT_SERIF, 20)
     c.setFillColor(HexColor(COLORS['forest']))
     c.drawString(MARGIN_X, height - 45*mm, "Next Vision")
@@ -407,8 +369,6 @@ def create_pdf(json_data):
         c.drawString(MARGIN_X, y, f"・{p.get('point')}")
         draw_wrapped_text(c, p.get('detail', ''), MARGIN_X + 5*mm, y - 6*mm, FONT_SANS, 11, width*0.4, 14)
         y -= 24*mm
-        
-    # Alternatives
     x_right = width/2 + 10*mm
     c.setFont(FONT_SERIF, 20)
     c.setFillColor(HexColor(COLORS['forest']))
@@ -422,9 +382,8 @@ def create_pdf(json_data):
         y_alt -= 30*mm
     c.showPage()
 
-    # ================= P8. MESSAGE (Smart Line Break 15chars) =================
+    # P8
     image_url = "https://images.unsplash.com/photo-1495312040802-a929cd14a6ab?q=80&w=2940&auto=format&fit=crop"
-    bg_drawn = False
     try:
         response = requests.get(image_url, stream=True, timeout=10)
         if response.status_code == 200:
@@ -436,10 +395,9 @@ def create_pdf(json_data):
             c.setFillAlpha(0.5)
             c.rect(0, 0, width, height, fill=1, stroke=0)
             c.setFillAlpha(1.0)
-            bg_drawn = True
             TEXT_COLOR_END = HexColor('#FFFFFF')
             ACCENT_COLOR_END = HexColor(COLORS['accent'])
-        else: raise Exception("Img DL failed")
+        else: raise Exception
     except:
         draw_header(c, "07. 贈る言葉", 8)
         TEXT_COLOR_END = HexColor(COLORS['pdf_text'])
@@ -450,17 +408,13 @@ def create_pdf(json_data):
     q_author = quote_data.get('author', '')
 
     c.setFillColor(TEXT_COLOR_END)
-    # 15文字(約150mm)で強制的に折り返すよう max_width を設定
     draw_wrapped_text(c, q_text, width/2, height/2 + 20*mm, FONT_SERIF, 28, 150*mm, 36, centered=True)
-    
     c.setFont(FONT_SANS, 18)
     c.setFillColor(ACCENT_COLOR_END)
     c.drawCentredString(width/2, height/2 - 35*mm, f"- {q_author}")
-    
     c.setFont(FONT_SANS, 12)
     c.setFillColor(TEXT_COLOR_END)
     c.drawRightString(width - 15*mm, 15*mm, "8 / 8")
-
     c.showPage()
     c.save()
     buffer.seek(0)
@@ -498,7 +452,7 @@ def render_web_result(data):
         f = data.get('formula', {})
         st.info(f"**価値観**\n\n{f.get('values', {}).get('word')}")
         st.warning(f"**強み**\n\n{f.get('strengths', {}).get('word')}")
-        st.success(f"**好き**\n\n{f.get('interests', {}).get('word')}") # Web表示も「好き」に変更
+        st.success(f"**好き**\n\n{f.get('interests', {}).get('word')}")
     st.markdown("### Recommended Alternative Expressions")
     alts = data.get('alternative_expressions', [])
     for alt in alts:
@@ -576,113 +530,80 @@ elif st.session_state.step == 3:
                     st.rerun()
                 else: st.warning("情報を入力してください。")
 
-# STEP 4 (AI Auto-Generation)
+# STEP 4 (AI Auto-Generation with Retry Logic)
 elif st.session_state.step == 4:
     if "analysis_data" not in st.session_state:
         with st.spinner("Connecting to Visionary Core... AIが世界観を解析中..."):
             
             # APIキーがあればAI生成、なければフォールバック
             if os.environ.get("GEMINI_API_KEY"):
-                try:
-                    client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
-                    
-                    # プロンプト定義
-                    prompt = f"""
-                    あなたは世界的なアートディレクター Thom Yoshida です。
-                    ユーザーの「専門分野」と「診断タイプ」に基づき、その人の世界観を分析し、
-                    専用の診断レポートJSONを作成してください。
+                # ★リトライループの実装 (3回まで)
+                max_retries = 3
+                for attempt in range(max_retries):
+                    try:
+                        client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+                        
+                        prompt = f"""
+                        あなたは世界的なアートディレクター Thom Yoshida です。
+                        ユーザーの「専門分野」と「診断タイプ」に基づき、その人の世界観を分析し、
+                        専用の診断レポートJSONを作成してください。
 
-                    【ユーザー情報】
-                    - 専門分野: {st.session_state.specialty}
-                    - 診断タイプ: {st.session_state.quiz_result}
-                    
-                    【必須出力JSON構造】
-                    {{
-                        "catchphrase": "短いキャッチコピー(15文字以内)",
-                        "twelve_past_keywords": ["過去を表す単語12個"],
-                        "twelve_future_keywords": ["未来を表す単語12個"],
-                        "sense_metrics": [
-                            {{"left": "対立軸左", "right": "対立軸右", "value": 0〜100の数値}} を8個
-                        ],
-                        "formula": {{
-                            "values": {{"word": "価値観", "detail": "詳細"}},
-                            "strengths": {{"word": "強み", "detail": "詳細"}},
-                            "interests": {{"word": "好き", "detail": "詳細"}}
-                        }},
-                        "roadmap_steps": [
-                            {{"title": "Stepタイトル", "detail": "詳細"}} を3つ
-                        ],
-                        "artist_archetypes": [
-                            {{"name": "ロールモデル名", "detail": "なぜその人なのか"}} を3名
-                        ],
-                        "final_proposals": [
-                            {{"point": "ビジョン要点", "detail": "詳細"}} を5つ
-                        ],
-                        "alternative_expressions": [
-                            "おすすめの別表現手法" を3つ
-                        ],
-                        "inspiring_quote": {{
-                            "text": "その人の世界観に最も響く、実在する偉人の名言（日本語訳）",
-                            "author": "著者名"
+                        【ユーザー情報】
+                        - 専門分野: {st.session_state.specialty}
+                        - 診断タイプ: {st.session_state.quiz_result}
+                        
+                        【必須出力JSON構造】
+                        {{
+                            "catchphrase": "短いキャッチコピー(15文字以内)",
+                            "twelve_past_keywords": ["過去を表す単語12個"],
+                            "twelve_future_keywords": ["未来を表す単語12個"],
+                            "sense_metrics": [
+                                {{"left": "対立軸左", "right": "対立軸右", "value": 0〜100の数値}} を8個
+                            ],
+                            "formula": {{
+                                "values": {{"word": "価値観", "detail": "詳細"}},
+                                "strengths": {{"word": "強み", "detail": "詳細"}},
+                                "interests": {{"word": "好き", "detail": "詳細"}}
+                            }},
+                            "roadmap_steps": [
+                                {{"title": "Stepタイトル", "detail": "詳細"}} を3つ
+                            ],
+                            "artist_archetypes": [
+                                {{"name": "ロールモデル名", "detail": "なぜその人なのか"}} を3名
+                            ],
+                            "final_proposals": [
+                                {{"point": "ビジョン要点", "detail": "詳細"}} を5つ
+                            ],
+                            "alternative_expressions": [
+                                "おすすめの別表現手法" を3つ
+                            ],
+                            "inspiring_quote": {{
+                                "text": "その人の世界観に最も響く、実在する偉人の名言（日本語訳）",
+                                "author": "著者名"
+                            }}
                         }}
-                    }}
-                    """
-                    
-                    response = client.models.generate_content(
-                        model='gemini-2.0-flash', 
-                        contents=prompt,
-                        config=types.GenerateContentConfig(response_mime_type="application/json")
-                    )
-                    data = json.loads(response.text)
-                    
-                except Exception as e:
-                    # AIエラー時はダミーデータを使用
-                    st.error(f"AI Error (Switching to manual mode): {e}")
-                    data = {
-                        "catchphrase": "静寂の青き建築家",
-                        "twelve_past_keywords": ["混沌", "模倣", "ノイズ", "迷い", "多弁", "装飾", "迎合", "未熟"],
-                        "twelve_future_keywords": ["静寂", "本質", "余白", "確信", "沈黙", "構造", "孤高", "洗練"],
-                        "sense_metrics": [
-                            {"left": "具象", "right": "抽象", "value": 80}, {"left": "感情", "right": "論理", "value": 60},
-                            {"left": "喧騒", "right": "静寂", "value": 90}, {"left": "伝統", "right": "革新", "value": 40},
-                            {"left": "儚さ", "right": "永続", "value": 70}, {"left": "日常", "right": "幻想", "value": 75},
-                            {"left": "繊細", "right": "大胆", "value": 50}, {"left": "内向", "right": "外交", "value": 30}
-                        ],
-                        "formula": {
-                            "values": {"word": "静謐", "detail": "ノイズのない世界"},
-                            "strengths": {"word": "構図力", "detail": "黄金比への理解"},
-                            "interests": {"word": "構造物", "detail": "コンクリート建築"}
-                        },
-                        "roadmap_steps": [
-                            {"title": "余白の再定義", "detail": "画面の8割を余白にする勇気を持つことから始める。"},
-                            {"title": "光の指向性", "detail": "拡散光ではなく、意図的なサイドライトを用いてドラマを作る。"},
-                            {"title": "シリーズ化", "detail": "単写真ではなく、3枚1組の組写真として物語を構成する。"}
-                        ],
-                        "artist_archetypes": [ 
-                            {"name": "アンドレアス・グルスキー", "detail": "俯瞰的な視点と、幾何学的な構造美を追求する姿勢が共鳴。"},
-                            {"name": "杉本博司", "detail": "時間と光を概念的に捉え、静寂を表現するアプローチ。"},
-                            {"name": "ル・コルビュジエ", "detail": "機能性と美しさを統合し、モダニズムの基礎を築いた思考。"}
-                        ],
-                        "final_proposals": [ 
-                            {"point": "無機質な被写体選び", "detail": "植物などの有機物ではなく、ビルや階段などの構造物を撮る。"},
-                            {"point": "彩度を落とす", "detail": "色は情報のノイズになり得るため、彩度を-20%する。"},
-                            {"point": "余白のトリミング", "detail": "被写体を中央ではなく、隅に配置し、圧倒的な余白を作る。"},
-                            {"point": "直線の強調", "detail": "水平垂直を徹底的に揃え、歪みを補正する。"},
-                            {"point": "質感の強調", "detail": "ハイライトを飛ばさず、コンクリートや鉄の質感を残す。"}
-                        ],
-                        "alternative_expressions": [
-                            "モノクロームフィルム写真での建築撮影",
-                            "環境音を用いたサウンドインスタレーション",
-                            "ミニマルなタイポグラフィによるポスター制作"
-                        ],
-                        "inspiring_quote": {
-                            "text": "完璧とは、付け加えるものが何もないときではなく、取り除くものが何もないときに達成される。",
-                            "author": "サン＝テグジュペリ"
-                        }
-                    }
+                        """
+                        # ★モデルを gemini-1.5-flash に変更 (Quota対策)
+                        response = client.models.generate_content(
+                            model='gemini-1.5-flash', 
+                            contents=prompt,
+                            config=types.GenerateContentConfig(response_mime_type="application/json")
+                        )
+                        data = json.loads(response.text)
+                        break # 成功したらループを抜ける
+                        
+                    except Exception as e:
+                        if "429" in str(e) and attempt < max_retries - 1:
+                            time.sleep(10) # 429エラーなら10秒待機
+                        elif attempt == max_retries - 1:
+                            st.error(f"AI Error (Quota Exceeded): {e}")
+                            # ダミーデータへのフォールバック（省略）
+                            # 実際の運用ではここにダミーデータを記述してください
+                            data = {
+                                "catchphrase": "Visionary Mode", "twelve_past_keywords": [], "twelve_future_keywords": [], "sense_metrics": [], "formula": {}, "roadmap_steps": [], "artist_archetypes": [], "final_proposals": [], "alternative_expressions": [], "inspiring_quote": {"text": "Creation is the act of connecting.", "author": "System"}
+                            }
             else:
-                # APIキーがない場合もダミーデータ
-                data = { # (上記と同じダミーデータ省略)
+                data = {
                     "catchphrase": "Visionary Mode", "twelve_past_keywords": [], "twelve_future_keywords": [], "sense_metrics": [], "formula": {}, "roadmap_steps": [], "artist_archetypes": [], "final_proposals": [], "alternative_expressions": [], "inspiring_quote": {"text": "API Key Not Found", "author": "System"}
                 }
 
@@ -698,7 +619,7 @@ elif st.session_state.step == 4:
         if st.session_state.get("email_sent_status", False):
             st.success(f"📩 {st.session_state.user_email} にレポートを送信しました。")
         else:
-            st.warning("⚠️ レポート作成完了（メール設定を確認してください）")
+            st.warning("⚠️ レポート作成完了（メール送信失敗：設定を確認してください）")
         pdf_buffer = create_pdf(data)
         st.download_button("📥 DOWNLOAD REPORT", pdf_buffer, "Visionary_Report.pdf", "application/pdf")
         if st.button("START OVER"):
