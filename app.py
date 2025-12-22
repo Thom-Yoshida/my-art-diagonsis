@@ -710,6 +710,14 @@ elif st.session_state.step == 4:
             }
             
             # ▲▲▲ ここまで貼り付け終了 ▲▲▲
+
+    # ▼▼▼ 【重要】この4行がないと結果が表示されません！ ▼▼▼
+            st.session_state.analysis_data = data
+            pdf_buffer = create_pdf(data)
+            send_email_with_pdf(st.session_state.user_email, pdf_buffer)
+            st.rerun()
+            # ▲▲▲ 追加終わり ▲▲▲
+
             
     else:
         data = st.session_state.analysis_data
