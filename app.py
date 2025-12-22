@@ -5,7 +5,7 @@ import io
 import datetime
 import smtplib
 import requests
-import time # ★追加：待機処理用
+import time
 from PIL import Image
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -73,17 +73,40 @@ def check_password():
 check_password()
 
 # ---------------------------------------------------------
-# 1. 診断データ
+# 1. 診断データ (30 Questions - Full Version)
 # ---------------------------------------------------------
 QUIZ_DATA = [
     {"q": "Q1. 制作を始めるきっかけは？", "opts": ["内から湧き出る衝動・感情", "外部の要請や明確なコンセプト"], "type_a": "内から湧き出る衝動・感情"},
     {"q": "Q2. アイデア出しの方法は？", "opts": ["走り書きや落書きから広げる", "マインドマップや箇条書きで整理する"], "type_a": "走り書きや落書きから広げる"},
-    # ... (省略：Q3〜Q30は変更なし。以前のコードと同じ内容が入っている前提) ...
-    # ※長くなるため省略しますが、実装時はここもQ30まで記述してください
+    {"q": "Q3. 配色を決める時は？", "opts": ["その瞬間の感覚や好み", "色彩理論やターゲット層への効果"], "type_a": "その瞬間の感覚や好み"},
+    {"q": "Q4. 作業環境は？", "opts": ["混沌としているが落ち着く", "整理整頓され機能的"], "type_a": "混沌としているが落ち着く"},
+    {"q": "Q5. 制作スケジュールは？", "opts": ["気分が乗った時に一気に進める", "毎日決まった時間にコツコツ進める"], "type_a": "気分が乗った時に一気に進める"},
+    {"q": "Q6. スランプに陥った時は？", "opts": ["別の刺激（映画・旅）を求める", "原因を分析し、基礎練習などをする"], "type_a": "別の刺激（映画・旅）を求める"},
+    {"q": "Q7. 作品の「完成」の判断基準は？", "opts": ["もうこれ以上触れないと感じた時", "予定していた要件を満たした時"], "type_a": "もうこれ以上触れないと感じた時"},
+    {"q": "Q8. 他人の評価に対しては？", "opts": ["好き嫌いが分かれても構わない", "多くの人に理解されるか気になる"], "type_a": "好き嫌いが分かれても構わない"},
+    {"q": "Q9. 制作中に新しいアイデアが浮かんだら？", "opts": ["予定を変更してでも試す", "今の作品を完成させてから次でやる"], "type_a": "予定を変更してでも試す"},
+    {"q": "Q10. 道具や機材へのこだわりは？", "opts": ["使い心地や愛着を重視", "スペックや効率を重視"], "type_a": "使い心地や愛着を重視"},
+    {"q": "Q11. 作品を通して伝えたいのは？", "opts": ["自分の内面世界や叫び", "社会へのメッセージや解決策"], "type_a": "自分の内面世界や叫び"},
+    {"q": "Q12. ラフスケッチの描き方は？", "opts": ["抽象的な線や形が多い", "具体的な構成や配置図に近い"], "type_a": "抽象的な線や形が多い"},
+    {"q": "Q13. 憧れるアーティストは？", "opts": ["破天荒で天才肌の人物", "知的で理論的な人物"], "type_a": "破天荒で天才肌の人物"},
+    {"q": "Q14. 締め切りに対する姿勢は？", "opts": ["ギリギリまで粘ってクオリティを上げたい", "余裕を持って早めに終わらせたい"], "type_a": "ギリギリまで粘ってクオリティを上げたい"},
+    {"q": "Q15. チーム制作については？", "opts": ["自分のペースが乱れるので苦手", "役割分担できて効率的なので好き"], "type_a": "自分のペースが乱れるので苦手"},
+    {"q": "Q16. 過去の自分の作品を見ると？", "opts": ["その時の感情が蘇る", "技術的な未熟さが気になる"], "type_a": "その時の感情が蘇る"},
+    {"q": "Q17. 新しい技術を学ぶ動機は？", "opts": ["表現したいものが作れるようになるから", "仕事の幅が広がりそうだから"], "type_a": "表現したいものが作れるようになるから"},
+    {"q": "Q18. 制作中のBGMは？", "opts": ["感情を高める曲を大音量で", "集中を妨げない環境音や無音"], "type_a": "感情を高める曲を大音量で"},
+    {"q": "Q19. タイトルの付け方は？", "opts": ["詩的・抽象的", "説明的・具体的"], "type_a": "詩的・抽象的"},
+    {"q": "Q20. SNSでの発信は？", "opts": ["作品の世界観だけを見せたい", "制作過程や思考もシェアしたい"], "type_a": "作品の世界観だけを見せたい"},
+    {"q": "Q21. 批評を受けた時の反応は？", "opts": ["感情的に反発してしまうことがある", "冷静に改善点として受け止める"], "type_a": "感情的に反発してしまうことがある"},
+    {"q": "Q22. 自分の作風を一言で言うなら？", "opts": ["エモーショナル・感覚的", "ロジカル・機能的"], "type_a": "エモーショナル・感覚的"},
+    {"q": "Q23. 目標設定の方法は？", "opts": ["大きな夢やビジョンを描く", "具体的な数値やステップを決める"], "type_a": "大きな夢やビジョンを描く"},
+    {"q": "Q24. 情報収集のスタイルは？", "opts": ["直感的に気になったものを深掘り", "体系的に幅広くチェック"], "type_a": "直感的に気になったものを深掘り"},
+    {"q": "Q25. 失敗作の扱いは？", "opts": ["勢いで捨ててしまう", "分析のために取っておく"], "type_a": "勢いで捨ててしまう"},
+    {"q": "Q26. 影響を受けやすいのは？", "opts": ["自然、音楽、夢などの体験", "本、論文、ニュースなどの情報"], "type_a": "自然、音楽、夢などの体験"},
+    {"q": "Q27. 制作において重要なのは？", "opts": ["「何を描くか」（主題）", "「どう描くか」（構成・技術）"], "type_a": "「何を描くか」（主題）"},
+    {"q": "Q28. 複雑な問題に直面したら？", "opts": ["直感を信じて突破する", "要素を分解して解決する"], "type_a": "直感を信じて突破する"},
+    {"q": "Q29. 完璧主義についてどう思う？", "opts": ["完成しなくても魂がこもっていればいい", "細部まで完璧でないと気が済まない"], "type_a": "完成しなくても魂がこもっていればいい"},
+    {"q": "Q30. あなたにとってアートとは？", "opts": ["生きることそのもの", "社会貢献や仕事の手段"], "type_a": "生きることそのもの"},
 ]
-# ★動作確認用のため、ここでのQUIZ_DATAは省略せずに前回のコードをそのまま使ってください。
-# もし貼り付けが面倒な場合は、前回のコードのQUIZ_DATA部分だけ残して他を書き換えてください。
-# ここではスペース節約のため省略表記にしています。
 
 # ---------------------------------------------------------
 # 2. デザイン & ユーティリティ関数
@@ -173,9 +196,10 @@ def send_email_with_pdf(user_email, pdf_buffer):
         return False
 
 # ---------------------------------------------------------
-# 4. PDF生成ロジック
+# 4. PDF生成ロジック (Refined Layout)
 # ---------------------------------------------------------
-# (省略なし：前回のコードと同じロジックを使用)
+
+# Helper: スマートテキストラップ (15文字/助詞対応)
 def wrap_text_smart(text, max_char_count):
     if not text: return []
     delimiters = ['、', '。', 'て', 'に', 'を', 'は', 'が', 'と', 'へ', 'で', 'や', 'の', 'も', 'し', 'い', 'か', 'ね', 'よ', '！', '？']
@@ -236,13 +260,14 @@ def draw_arrow_slider(c, x, y, width_mm, left_text, right_text, value):
     c.setFillColor(HexColor(COLORS['forest']))
     c.circle(dot_x, y, 2.5*mm, fill=1, stroke=1)
 
+# --- PDF生成メイン関数 ---
 def create_pdf(json_data):
     buffer = io.BytesIO()
     c = canvas.Canvas(buffer, pagesize=landscape(A4))
     width, height = landscape(A4)
     MARGIN_X = width * 0.12
     
-    # P1
+    # P1: COVER
     try:
         c.drawImage("cover.jpg", 0, 0, width=width, height=height, preserveAspectRatio=False)
         c.setFillColor(HexColor('#000000'))
@@ -263,7 +288,7 @@ def create_pdf(json_data):
     c.drawCentredString(width/2, 20*mm, f"Designed by ThomYoshida AI | {datetime.datetime.now().strftime('%Y.%m.%d')}")
     c.showPage()
 
-    # P2
+    # P2: KEYWORDS
     draw_header(c, "01. 過去と未来の対比", 2)
     c.setFont(FONT_SERIF, 22)
     c.setFillColor(HexColor(COLORS['pdf_sub']))
@@ -286,7 +311,7 @@ def create_pdf(json_data):
         y -= 13*mm
     c.showPage()
 
-    # P3
+    # P3: FORMULA (Suki & Layout Fixed)
     draw_header(c, "02. 独自の成功法則", 3)
     formula = json_data.get('formula', {})
     cy = height/2 - 10*mm
@@ -317,7 +342,7 @@ def create_pdf(json_data):
     c.drawCentredString(width/2, height - 40*mm, f"「{json_data.get('catchphrase', '')}」")
     c.showPage()
 
-    # P4
+    # P4: SENSE BALANCE
     draw_header(c, "03. 感性のバランス", 4)
     metrics = json_data.get('sense_metrics', [])
     y = height - 65*mm
@@ -327,7 +352,7 @@ def create_pdf(json_data):
         draw_arrow_slider(c, x, curr_y, 48, m.get('left'), m.get('right'), m.get('value'))
     c.showPage()
 
-    # P5
+    # P5: ROLE MODELS (Title Updated)
     draw_header(c, "04. おすすめするロールモデル", 5) 
     archs = json_data.get('artist_archetypes', [])
     y = height - 55*mm
@@ -340,7 +365,7 @@ def create_pdf(json_data):
         y -= 48*mm
     c.showPage()
 
-    # P6
+    # P6: ROADMAP
     draw_header(c, "05. 未来へのロードマップ", 6)
     steps = json_data.get('roadmap_steps', [])
     y = height - 65*mm
@@ -356,7 +381,7 @@ def create_pdf(json_data):
         y -= 45*mm
     c.showPage()
 
-    # P7
+    # P7: VISION & ALTERNATIVES
     draw_header(c, "06. 次なるビジョンと選択肢", 7)
     c.setFont(FONT_SERIF, 20)
     c.setFillColor(HexColor(COLORS['forest']))
@@ -382,7 +407,7 @@ def create_pdf(json_data):
         y_alt -= 30*mm
     c.showPage()
 
-    # P8
+    # P8: MESSAGE (Smart Line Break)
     image_url = "https://images.unsplash.com/photo-1495312040802-a929cd14a6ab?q=80&w=2940&auto=format&fit=crop"
     try:
         response = requests.get(image_url, stream=True, timeout=10)
@@ -408,6 +433,7 @@ def create_pdf(json_data):
     q_author = quote_data.get('author', '')
 
     c.setFillColor(TEXT_COLOR_END)
+    # 15文字で折り返すよう max_width を設定 (150mm)
     draw_wrapped_text(c, q_text, width/2, height/2 + 20*mm, FONT_SERIF, 28, 150*mm, 36, centered=True)
     c.setFont(FONT_SANS, 18)
     c.setFillColor(ACCENT_COLOR_END)
@@ -452,7 +478,7 @@ def render_web_result(data):
         f = data.get('formula', {})
         st.info(f"**価値観**\n\n{f.get('values', {}).get('word')}")
         st.warning(f"**強み**\n\n{f.get('strengths', {}).get('word')}")
-        st.success(f"**好き**\n\n{f.get('interests', {}).get('word')}")
+        st.success(f"**好き**\n\n{f.get('interests', {}).get('word')}") # Web表示
     st.markdown("### Recommended Alternative Expressions")
     alts = data.get('alternative_expressions', [])
     for alt in alts:
@@ -530,19 +556,16 @@ elif st.session_state.step == 3:
                     st.rerun()
                 else: st.warning("情報を入力してください。")
 
-# STEP 4 (AI Auto-Generation with Retry Logic)
+# STEP 4 (AI + Retry Logic)
 elif st.session_state.step == 4:
     if "analysis_data" not in st.session_state:
         with st.spinner("Connecting to Visionary Core... AIが世界観を解析中..."):
             
-            # APIキーがあればAI生成、なければフォールバック
             if os.environ.get("GEMINI_API_KEY"):
-                # ★リトライループの実装 (3回まで)
                 max_retries = 3
                 for attempt in range(max_retries):
                     try:
                         client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
-                        
                         prompt = f"""
                         あなたは世界的なアートディレクター Thom Yoshida です。
                         ユーザーの「専門分野」と「診断タイプ」に基づき、その人の世界観を分析し、
@@ -583,22 +606,19 @@ elif st.session_state.step == 4:
                             }}
                         }}
                         """
-                        # ★モデルを gemini-1.5-flash に変更 (Quota対策)
                         response = client.models.generate_content(
                             model='gemini-1.5-flash', 
                             contents=prompt,
                             config=types.GenerateContentConfig(response_mime_type="application/json")
                         )
                         data = json.loads(response.text)
-                        break # 成功したらループを抜ける
+                        break 
                         
                     except Exception as e:
                         if "429" in str(e) and attempt < max_retries - 1:
-                            time.sleep(10) # 429エラーなら10秒待機
+                            time.sleep(10)
                         elif attempt == max_retries - 1:
                             st.error(f"AI Error (Quota Exceeded): {e}")
-                            # ダミーデータへのフォールバック（省略）
-                            # 実際の運用ではここにダミーデータを記述してください
                             data = {
                                 "catchphrase": "Visionary Mode", "twelve_past_keywords": [], "twelve_future_keywords": [], "sense_metrics": [], "formula": {}, "roadmap_steps": [], "artist_archetypes": [], "final_proposals": [], "alternative_expressions": [], "inspiring_quote": {"text": "Creation is the act of connecting.", "author": "System"}
                             }
