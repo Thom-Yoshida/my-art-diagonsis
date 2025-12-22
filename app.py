@@ -34,7 +34,7 @@ from reportlab.lib.utils import ImageReader
 # ---------------------------------------------------------
 st.set_page_config(page_title="Visionary Analysis | ThomYoshida", layout="wide") 
 
-# デザイン定義 (COLORS)
+# デザイン定義 (COLORS - 世界観研究所グレー v3.5)
 COLORS = {
     "bg": "#2A2A2A", "text": "#E8E8E8", "accent": "#D6AE60", 
     "sub": "#8BA6B0", "forest": "#5F9EA0", "card": "#383838",    
@@ -193,7 +193,7 @@ def send_email_with_pdf(user_email, pdf_buffer):
         server.quit()
         return True
     except Exception as e:
-        st.error(f"メール送信エラー: {e}") # 詳細を表示
+        st.error(f"メール送信エラー: {e}")
         return False
 
 # ---------------------------------------------------------
@@ -265,7 +265,7 @@ def create_pdf(json_data):
     width, height = landscape(A4)
     MARGIN_X = width * 0.12
     
-    # P1
+    # P1: COVER
     try:
         c.drawImage("cover.jpg", 0, 0, width=width, height=height, preserveAspectRatio=False)
         c.setFillColor(HexColor('#000000'))
@@ -286,7 +286,7 @@ def create_pdf(json_data):
     c.drawCentredString(width/2, 20*mm, f"Designed by ThomYoshida AI | {datetime.datetime.now().strftime('%Y.%m.%d')}")
     c.showPage()
 
-    # P2
+    # P2: KEYWORDS
     draw_header(c, "01. 過去と未来の対比", 2)
     c.setFont(FONT_SERIF, 22)
     c.setFillColor(HexColor(COLORS['pdf_sub']))
@@ -309,7 +309,7 @@ def create_pdf(json_data):
         y -= 13*mm
     c.showPage()
 
-    # P3
+    # P3: FORMULA
     draw_header(c, "02. 独自の成功法則", 3)
     formula = json_data.get('formula', {})
     cy = height/2 - 10*mm
@@ -340,7 +340,7 @@ def create_pdf(json_data):
     c.drawCentredString(width/2, height - 40*mm, f"「{json_data.get('catchphrase', '')}」")
     c.showPage()
 
-    # P4
+    # P4: SENSE BALANCE
     draw_header(c, "03. 感性のバランス", 4)
     metrics = json_data.get('sense_metrics', [])
     y = height - 65*mm
@@ -350,7 +350,7 @@ def create_pdf(json_data):
         draw_arrow_slider(c, x, curr_y, 48, m.get('left'), m.get('right'), m.get('value'))
     c.showPage()
 
-    # P5
+    # P5: ROLE MODELS
     draw_header(c, "04. おすすめするロールモデル", 5) 
     archs = json_data.get('artist_archetypes', [])
     y = height - 55*mm
@@ -363,7 +363,7 @@ def create_pdf(json_data):
         y -= 48*mm
     c.showPage()
 
-    # P6
+    # P6: ROADMAP
     draw_header(c, "05. 未来へのロードマップ", 6)
     steps = json_data.get('roadmap_steps', [])
     y = height - 65*mm
@@ -379,7 +379,7 @@ def create_pdf(json_data):
         y -= 45*mm
     c.showPage()
 
-    # P7
+    # P7: VISION & ALTERNATIVES
     draw_header(c, "06. 次なるビジョンと選択肢", 7)
     c.setFont(FONT_SERIF, 20)
     c.setFillColor(HexColor(COLORS['forest']))
@@ -405,7 +405,7 @@ def create_pdf(json_data):
         y_alt -= 30*mm
     c.showPage()
 
-    # P8
+    # P8: MESSAGE
     image_url = "https://images.unsplash.com/photo-1495312040802-a929cd14a6ab?q=80&w=2940&auto=format&fit=crop"
     try:
         response = requests.get(image_url, stream=True, timeout=10)
@@ -619,7 +619,6 @@ elif st.session_state.step == 4:
             success = False
             error_details = ""
             
-            # ★修正: st.secretsを直接チェック
             if "GEMINI_API_KEY" in st.secrets:
                 # Prompt Definition
                 prompt_text = f"""
@@ -664,7 +663,16 @@ elif st.session_state.step == 4:
                 """
                 
                 # --- STRATEGY 1: Vision Models (Image + Text) ---
-                vision_models = ['gemini-1.5-flash', 'gemini-1.5-pro']
+                # ★修正: 確実につながる正式名称リスト
+                vision_models = [
+                    'gemini-1.5-flash-latest', 
+                    'gemini-1.5-flash', 
+                    'gemini-1.5-flash-001', 
+                    'gemini-1.5-pro',
+                    'gemini-1.5-pro-latest',
+                    'gemini-1.5-pro-001',
+                    'gemini-pro-vision' # Legacy fallback
+                ]
                 # Standard SDK input format: [text, img1, img2, ...]
                 contents_vision = [prompt_text] + st.session_state.uploaded_images
                 
@@ -678,7 +686,7 @@ elif st.session_state.step == 4:
                         )
                         data = json.loads(response.text)
                         success = True
-                        print(f"Success with {model_name}")
+                        st.success(f"Connected to Visionary Core ({model_name})") # 接続成功モデルを表示
                         break
                     except Exception as e:
                         error_details += f"[{model_name}: {str(e)}] "
@@ -689,6 +697,7 @@ elif st.session_state.step == 4:
                 if not success:
                     try:
                         print("Trying Text-Only Fallback with gemini-pro...")
+                        # 404/429回避のため、画像を捨ててテキストのみでリクエスト
                         model = genai.GenerativeModel('gemini-pro')
                         response = model.generate_content(
                             prompt_text,
@@ -703,7 +712,6 @@ elif st.session_state.step == 4:
 
             # --- STRATEGY 3: Final Safety Net (Dummy Data + Error Display) ---
             if not success:
-                # ★修正: 具体的エラーを表示
                 st.error(f"AI Analysis Failed. Details: {error_details}")
                 st.warning("Loading default specimen for demonstration.")
                 data = {
