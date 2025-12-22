@@ -11,7 +11,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.application import MIMEApplication
 
-# Google系ライブラリ（★標準ライブラリに変更）
+# Google系ライブラリ（標準SDK）
 import google.generativeai as genai
 import pandas as pd
 import gspread
@@ -34,7 +34,7 @@ from reportlab.lib.utils import ImageReader
 # ---------------------------------------------------------
 st.set_page_config(page_title="Visionary Analysis | ThomYoshida", layout="wide") 
 
-# デザイン定義 (COLORS - 世界観研究所グレー v3.4)
+# デザイン定義 (COLORS)
 COLORS = {
     "bg": "#2A2A2A", "text": "#E8E8E8", "accent": "#D6AE60", 
     "sub": "#8BA6B0", "forest": "#5F9EA0", "card": "#383838",    
@@ -51,7 +51,7 @@ except:
     FONT_SERIF = 'Helvetica'
     FONT_SANS = 'Helvetica'
 
-# APIキー設定（★標準ライブラリの設定方法）
+# APIキー設定（標準SDK用）
 if "GEMINI_API_KEY" in st.secrets:
     genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 
@@ -126,7 +126,7 @@ def apply_custom_css():
 
 apply_custom_css()
 
-# ★重要: 画像圧縮関数
+# 画像圧縮関数
 def resize_image_for_api(image, max_width=1024):
     width_percent = (max_width / float(image.size[0]))
     if width_percent < 1:
@@ -193,7 +193,7 @@ def send_email_with_pdf(user_email, pdf_buffer):
         server.quit()
         return True
     except Exception as e:
-        print(f"Email Error: {e}")
+        st.error(f"メール送信エラー: {e}") # 詳細を表示
         return False
 
 # ---------------------------------------------------------
@@ -617,8 +617,10 @@ elif st.session_state.step == 4:
             
             # --- Standard SDK Implementation ---
             success = False
+            error_details = ""
             
-            if os.environ.get("GEMINI_API_KEY"):
+            # ★修正: st.secretsを直接チェック
+            if "GEMINI_API_KEY" in st.secrets:
                 # Prompt Definition
                 prompt_text = f"""
                 あなたは世界的なアートディレクター Thom Yoshida です。
@@ -679,6 +681,7 @@ elif st.session_state.step == 4:
                         print(f"Success with {model_name}")
                         break
                     except Exception as e:
+                        error_details += f"[{model_name}: {str(e)}] "
                         print(f"Failed {model_name}: {e}")
                         time.sleep(1)
                 
@@ -686,7 +689,6 @@ elif st.session_state.step == 4:
                 if not success:
                     try:
                         print("Trying Text-Only Fallback with gemini-pro...")
-                        # 404/429回避のため、画像を捨ててテキストのみでリクエスト
                         model = genai.GenerativeModel('gemini-pro')
                         response = model.generate_content(
                             prompt_text,
@@ -696,11 +698,14 @@ elif st.session_state.step == 4:
                         success = True
                         st.warning("※画像認識サーバーが混雑しているため、テキスト情報のみで分析しました。")
                     except Exception as e:
+                        error_details += f"[gemini-pro: {str(e)}] "
                         print(f"Text Fallback Failed: {e}")
 
-            # --- STRATEGY 3: Final Safety Net (Dummy Data) ---
+            # --- STRATEGY 3: Final Safety Net (Dummy Data + Error Display) ---
             if not success:
-                st.error("AI Analysis Failed (Service Busy). Loading default specimen.")
+                # ★修正: 具体的エラーを表示
+                st.error(f"AI Analysis Failed. Details: {error_details}")
+                st.warning("Loading default specimen for demonstration.")
                 data = {
                     "catchphrase": "Visionary Mode",
                     "twelve_past_keywords": ["Origin", "Noise", "Copy", "Past", "Ego", "Gray", "Blur", "Dust"],
