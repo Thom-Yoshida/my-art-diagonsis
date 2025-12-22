@@ -34,7 +34,7 @@ from reportlab.lib.utils import ImageReader
 # ---------------------------------------------------------
 st.set_page_config(page_title="Visionary Analysis | ThomYoshida", layout="wide") 
 
-# デザイン定義 (COLORS - 世界観研究所グレー v3.0)
+# デザイン定義 (COLORS - 世界観研究所グレー v3.1)
 COLORS = {
     "bg": "#2A2A2A",      
     "text": "#E8E8E8",    
@@ -44,7 +44,7 @@ COLORS = {
     "card": "#383838",    
     "pdf_bg": "#FAFAF8",  
     "pdf_text": "#2C2C2C",
-    "pdf_sub": "#666666"  # 文字の視認性を上げるため少し濃く修正
+    "pdf_sub": "#666666"
 }
 
 # フォント登録
@@ -159,7 +159,6 @@ def save_to_google_sheets(name, email, specialty, diagnosis_type):
         return False
 
 def load_data_from_sheets():
-    # (省略なし、前のコードと同じ)
     if "gcp_service_account" not in st.secrets: return pd.DataFrame()
     try:
         creds_dict = dict(st.secrets["gcp_service_account"])
@@ -206,25 +205,27 @@ def send_email_with_pdf(user_email, pdf_buffer):
 # ---------------------------------------------------------
 
 # Helper: スマートテキストラップ (15文字/助詞対応)
+# より厳密に助詞での改行を優先するロジックに変更
 def wrap_text_smart(text, max_char_count):
     if not text: return []
-    delimiters = ['、', '。', 'て', 'に', 'を', 'は', 'が', 'と', 'へ', 'で', 'や', 'の', 'も', 'し', 'い', 'か', 'ね', 'よ']
+    # 優先的に改行したい文字セット
+    delimiters = ['、', '。', 'て', 'に', 'を', 'は', 'が', 'と', 'へ', 'で', 'や', 'の', 'も', 'し', 'い', 'か', 'ね', 'よ', '！', '？']
     lines = []
     current_line = ""
-    i = 0
-    while i < len(text):
-        char = text[i]
+    
+    for char in text:
         current_line += char
-        i += 1
-        # 最大文字数に近づいたら改行チャンスを伺う
+        # 目標文字数に近づいたら（80%以上）助詞チェック
         if len(current_line) >= max_char_count * 0.8:
             if char in delimiters:
                 lines.append(current_line)
                 current_line = ""
                 continue
-            if len(current_line) >= max_char_count:
+            # 目標文字数を少し超えたら強制改行（ただし、なるべく言葉の途中は避ける）
+            if len(current_line) >= max_char_count + 2:
                 lines.append(current_line)
                 current_line = ""
+    
     if current_line: lines.append(current_line)
     return lines
 
@@ -239,7 +240,7 @@ def draw_wrapped_text(c, text, x, y, font, size, max_width, leading, centered=Fa
         else: c.drawString(x, current_y, line)
         current_y -= leading
 
-# Helper: ヘッダー (日本語タイトル対応)
+# Helper: ヘッダー
 def draw_header(c, title, page_num):
     width, height = landscape(A4)
     c.setFillColor(HexColor(COLORS['pdf_bg']))
@@ -249,7 +250,7 @@ def draw_header(c, title, page_num):
     c.line(10*mm, height - 25*mm, width - 10*mm, height - 25*mm)
     c.setFont(FONT_SANS, 20)
     c.setFillColor(HexColor(COLORS['forest']))
-    c.drawString(15*mm, height - 20*mm, title) # 日本語タイトル
+    c.drawString(15*mm, height - 20*mm, title) 
     c.setFont(FONT_SANS, 12)
     c.setFillColor(HexColor(COLORS['pdf_sub']))
     c.drawRightString(width - 15*mm, height - 20*mm, f"{page_num} / 8")
@@ -323,17 +324,18 @@ def create_pdf(json_data):
         y -= 13*mm
     c.showPage()
 
-    # ================= P3. FORMULA (Layout Fixed) =================
+    # ================= P3. FORMULA (Updated: 好き & Layout) =================
     draw_header(c, "02. 独自の成功法則", 3)
     formula = json_data.get('formula', {})
     cy = height/2 - 10*mm
-    r = 38*mm # 円のサイズ微調整（重なり防止）
+    r = 38*mm 
     
-    # 位置調整（文字が被らないように距離を確保）
+    # "興味" -> "好き" に変更し、配置バランスを調整
+    # 文字が円の線に被らないよう、タイトルのY位置を少し下げ、ワードのY位置も調整
     positions = [
-        (width/2 - r*1.6, cy + r*0.8, "価値観", formula.get('values', {}).get('word', '')),
-        (width/2 + r*1.6, cy + r*0.8, "強み", formula.get('strengths', {}).get('word', '')),
-        (width/2, cy - r*1.2, "興味", formula.get('interests', {}).get('word', ''))
+        (width/2 - r*1.55, cy + r*0.8, "価値観", formula.get('values', {}).get('word', '')),
+        (width/2 + r*1.55, cy + r*0.8, "強み", formula.get('strengths', {}).get('word', '')),
+        (width/2, cy - r*1.2, "好き", formula.get('interests', {}).get('word', '')) # ここを「好き」に変更
     ]
     
     for cx, cy_pos, title, word in positions:
@@ -341,13 +343,16 @@ def create_pdf(json_data):
         c.setFillColor(HexColor('#FFFFFF'))
         c.setLineWidth(1.5)
         c.circle(cx, cy_pos, r, fill=1, stroke=1)
+        
+        # タイトル (円の上部内側)
         c.setFont(FONT_SERIF, 18)
         c.setFillColor(HexColor(COLORS['pdf_sub']))
-        c.drawCentredString(cx, cy_pos + 15*mm, title) # 上部にタイトル
+        c.drawCentredString(cx, cy_pos + 12*mm, title) 
+        
+        # ワード (円の中央)
         c.setFont(FONT_SANS, 24)
         c.setFillColor(HexColor(COLORS['pdf_text']))
-        # 長い単語でも円に収まるよう調整
-        draw_wrapped_text(c, word, cx, cy_pos - 5*mm, FONT_SANS, 24, r*1.8, 30, centered=True)
+        draw_wrapped_text(c, word, cx, cy_pos - 8*mm, FONT_SANS, 24, r*1.7, 30, centered=True)
 
     c.setFont(FONT_SANS, 44)
     c.setFillColor(HexColor(COLORS['accent']))
@@ -370,17 +375,14 @@ def create_pdf(json_data):
         draw_arrow_slider(c, x, curr_y, 48, m.get('left'), m.get('right'), m.get('value'))
     c.showPage()
 
-    # ================= P5. ARCHETYPES (Name + Summary) =================
-    draw_header(c, "04. 魂のアーキタイプ", 5)
+    # ================= P5. ROLE MODELS (Updated Title) =================
+    draw_header(c, "04. おすすめするロールモデル", 5) # タイトル変更
     archs = json_data.get('artist_archetypes', [])
     y = height - 55*mm
     for i, a in enumerate(archs[:3]):
-        # 名前を目立たせる
         c.setFont(FONT_SERIF, 22)
         c.setFillColor(HexColor(COLORS['forest']))
         c.drawString(MARGIN_X, y, f"◆ {a.get('name')}")
-        
-        # 概要（Summary）をセットで表示
         c.setFillColor(HexColor(COLORS['pdf_text']))
         draw_wrapped_text(c, a.get('detail', ''), MARGIN_X + 8*mm, y - 12*mm, FONT_SANS, 14, width - MARGIN_X*2 - 20*mm, 20)
         y -= 48*mm
@@ -402,42 +404,38 @@ def create_pdf(json_data):
         y -= 45*mm
     c.showPage()
 
-    # ================= P7. VISION & ALTERNATIVES (2 Column Layout) =================
+    # ================= P7. VISION & ALTERNATIVES =================
     draw_header(c, "06. 次なるビジョンと選択肢", 7)
     
-    # Left Column: Visions (5 Items)
+    # Visions
     c.setFont(FONT_SERIF, 20)
     c.setFillColor(HexColor(COLORS['forest']))
     c.drawString(MARGIN_X, height - 45*mm, "Next Vision")
-    
     proposals = json_data.get('final_proposals', [])
     y = height - 60*mm
-    # 左側に5つ詰めて表示
-    for p in proposals[:5]: # 5つ表示
+    for p in proposals[:5]:
         c.setFont(FONT_SANS, 14)
         c.setFillColor(HexColor(COLORS['pdf_text']))
         c.drawString(MARGIN_X, y, f"・{p.get('point')}")
-        # 詳細テキストは少し小さくして収める
         draw_wrapped_text(c, p.get('detail', ''), MARGIN_X + 5*mm, y - 6*mm, FONT_SANS, 11, width*0.4, 14)
         y -= 24*mm
         
-    # Right Column: Alternatives (3 Items)
+    # Alternatives
     x_right = width/2 + 10*mm
     c.setFont(FONT_SERIF, 20)
     c.setFillColor(HexColor(COLORS['forest']))
     c.drawString(x_right, height - 45*mm, "Alternative Expressions")
-    
     alts = json_data.get('alternative_expressions', [])
     y_alt = height - 60*mm
     for alt in alts[:3]:
         c.setFont(FONT_SANS, 14)
         c.setFillColor(HexColor(COLORS['pdf_text']))
         draw_wrapped_text(c, f"◇ {alt}", x_right, y_alt, FONT_SANS, 14, width*0.4, 20)
-        y_alt -= 30*mm # 間隔広めに
+        y_alt -= 30*mm
     c.showPage()
 
-    # ================= P8. MESSAGE (15 chars wrap) =================
-    # ODAN/Unsplash Image Logic
+    # ================= P8. MESSAGE (Smart Line Break 15chars) =================
+    # ODAN/Unsplash
     image_url = "https://images.unsplash.com/photo-1495312040802-a929cd14a6ab?q=80&w=2940&auto=format&fit=crop"
     bg_drawn = False
     try:
@@ -464,9 +462,10 @@ def create_pdf(json_data):
     q_text = quote_data.get('text', '')
     q_author = quote_data.get('author', '')
 
-    # 名言配置：15文字程度で改行するようサイズと幅を調整
+    # 名言配置：文字サイズ28の場合、15文字は約130mm幅。
+    # 改行ロジックを15文字基準で適用。
     c.setFillColor(TEXT_COLOR_END)
-    # font_size 28 * 0.352(mm変換) * 15文字 ≈ 150mm幅
+    # 15文字(約150mm)で強制的に折り返すよう max_width を設定
     draw_wrapped_text(c, q_text, width/2, height/2 + 20*mm, FONT_SERIF, 28, 150*mm, 36, centered=True)
     
     c.setFont(FONT_SANS, 18)
@@ -485,7 +484,6 @@ def create_pdf(json_data):
 # ---------------------------------------------------------
 # 5. Pipeline & Data
 # ---------------------------------------------------------
-# (省略なし：前のコードのまま)
 def render_web_result(data):
     st.markdown("---")
     st.caption("YOUR SOUL DEFINITION")
@@ -515,7 +513,7 @@ def render_web_result(data):
         f = data.get('formula', {})
         st.info(f"**価値観**\n\n{f.get('values', {}).get('word')}")
         st.warning(f"**強み**\n\n{f.get('strengths', {}).get('word')}")
-        st.success(f"**興味**\n\n{f.get('interests', {}).get('word')}")
+        st.success(f"**好き**\n\n{f.get('interests', {}).get('word')}") # Web表示も「好き」に変更
     st.markdown("### Recommended Alternative Expressions")
     alts = data.get('alternative_expressions', [])
     for alt in alts:
@@ -622,7 +620,7 @@ elif st.session_state.step == 4:
                     {"name": "杉本博司", "detail": "時間と光を概念的に捉え、静寂を表現するアプローチ。"},
                     {"name": "ル・コルビュジエ", "detail": "機能性と美しさを統合し、モダニズムの基礎を築いた思考。"}
                 ],
-                "final_proposals": [ # 5つに拡充
+                "final_proposals": [ 
                     {"point": "無機質な被写体選び", "detail": "植物などの有機物ではなく、ビルや階段などの構造物を撮る。"},
                     {"point": "彩度を落とす", "detail": "色は情報のノイズになり得るため、彩度を-20%する。"},
                     {"point": "余白のトリミング", "detail": "被写体を中央ではなく、隅に配置し、圧倒的な余白を作る。"},
