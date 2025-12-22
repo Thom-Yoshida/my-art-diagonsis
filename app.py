@@ -205,27 +205,21 @@ def send_email_with_pdf(user_email, pdf_buffer):
 # ---------------------------------------------------------
 
 # Helper: スマートテキストラップ (15文字/助詞対応)
-# より厳密に助詞での改行を優先するロジックに変更
 def wrap_text_smart(text, max_char_count):
     if not text: return []
-    # 優先的に改行したい文字セット
     delimiters = ['、', '。', 'て', 'に', 'を', 'は', 'が', 'と', 'へ', 'で', 'や', 'の', 'も', 'し', 'い', 'か', 'ね', 'よ', '！', '？']
     lines = []
     current_line = ""
-    
     for char in text:
         current_line += char
-        # 目標文字数に近づいたら（80%以上）助詞チェック
         if len(current_line) >= max_char_count * 0.8:
             if char in delimiters:
                 lines.append(current_line)
                 current_line = ""
                 continue
-            # 目標文字数を少し超えたら強制改行（ただし、なるべく言葉の途中は避ける）
             if len(current_line) >= max_char_count + 2:
                 lines.append(current_line)
                 current_line = ""
-    
     if current_line: lines.append(current_line)
     return lines
 
@@ -330,12 +324,10 @@ def create_pdf(json_data):
     cy = height/2 - 10*mm
     r = 38*mm 
     
-    # "興味" -> "好き" に変更し、配置バランスを調整
-    # 文字が円の線に被らないよう、タイトルのY位置を少し下げ、ワードのY位置も調整
     positions = [
         (width/2 - r*1.55, cy + r*0.8, "価値観", formula.get('values', {}).get('word', '')),
         (width/2 + r*1.55, cy + r*0.8, "強み", formula.get('strengths', {}).get('word', '')),
-        (width/2, cy - r*1.2, "好き", formula.get('interests', {}).get('word', '')) # ここを「好き」に変更
+        (width/2, cy - r*1.2, "好き", formula.get('interests', {}).get('word', ''))
     ]
     
     for cx, cy_pos, title, word in positions:
@@ -343,13 +335,9 @@ def create_pdf(json_data):
         c.setFillColor(HexColor('#FFFFFF'))
         c.setLineWidth(1.5)
         c.circle(cx, cy_pos, r, fill=1, stroke=1)
-        
-        # タイトル (円の上部内側)
         c.setFont(FONT_SERIF, 18)
         c.setFillColor(HexColor(COLORS['pdf_sub']))
         c.drawCentredString(cx, cy_pos + 12*mm, title) 
-        
-        # ワード (円の中央)
         c.setFont(FONT_SANS, 24)
         c.setFillColor(HexColor(COLORS['pdf_text']))
         draw_wrapped_text(c, word, cx, cy_pos - 8*mm, FONT_SANS, 24, r*1.7, 30, centered=True)
@@ -376,7 +364,7 @@ def create_pdf(json_data):
     c.showPage()
 
     # ================= P5. ROLE MODELS (Updated Title) =================
-    draw_header(c, "04. おすすめするロールモデル", 5) # タイトル変更
+    draw_header(c, "04. おすすめするロールモデル", 5) 
     archs = json_data.get('artist_archetypes', [])
     y = height - 55*mm
     for i, a in enumerate(archs[:3]):
@@ -435,7 +423,6 @@ def create_pdf(json_data):
     c.showPage()
 
     # ================= P8. MESSAGE (Smart Line Break 15chars) =================
-    # ODAN/Unsplash
     image_url = "https://images.unsplash.com/photo-1495312040802-a929cd14a6ab?q=80&w=2940&auto=format&fit=crop"
     bg_drawn = False
     try:
@@ -462,8 +449,6 @@ def create_pdf(json_data):
     q_text = quote_data.get('text', '')
     q_author = quote_data.get('author', '')
 
-    # 名言配置：文字サイズ28の場合、15文字は約130mm幅。
-    # 改行ロジックを15文字基準で適用。
     c.setFillColor(TEXT_COLOR_END)
     # 15文字(約150mm)で強制的に折り返すよう max_width を設定
     draw_wrapped_text(c, q_text, width/2, height/2 + 20*mm, FONT_SERIF, 28, 150*mm, 36, centered=True)
@@ -591,52 +576,116 @@ elif st.session_state.step == 3:
                     st.rerun()
                 else: st.warning("情報を入力してください。")
 
-# STEP 4 (Updated Data)
+# STEP 4 (AI Auto-Generation)
 elif st.session_state.step == 4:
     if "analysis_data" not in st.session_state:
-        with st.spinner("Connecting to Visionary Core..."):
-            data = {
-                "catchphrase": "静寂の青き建築家",
-                "twelve_past_keywords": ["混沌", "模倣", "ノイズ", "迷い", "多弁", "装飾", "迎合", "未熟"],
-                "twelve_future_keywords": ["静寂", "本質", "余白", "確信", "沈黙", "構造", "孤高", "洗練"],
-                "sense_metrics": [
-                    {"left": "具象", "right": "抽象", "value": 80}, {"left": "感情", "right": "論理", "value": 60},
-                    {"left": "喧騒", "right": "静寂", "value": 90}, {"left": "伝統", "right": "革新", "value": 40},
-                    {"left": "儚さ", "right": "永続", "value": 70}, {"left": "日常", "right": "幻想", "value": 75},
-                    {"left": "繊細", "right": "大胆", "value": 50}, {"left": "内向", "right": "外交", "value": 30}
-                ],
-                "formula": {
-                    "values": {"word": "静謐", "detail": "ノイズのない世界"},
-                    "strengths": {"word": "構図力", "detail": "黄金比への理解"},
-                    "interests": {"word": "構造物", "detail": "コンクリート建築"}
-                },
-                "roadmap_steps": [
-                    {"title": "余白の再定義", "detail": "画面の8割を余白にする勇気を持つことから始める。"},
-                    {"title": "光の指向性", "detail": "拡散光ではなく、意図的なサイドライトを用いてドラマを作る。"},
-                    {"title": "シリーズ化", "detail": "単写真ではなく、3枚1組の組写真として物語を構成する。"}
-                ],
-                "artist_archetypes": [ 
-                    {"name": "アンドレアス・グルスキー", "detail": "俯瞰的な視点と、幾何学的な構造美を追求する姿勢が共鳴。"},
-                    {"name": "杉本博司", "detail": "時間と光を概念的に捉え、静寂を表現するアプローチ。"},
-                    {"name": "ル・コルビュジエ", "detail": "機能性と美しさを統合し、モダニズムの基礎を築いた思考。"}
-                ],
-                "final_proposals": [ 
-                    {"point": "無機質な被写体選び", "detail": "植物などの有機物ではなく、ビルや階段などの構造物を撮る。"},
-                    {"point": "彩度を落とす", "detail": "色は情報のノイズになり得るため、彩度を-20%する。"},
-                    {"point": "余白のトリミング", "detail": "被写体を中央ではなく、隅に配置し、圧倒的な余白を作る。"},
-                    {"point": "直線の強調", "detail": "水平垂直を徹底的に揃え、歪みを補正する。"},
-                    {"point": "質感の強調", "detail": "ハイライトを飛ばさず、コンクリートや鉄の質感を残す。"}
-                ],
-                "alternative_expressions": [
-                    "モノクロームフィルム写真での建築撮影",
-                    "環境音を用いたサウンドインスタレーション",
-                    "ミニマルなタイポグラフィによるポスター制作"
-                ],
-                "inspiring_quote": {
-                    "text": "完璧とは、付け加えるものが何もないときではなく、取り除くものが何もないときに達成される。",
-                    "author": "サン＝テグジュペリ"
+        with st.spinner("Connecting to Visionary Core... AIが世界観を解析中..."):
+            
+            # APIキーがあればAI生成、なければフォールバック
+            if os.environ.get("GEMINI_API_KEY"):
+                try:
+                    client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+                    
+                    # プロンプト定義
+                    prompt = f"""
+                    あなたは世界的なアートディレクター Thom Yoshida です。
+                    ユーザーの「専門分野」と「診断タイプ」に基づき、その人の世界観を分析し、
+                    専用の診断レポートJSONを作成してください。
+
+                    【ユーザー情報】
+                    - 専門分野: {st.session_state.specialty}
+                    - 診断タイプ: {st.session_state.quiz_result}
+                    
+                    【必須出力JSON構造】
+                    {{
+                        "catchphrase": "短いキャッチコピー(15文字以内)",
+                        "twelve_past_keywords": ["過去を表す単語12個"],
+                        "twelve_future_keywords": ["未来を表す単語12個"],
+                        "sense_metrics": [
+                            {{"left": "対立軸左", "right": "対立軸右", "value": 0〜100の数値}} を8個
+                        ],
+                        "formula": {{
+                            "values": {{"word": "価値観", "detail": "詳細"}},
+                            "strengths": {{"word": "強み", "detail": "詳細"}},
+                            "interests": {{"word": "好き", "detail": "詳細"}}
+                        }},
+                        "roadmap_steps": [
+                            {{"title": "Stepタイトル", "detail": "詳細"}} を3つ
+                        ],
+                        "artist_archetypes": [
+                            {{"name": "ロールモデル名", "detail": "なぜその人なのか"}} を3名
+                        ],
+                        "final_proposals": [
+                            {{"point": "ビジョン要点", "detail": "詳細"}} を5つ
+                        ],
+                        "alternative_expressions": [
+                            "おすすめの別表現手法" を3つ
+                        ],
+                        "inspiring_quote": {{
+                            "text": "その人の世界観に最も響く、実在する偉人の名言（日本語訳）",
+                            "author": "著者名"
+                        }}
+                    }}
+                    """
+                    
+                    response = client.models.generate_content(
+                        model='gemini-2.0-flash', 
+                        contents=prompt,
+                        config=types.GenerateContentConfig(response_mime_type="application/json")
+                    )
+                    data = json.loads(response.text)
+                    
+                except Exception as e:
+                    # AIエラー時はダミーデータを使用
+                    st.error(f"AI Error (Switching to manual mode): {e}")
+                    data = {
+                        "catchphrase": "静寂の青き建築家",
+                        "twelve_past_keywords": ["混沌", "模倣", "ノイズ", "迷い", "多弁", "装飾", "迎合", "未熟"],
+                        "twelve_future_keywords": ["静寂", "本質", "余白", "確信", "沈黙", "構造", "孤高", "洗練"],
+                        "sense_metrics": [
+                            {"left": "具象", "right": "抽象", "value": 80}, {"left": "感情", "right": "論理", "value": 60},
+                            {"left": "喧騒", "right": "静寂", "value": 90}, {"left": "伝統", "right": "革新", "value": 40},
+                            {"left": "儚さ", "right": "永続", "value": 70}, {"left": "日常", "right": "幻想", "value": 75},
+                            {"left": "繊細", "right": "大胆", "value": 50}, {"left": "内向", "right": "外交", "value": 30}
+                        ],
+                        "formula": {
+                            "values": {"word": "静謐", "detail": "ノイズのない世界"},
+                            "strengths": {"word": "構図力", "detail": "黄金比への理解"},
+                            "interests": {"word": "構造物", "detail": "コンクリート建築"}
+                        },
+                        "roadmap_steps": [
+                            {"title": "余白の再定義", "detail": "画面の8割を余白にする勇気を持つことから始める。"},
+                            {"title": "光の指向性", "detail": "拡散光ではなく、意図的なサイドライトを用いてドラマを作る。"},
+                            {"title": "シリーズ化", "detail": "単写真ではなく、3枚1組の組写真として物語を構成する。"}
+                        ],
+                        "artist_archetypes": [ 
+                            {"name": "アンドレアス・グルスキー", "detail": "俯瞰的な視点と、幾何学的な構造美を追求する姿勢が共鳴。"},
+                            {"name": "杉本博司", "detail": "時間と光を概念的に捉え、静寂を表現するアプローチ。"},
+                            {"name": "ル・コルビュジエ", "detail": "機能性と美しさを統合し、モダニズムの基礎を築いた思考。"}
+                        ],
+                        "final_proposals": [ 
+                            {"point": "無機質な被写体選び", "detail": "植物などの有機物ではなく、ビルや階段などの構造物を撮る。"},
+                            {"point": "彩度を落とす", "detail": "色は情報のノイズになり得るため、彩度を-20%する。"},
+                            {"point": "余白のトリミング", "detail": "被写体を中央ではなく、隅に配置し、圧倒的な余白を作る。"},
+                            {"point": "直線の強調", "detail": "水平垂直を徹底的に揃え、歪みを補正する。"},
+                            {"point": "質感の強調", "detail": "ハイライトを飛ばさず、コンクリートや鉄の質感を残す。"}
+                        ],
+                        "alternative_expressions": [
+                            "モノクロームフィルム写真での建築撮影",
+                            "環境音を用いたサウンドインスタレーション",
+                            "ミニマルなタイポグラフィによるポスター制作"
+                        ],
+                        "inspiring_quote": {
+                            "text": "完璧とは、付け加えるものが何もないときではなく、取り除くものが何もないときに達成される。",
+                            "author": "サン＝テグジュペリ"
+                        }
+                    }
+            else:
+                # APIキーがない場合もダミーデータ
+                data = { # (上記と同じダミーデータ省略)
+                    "catchphrase": "Visionary Mode", "twelve_past_keywords": [], "twelve_future_keywords": [], "sense_metrics": [], "formula": {}, "roadmap_steps": [], "artist_archetypes": [], "final_proposals": [], "alternative_expressions": [], "inspiring_quote": {"text": "API Key Not Found", "author": "System"}
                 }
-            }
+
             st.session_state.analysis_data = data
             pdf_buffer = create_pdf(data)
             is_sent = send_email_with_pdf(st.session_state.user_email, pdf_buffer)
@@ -649,7 +698,7 @@ elif st.session_state.step == 4:
         if st.session_state.get("email_sent_status", False):
             st.success(f"📩 {st.session_state.user_email} にレポートを送信しました。")
         else:
-            st.warning("⚠️ レポート作成完了（メール送信失敗：設定を確認してください）")
+            st.warning("⚠️ レポート作成完了（メール設定を確認してください）")
         pdf_buffer = create_pdf(data)
         st.download_button("📥 DOWNLOAD REPORT", pdf_buffer, "Visionary_Report.pdf", "application/pdf")
         if st.button("START OVER"):
