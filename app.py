@@ -34,7 +34,7 @@ from reportlab.lib.utils import ImageReader
 # ---------------------------------------------------------
 st.set_page_config(page_title="Visionary Analysis | ThomYoshida", layout="wide") 
 
-# デザイン定義 (COLORS - 世界観研究所グレー v3.6)
+# デザイン定義 (COLORS - 世界観研究所グレー v3.8)
 COLORS = {
     "bg": "#2A2A2A", "text": "#E8E8E8", "accent": "#D6AE60", 
     "sub": "#8BA6B0", "forest": "#5F9EA0", "card": "#383838",    
@@ -51,7 +51,7 @@ except:
     FONT_SERIF = 'Helvetica'
     FONT_SANS = 'Helvetica'
 
-# APIキー設定（標準SDK用）
+# APIキー設定
 if "GEMINI_API_KEY" in st.secrets:
     genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 
@@ -197,8 +197,9 @@ def send_email_with_pdf(user_email, pdf_buffer):
         return False
 
 # ---------------------------------------------------------
-# 4. PDF生成ロジック
+# 4. PDF生成ロジック (Refined Typography & Layout)
 # ---------------------------------------------------------
+
 def wrap_text_smart(text, max_char_count):
     if not text: return []
     delimiters = ['、', '。', 'て', 'に', 'を', 'は', 'が', 'と', 'へ', 'で', 'や', 'の', 'も', 'し', 'い', 'か', 'ね', 'よ', '！', '？']
@@ -217,10 +218,10 @@ def wrap_text_smart(text, max_char_count):
     if current_line: lines.append(current_line)
     return lines
 
-def draw_wrapped_text(c, text, x, y, font, size, max_width, leading, centered=False):
+def draw_wrapped_text(c, text, x, y, font, size, max_width_mm, leading, centered=False):
     c.setFont(font, size)
-    char_width_mm = size * 0.352 * 0.95
-    max_chars = int(max_width / char_width_mm)
+    char_width_mm = size * 0.352 * 0.95 
+    max_chars = int(max_width_mm / char_width_mm)
     lines = wrap_text_smart(text, max_chars)
     current_y = y
     for line in lines:
@@ -265,7 +266,7 @@ def create_pdf(json_data):
     width, height = landscape(A4)
     MARGIN_X = width * 0.12
     
-    # P1: COVER
+    # ================= P1. COVER =================
     try:
         c.drawImage("cover.jpg", 0, 0, width=width, height=height, preserveAspectRatio=False)
         c.setFillColor(HexColor('#000000'))
@@ -286,30 +287,39 @@ def create_pdf(json_data):
     c.drawCentredString(width/2, 20*mm, f"Designed by ThomYoshida AI | {datetime.datetime.now().strftime('%Y.%m.%d')}")
     c.showPage()
 
-    # P2: KEYWORDS
+    # ================= P2. KEYWORDS (12 items & Triangle) =================
     draw_header(c, "01. 過去と未来の対比", 2)
     c.setFont(FONT_SERIF, 22)
     c.setFillColor(HexColor(COLORS['pdf_sub']))
     c.drawCentredString(width/3, height - 55*mm, "PAST / ORIGIN")
+    
+    # 12個のキーワードを表示
     past_kws = json_data.get('twelve_past_keywords', [])
     y = height - 75*mm
-    c.setFont(FONT_SANS, 12)
-    for kw in past_kws[:8]:
+    c.setFont(FONT_SANS, 11) # 少し小さくして12個収める
+    for kw in past_kws[:12]:
         c.drawCentredString(width/3, y, f"◇ {kw}")
-        y -= 11*mm
+        y -= 9.5*mm # 行間を調整
+    
+    # 変革の三角形（▶）を中心配置
+    c.setFont(FONT_SANS, 50)
+    c.setFillColor(HexColor(COLORS['accent']))
+    c.drawCentredString(width/2, height/2 - 15*mm, "▶")
+
     c.setFont(FONT_SERIF, 30)
     c.setFillColor(HexColor(COLORS['forest']))
     c.drawCentredString(width*2/3, height - 55*mm, "FUTURE / VISION")
+    
     future_kws = json_data.get('twelve_future_keywords', [])
     y = height - 75*mm
-    c.setFont(FONT_SANS, 16)
+    c.setFont(FONT_SANS, 16) # Futureは強調
     c.setFillColor(HexColor(COLORS['pdf_text']))
-    for kw in future_kws[:8]:
+    for kw in future_kws[:12]:
         c.drawCentredString(width*2/3, y, f"◆ {kw}")
-        y -= 13*mm
+        y -= 9.5*mm
     c.showPage()
 
-    # P3: FORMULA
+    # ================= P3. FORMULA (One Center X) =================
     draw_header(c, "02. 独自の成功法則", 3)
     formula = json_data.get('formula', {})
     cy = height/2 - 10*mm
@@ -329,18 +339,19 @@ def create_pdf(json_data):
         c.drawCentredString(cx, cy_pos + 12*mm, title) 
         c.setFont(FONT_SANS, 24)
         c.setFillColor(HexColor(COLORS['pdf_text']))
-        draw_wrapped_text(c, word, cx, cy_pos - 8*mm, FONT_SANS, 24, r*1.7, 30, centered=True)
-    c.setFont(FONT_SANS, 44)
+        draw_wrapped_text(c, word, cx, cy_pos - 8*mm, FONT_SANS, 24, r*1.5, 30, centered=True)
+    
+    # 中心に巨大な「×」を一つだけ配置
+    c.setFont(FONT_SANS, 80)
     c.setFillColor(HexColor(COLORS['accent']))
-    c.drawCentredString(width/2, cy + r*0.8, "×")
-    c.drawCentredString(width/2 - r*0.8, cy - r*0.2, "×")
-    c.drawCentredString(width/2 + r*0.8, cy - r*0.2, "×")
+    c.drawCentredString(width/2, cy + 5*mm, "×")
+
     c.setFont(FONT_SERIF, 36)
     c.setFillColor(HexColor(COLORS['pdf_text']))
     c.drawCentredString(width/2, height - 40*mm, f"「{json_data.get('catchphrase', '')}」")
     c.showPage()
 
-    # P4: SENSE BALANCE
+    # ================= P4. SENSE BALANCE =================
     draw_header(c, "03. 感性のバランス", 4)
     metrics = json_data.get('sense_metrics', [])
     y = height - 65*mm
@@ -350,23 +361,25 @@ def create_pdf(json_data):
         draw_arrow_slider(c, x, curr_y, 48, m.get('left'), m.get('right'), m.get('value'))
     c.showPage()
 
-    # P5: ROLE MODELS
+    # ================= P5. ROLE MODELS (Updated Design) =================
     draw_header(c, "04. おすすめするロールモデル", 5) 
     archs = json_data.get('artist_archetypes', [])
     y = height - 55*mm
+    TEXT_WIDTH_P5 = 85 * mm 
     for i, a in enumerate(archs[:3]):
         c.setFont(FONT_SERIF, 22)
         c.setFillColor(HexColor(COLORS['forest']))
         c.drawString(MARGIN_X, y, f"◆ {a.get('name')}")
         c.setFillColor(HexColor(COLORS['pdf_text']))
-        draw_wrapped_text(c, a.get('detail', ''), MARGIN_X + 8*mm, y - 12*mm, FONT_SANS, 14, width - MARGIN_X*2 - 20*mm, 20)
+        draw_wrapped_text(c, a.get('detail', ''), MARGIN_X + 8*mm, y - 12*mm, FONT_SANS, 14, TEXT_WIDTH_P5, 20)
         y -= 48*mm
     c.showPage()
 
-    # P6: ROADMAP
+    # ================= P6. ROADMAP (Updated Design) =================
     draw_header(c, "05. 未来へのロードマップ", 6)
     steps = json_data.get('roadmap_steps', [])
     y = height - 65*mm
+    TEXT_WIDTH_P6 = 120 * mm 
     for i, step in enumerate(steps):
         c.setFont(FONT_SANS, 40)
         c.setFillColor(HexColor(COLORS['accent']))
@@ -375,12 +388,13 @@ def create_pdf(json_data):
         c.setFillColor(HexColor(COLORS['pdf_text']))
         c.drawString(MARGIN_X + 30*mm, y, step.get('title', ''))
         c.setFillColor(HexColor(COLORS['pdf_sub']))
-        draw_wrapped_text(c, step.get('detail', ''), MARGIN_X + 30*mm, y - 12*mm, FONT_SANS, 12, 125*mm, 18)
+        draw_wrapped_text(c, step.get('detail', ''), MARGIN_X + 30*mm, y - 12*mm, FONT_SANS, 12, TEXT_WIDTH_P6, 18)
         y -= 45*mm
     c.showPage()
 
-    # P7: VISION & ALTERNATIVES
+    # ================= P7. VISION & ALTERNATIVES (Updated Design) =================
     draw_header(c, "06. 次なるビジョンと選択肢", 7)
+    TEXT_WIDTH_P7 = 85 * mm
     c.setFont(FONT_SERIF, 20)
     c.setFillColor(HexColor(COLORS['forest']))
     c.drawString(MARGIN_X, height - 45*mm, "Next Vision")
@@ -390,7 +404,7 @@ def create_pdf(json_data):
         c.setFont(FONT_SANS, 14)
         c.setFillColor(HexColor(COLORS['pdf_text']))
         c.drawString(MARGIN_X, y, f"・{p.get('point')}")
-        draw_wrapped_text(c, p.get('detail', ''), MARGIN_X + 5*mm, y - 6*mm, FONT_SANS, 11, width*0.4, 14)
+        draw_wrapped_text(c, p.get('detail', ''), MARGIN_X + 5*mm, y - 6*mm, FONT_SANS, 11, TEXT_WIDTH_P7, 14)
         y -= 24*mm
     x_right = width/2 + 10*mm
     c.setFont(FONT_SERIF, 20)
@@ -401,11 +415,11 @@ def create_pdf(json_data):
     for alt in alts[:3]:
         c.setFont(FONT_SANS, 14)
         c.setFillColor(HexColor(COLORS['pdf_text']))
-        draw_wrapped_text(c, f"◇ {alt}", x_right, y_alt, FONT_SANS, 14, width*0.4, 20)
+        draw_wrapped_text(c, f"◇ {alt}", x_right, y_alt, FONT_SANS, 14, TEXT_WIDTH_P7, 20)
         y_alt -= 30*mm
     c.showPage()
 
-    # P8: MESSAGE
+    # ================= P8. MESSAGE (Strict 15 chars) =================
     image_url = "https://images.unsplash.com/photo-1495312040802-a929cd14a6ab?q=80&w=2940&auto=format&fit=crop"
     try:
         response = requests.get(image_url, stream=True, timeout=10)
@@ -431,7 +445,8 @@ def create_pdf(json_data):
     q_author = quote_data.get('author', '')
 
     c.setFillColor(TEXT_COLOR_END)
-    draw_wrapped_text(c, q_text, width/2, height/2 + 20*mm, FONT_SERIF, 28, 150*mm, 36, centered=True)
+    STRICT_WIDTH_P8 = 140 * mm
+    draw_wrapped_text(c, q_text, width/2, height/2 + 20*mm, FONT_SERIF, 28, STRICT_WIDTH_P8, 36, centered=True)
     c.setFont(FONT_SANS, 18)
     c.setFillColor(ACCENT_COLOR_END)
     c.drawCentredString(width/2, height/2 - 35*mm, f"- {q_author}")
@@ -610,7 +625,7 @@ elif st.session_state.step == 3:
                     st.rerun()
                 else: st.warning("情報を入力してください。")
 
-# STEP 4 (AI Auto-Switch + Retry Logic)
+# STEP 4 (AI Standard SDK Auto-Switch)
 elif st.session_state.step == 4:
     if "analysis_data" not in st.session_state:
         with st.spinner("Connecting to Visionary Core... AIが世界観を解析中..."):
@@ -619,7 +634,6 @@ elif st.session_state.step == 4:
             error_details = ""
             
             if "GEMINI_API_KEY" in st.secrets:
-                # Prompt Definition
                 prompt_text = f"""
                 あなたは世界的なアートディレクター Thom Yoshida です。
                 ユーザーの「専門分野」と「診断タイプ」に基づき、その人の世界観を分析し、
@@ -661,47 +675,34 @@ elif st.session_state.step == 4:
                 }}
                 """
                 
-                # ★修正: 自動モデル検出ロジック (Auto-Discovery)
-                # APIに「使えるモデル一覧」を聞き、vision対応のものを優先的に探す
-                try:
-                    available_models = []
-                    for m in genai.list_models():
-                        if 'generateContent' in m.supported_generation_methods:
-                            available_models.append(m.name)
-                    
-                    # 優先順位: Flash > Pro > Anything else
-                    target_model = None
-                    for m in available_models:
-                        if 'flash' in m and 'vision' not in m: # 1.5-flash
-                            target_model = m
-                            break
-                    if not target_model:
-                        for m in available_models:
-                            if 'pro' in m and 'vision' not in m: # 1.5-pro
-                                target_model = m
-                                break
-                    if not target_model and available_models:
-                        target_model = available_models[0] # Fallback to first available
-
-                    if target_model:
-                        print(f"Auto-selected model: {target_model}")
-                        model = genai.GenerativeModel(target_model)
-                        # 画像を含めてリクエスト
-                        contents = [prompt_text] + st.session_state.uploaded_images
+                vision_models = [
+                    'gemini-1.5-flash-latest', 
+                    'gemini-1.5-flash', 
+                    'gemini-1.5-flash-001', 
+                    'gemini-1.5-pro',
+                    'gemini-1.5-pro-latest',
+                    'gemini-1.5-pro-001',
+                    'gemini-pro-vision'
+                ]
+                contents_vision = [prompt_text] + st.session_state.uploaded_images
+                
+                for model_name in vision_models:
+                    try:
+                        print(f"Trying model: {model_name}...")
+                        model = genai.GenerativeModel(model_name)
                         response = model.generate_content(
-                            contents,
+                            contents_vision,
                             generation_config={"response_mime_type": "application/json"}
                         )
                         data = json.loads(response.text)
                         success = True
-                    else:
-                        error_details = "No compatible models found for this API Key."
-
-                except Exception as e:
-                    error_details = str(e)
-                    print(f"AI Generation Error: {e}")
-
-                # Fallback: Text Only (If image analysis failed)
+                        st.success(f"Connected to Visionary Core ({model_name})")
+                        break
+                    except Exception as e:
+                        error_details += f"[{model_name}: {str(e)}] "
+                        print(f"Failed {model_name}: {e}")
+                        time.sleep(1)
+                
                 if not success:
                     try:
                         print("Trying Text-Only Fallback...")
@@ -712,13 +713,14 @@ elif st.session_state.step == 4:
                         )
                         data = json.loads(response.text)
                         success = True
-                        st.warning("※画像解析が混雑中のため、テキスト情報のみで分析しました。")
+                        st.warning("※画像認識サーバーが混雑しているため、テキスト情報のみで分析しました。")
                     except Exception as e:
-                        error_details += f" [Text-Only: {str(e)}]"
+                        error_details += f"[gemini-pro: {str(e)}] "
+                        print(f"Text Fallback Failed: {e}")
 
             if not success:
                 st.error(f"AI Analysis Failed. Details: {error_details}")
-                # ダミーデータをロード
+                st.warning("Loading default specimen for demonstration.")
                 data = {
                     "catchphrase": "Visionary Mode", "twelve_past_keywords": [], "twelve_future_keywords": [], "sense_metrics": [], "formula": {}, "roadmap_steps": [], "artist_archetypes": [], "final_proposals": [], "alternative_expressions": [], "inspiring_quote": {"text": "Creation is the act of connecting.", "author": "System"}
                 }
