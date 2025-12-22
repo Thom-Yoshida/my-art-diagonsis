@@ -34,7 +34,7 @@ from reportlab.lib.utils import ImageReader
 # ---------------------------------------------------------
 st.set_page_config(page_title="Visionary Analysis | ThomYoshida", layout="wide") 
 
-# デザイン定義 (COLORS - 世界観研究所グレー v3.5)
+# デザイン定義 (COLORS - 世界観研究所グレー v3.6)
 COLORS = {
     "bg": "#2A2A2A", "text": "#E8E8E8", "accent": "#D6AE60", 
     "sub": "#8BA6B0", "forest": "#5F9EA0", "card": "#383838",    
@@ -610,12 +610,11 @@ elif st.session_state.step == 3:
                     st.rerun()
                 else: st.warning("情報を入力してください。")
 
-# STEP 4 (AI Standard SDK Auto-Switch)
+# STEP 4 (AI Auto-Switch + Retry Logic)
 elif st.session_state.step == 4:
     if "analysis_data" not in st.session_state:
         with st.spinner("Connecting to Visionary Core... AIが世界観を解析中..."):
             
-            # --- Standard SDK Implementation ---
             success = False
             error_details = ""
             
@@ -662,42 +661,50 @@ elif st.session_state.step == 4:
                 }}
                 """
                 
-                # --- STRATEGY 1: Vision Models (Image + Text) ---
-                # ★修正: 確実につながる正式名称リスト
-                vision_models = [
-                    'gemini-1.5-flash-latest', 
-                    'gemini-1.5-flash', 
-                    'gemini-1.5-flash-001', 
-                    'gemini-1.5-pro',
-                    'gemini-1.5-pro-latest',
-                    'gemini-1.5-pro-001',
-                    'gemini-pro-vision' # Legacy fallback
-                ]
-                # Standard SDK input format: [text, img1, img2, ...]
-                contents_vision = [prompt_text] + st.session_state.uploaded_images
-                
-                for model_name in vision_models:
-                    try:
-                        print(f"Trying model: {model_name}...")
-                        model = genai.GenerativeModel(model_name)
+                # ★修正: 自動モデル検出ロジック (Auto-Discovery)
+                # APIに「使えるモデル一覧」を聞き、vision対応のものを優先的に探す
+                try:
+                    available_models = []
+                    for m in genai.list_models():
+                        if 'generateContent' in m.supported_generation_methods:
+                            available_models.append(m.name)
+                    
+                    # 優先順位: Flash > Pro > Anything else
+                    target_model = None
+                    for m in available_models:
+                        if 'flash' in m and 'vision' not in m: # 1.5-flash
+                            target_model = m
+                            break
+                    if not target_model:
+                        for m in available_models:
+                            if 'pro' in m and 'vision' not in m: # 1.5-pro
+                                target_model = m
+                                break
+                    if not target_model and available_models:
+                        target_model = available_models[0] # Fallback to first available
+
+                    if target_model:
+                        print(f"Auto-selected model: {target_model}")
+                        model = genai.GenerativeModel(target_model)
+                        # 画像を含めてリクエスト
+                        contents = [prompt_text] + st.session_state.uploaded_images
                         response = model.generate_content(
-                            contents_vision,
+                            contents,
                             generation_config={"response_mime_type": "application/json"}
                         )
                         data = json.loads(response.text)
                         success = True
-                        st.success(f"Connected to Visionary Core ({model_name})") # 接続成功モデルを表示
-                        break
-                    except Exception as e:
-                        error_details += f"[{model_name}: {str(e)}] "
-                        print(f"Failed {model_name}: {e}")
-                        time.sleep(1)
-                
-                # --- STRATEGY 2: Text Only Fallback (Image ignored) ---
+                    else:
+                        error_details = "No compatible models found for this API Key."
+
+                except Exception as e:
+                    error_details = str(e)
+                    print(f"AI Generation Error: {e}")
+
+                # Fallback: Text Only (If image analysis failed)
                 if not success:
                     try:
-                        print("Trying Text-Only Fallback with gemini-pro...")
-                        # 404/429回避のため、画像を捨ててテキストのみでリクエスト
+                        print("Trying Text-Only Fallback...")
                         model = genai.GenerativeModel('gemini-pro')
                         response = model.generate_content(
                             prompt_text,
@@ -705,26 +712,15 @@ elif st.session_state.step == 4:
                         )
                         data = json.loads(response.text)
                         success = True
-                        st.warning("※画像認識サーバーが混雑しているため、テキスト情報のみで分析しました。")
+                        st.warning("※画像解析が混雑中のため、テキスト情報のみで分析しました。")
                     except Exception as e:
-                        error_details += f"[gemini-pro: {str(e)}] "
-                        print(f"Text Fallback Failed: {e}")
+                        error_details += f" [Text-Only: {str(e)}]"
 
-            # --- STRATEGY 3: Final Safety Net (Dummy Data + Error Display) ---
             if not success:
                 st.error(f"AI Analysis Failed. Details: {error_details}")
-                st.warning("Loading default specimen for demonstration.")
+                # ダミーデータをロード
                 data = {
-                    "catchphrase": "Visionary Mode",
-                    "twelve_past_keywords": ["Origin", "Noise", "Copy", "Past", "Ego", "Gray", "Blur", "Dust"],
-                    "twelve_future_keywords": ["Vision", "Core", "Original", "Future", "Altruism", "Vivid", "Clear", "Star"],
-                    "sense_metrics": [{"left": "Logic", "right": "Emotion", "value": 70}] * 8,
-                    "formula": {"values": {"word": "System", "detail": "Fallback"}, "strengths": {"word": "Resilience", "detail": "Backup"}, "interests": {"word": "Safety", "detail": "Secure"}},
-                    "roadmap_steps": [{"title": "Step 1", "detail": "Analyze Connection"}, {"title": "Step 2", "detail": "Retry Later"}, {"title": "Step 3", "detail": "Contact Support"}],
-                    "artist_archetypes": [{"name": "System Admin", "detail": "Ensures continuity."}],
-                    "final_proposals": [{"point": "Check API Key", "detail": "Verify settings."}, {"point": "Check Quota", "detail": "You may have exceeded free tier."}],
-                    "alternative_expressions": ["Manual Review", "Direct Contact"],
-                    "inspiring_quote": {"text": "Creation is the act of connecting.", "author": "Thom Yoshida"}
+                    "catchphrase": "Visionary Mode", "twelve_past_keywords": [], "twelve_future_keywords": [], "sense_metrics": [], "formula": {}, "roadmap_steps": [], "artist_archetypes": [], "final_proposals": [], "alternative_expressions": [], "inspiring_quote": {"text": "Creation is the act of connecting.", "author": "System"}
                 }
 
             st.session_state.analysis_data = data
