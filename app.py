@@ -103,7 +103,7 @@ QUIZ_DATA = [
     {"q": "Q18. 制作中のBGMは？", "opts": ["感情を高める曲を大音量で", "集中を妨げない環境音や無音"], "type_a": "感情を高める曲を大音量で"},
     {"q": "Q19. タイトルの付け方は？", "opts": ["詩的・抽象的", "説明的・具体的"], "type_a": "詩的・抽象的"},
     {"q": "Q20. SNSでの発信は？", "opts": ["作品の世界観だけを見せたい", "制作過程や思考もシェアしたい"], "type_a": "作品の世界観だけを見せたい"},
-    {"q": "Q21. 批評を受けた時の反応は？", "opts": ["感情を高める曲を大音量で", "冷静に改善点として受け止める"], "type_a": "感情を高める曲を大音量で"}, # 元データの重複修正の可能性あり
+    {"q": "Q21. 批評を受けた時の反応は？", "opts": ["感情を高める曲を大音量で", "冷静に改善点として受け止める"], "type_a": "感情を高める曲を大音量で"},
     {"q": "Q22. 自分の作風を一言で言うなら？", "opts": ["エモーショナル・感覚的", "ロジカル・機能的"], "type_a": "エモーショナル・感覚的"},
     {"q": "Q23. 目標設定の方法は？", "opts": ["大きな夢やビジョンを描く", "具体的な数値やステップを決める"], "type_a": "大きな夢やビジョンを描く"},
     {"q": "Q24. 情報収集のスタイルは？", "opts": ["直感的に気になったものを深掘り", "体系的に幅広くチェック"], "type_a": "直感的に気になったものを深掘り"},
@@ -228,7 +228,7 @@ def send_email_with_pdf(user_email, pdf_buffer):
         print(f"Email Error: {e}")
         return False
 
-# # ---------------------------------------------------------
+# ---------------------------------------------------------
 # 4. PDF生成ロジック (Helper Functions & Main)
 # ---------------------------------------------------------
 
@@ -313,10 +313,27 @@ def create_pdf(json_data):
     MARGIN_X = width * 0.12
     CONTENT_WIDTH = width - (MARGIN_X * 2)
     
-    # P1. 表紙
-    c.setFillColor(HexColor('#F5F5F5'))
-    c.rect(0, 0, width, height, fill=1, stroke=0)
-    c.setFillColor(HexColor('#2B2723'))
+    # ==========================================
+    # P1. 表紙 (Cover with Image)
+    # ==========================================
+    # 背景設定
+    bg_drawn = False
+    try:
+        # 表紙にもTOPと同じ写真(cover.jpg)を使用
+        c.drawImage("cover.jpg", 0, 0, width=width, height=height, preserveAspectRatio=False)
+        bg_drawn = True
+        # 画像がある場合は文字を白くする
+        TEXT_COLOR_COVER = HexColor('#FFFFFF')
+        c.setFillColor(HexColor('#000000'))
+        c.setFillAlpha(0.4) # 少し暗くして文字を読みやすく
+        c.rect(0, 0, width, height, fill=1, stroke=0)
+        c.setFillAlpha(1.0)
+    except:
+        c.setFillColor(HexColor('#F5F5F5'))
+        c.rect(0, 0, width, height, fill=1, stroke=0)
+        TEXT_COLOR_COVER = HexColor('#2B2723')
+
+    c.setFillColor(TEXT_COLOR_COVER)
     c.setFont(FONT_SERIF, 40)
     c.drawCentredString(width/2, height/2 + 5*mm, json_data.get('catchphrase', 'Visionary Report'))
     c.setFont(FONT_SANS, 14)
@@ -325,7 +342,9 @@ def create_pdf(json_data):
     c.drawCentredString(width/2, 20*mm, f"Designed by ThomYoshida AI | {datetime.datetime.now().strftime('%Y.%m.%d')}")
     c.showPage()
 
+    # ==========================================
     # P2. KEYWORD CONTRAST
+    # ==========================================
     draw_header(c, "", 2)
     c.setFont(FONT_SANS, 12)
     c.setFillColor(HexColor(COLORS['sub']))
@@ -339,7 +358,7 @@ def create_pdf(json_data):
     c.setFont(FONT_SANS, 11)
     c.setFillColor(HexColor('#A39E99'))
     y = height - 60*mm
-    for kw in past_kws[:8]: # スペースの都合で8個表示
+    for kw in past_kws[:8]: 
         c.drawCentredString(width/3, y, kw)
         y -= 9*mm
 
@@ -356,7 +375,9 @@ def create_pdf(json_data):
         y -= 9*mm
     c.showPage()
 
+    # ==========================================
     # P3. THE FORMULA
+    # ==========================================
     draw_header(c, "", 3)
     c.setFont(FONT_SANS, 12)
     c.setFillColor(HexColor(COLORS['sub']))
@@ -365,7 +386,6 @@ def create_pdf(json_data):
     formula = json_data.get('formula', {})
     cy = height/2 + 20*mm
     
-    # 3つの要素
     elements = [
         ("Values", formula.get('values', {}).get('word', '-'), width*0.25),
         ("Strengths", formula.get('strengths', {}).get('word', '-'), width*0.5),
@@ -385,13 +405,14 @@ def create_pdf(json_data):
     c.drawCentredString(width*0.375, cy + 5*mm, "×")
     c.drawCentredString(width*0.625, cy + 5*mm, "×")
     
-    # Catchphrase again
     c.setFont(FONT_SERIF, 32)
     c.setFillColor(HexColor('#2B2723'))
     c.drawCentredString(width/2, cy - 50*mm, json_data.get('catchphrase', ''))
     c.showPage()
 
+    # ==========================================
     # P4. SENSE BALANCE
+    # ==========================================
     draw_header(c, "", 4)
     c.setFont(FONT_SANS, 12)
     c.setFillColor(HexColor(COLORS['sub']))
@@ -399,13 +420,15 @@ def create_pdf(json_data):
     
     metrics = json_data.get('sense_metrics', [])
     y = height - 50*mm
-    for i, m in enumerate(metrics[:8]): # 8個まで
+    for i, m in enumerate(metrics[:8]): 
         x = MARGIN_X + 20*mm if i < 4 else width/2 + 20*mm
         curr_y = y - (i % 4) * 20*mm
         draw_slider(c, x, curr_y, 40, m.get('left'), m.get('right'), m.get('value'))
     c.showPage()
 
+    # ==========================================
     # P5. ROADMAP
+    # ==========================================
     draw_header(c, "", 5)
     c.setFont(FONT_SANS, 12)
     c.setFillColor(HexColor(COLORS['sub']))
@@ -427,7 +450,9 @@ def create_pdf(json_data):
         y -= 35*mm
     c.showPage()
 
-    # P6. ARCHETYPE & NEXT VISION
+    # ==========================================
+    # P6. ARCHETYPE & NEXT VISION (3 Items)
+    # ==========================================
     draw_header(c, "", 6)
     c.setFont(FONT_SANS, 12)
     c.setFillColor(HexColor(COLORS['sub']))
@@ -435,28 +460,65 @@ def create_pdf(json_data):
     
     archs = json_data.get('artist_archetypes', [])
     if archs:
-        a = archs[0] # 1人だけ代表で表示
+        a = archs[0] 
         c.setFont(FONT_SERIF, 20)
         c.setFillColor(HexColor(COLORS['forest']))
         c.drawString(MARGIN_X, height - 40*mm, f"◆ {a.get('name')}")
         c.setFillColor(HexColor('#2B2723'))
         draw_wrapped_text(c, a.get('detail', ''), MARGIN_X, height - 50*mm, FONT_SERIF, 10, 150*mm, 15)
 
-    # Next Vision
+    # Next Vision: 最低3つ提示
     c.setFont(FONT_SANS, 12)
     c.setFillColor(HexColor(COLORS['sub']))
     c.drawString(MARGIN_X, height - 90*mm, "06. NEXT VISION")
     
     proposals = json_data.get('final_proposals', [])
     y = height - 105*mm
-    for p in proposals[:2]:
+    # [:3] に変更し、3つ表示
+    for p in proposals[:3]:
         c.setFont(FONT_SANS, 12)
         c.setFillColor(HexColor('#2B2723'))
         c.drawString(MARGIN_X, y, f"・{p.get('point')}")
+        # 詳細テキスト
         draw_wrapped_text(c, p.get('detail', ''), MARGIN_X + 5*mm, y - 5*mm, FONT_SANS, 9, 150*mm, 12)
-        y -= 25*mm
+        y -= 25*mm # 間隔調整
 
     c.showPage()
+    
+    # ==========================================
+    # P7. THE MESSAGE (名言・Ending)
+    # ==========================================
+    draw_header(c, "", 7)
+    
+    # ページタイトル
+    c.setFont(FONT_SANS, 12)
+    c.setFillColor(HexColor(COLORS['sub']))
+    c.drawString(MARGIN_X, height - 25*mm, "07. THE MESSAGE")
+
+    quote_data = json_data.get('inspiring_quote', {})
+    q_text = quote_data.get('text', 'Art is the elimination of the unnecessary.')
+    q_author = quote_data.get('author', 'Pablo Picasso')
+
+    # 中央に名言を配置
+    c.setFont(FONT_SERIF, 24)
+    c.setFillColor(HexColor('#2B2723'))
+    
+    # 名言の長さによって少し位置調整が必要だが、ここでは中央揃えでラップして描画
+    text_y = height/2 + 10*mm
+    # draw_wrapped_text は左揃えなので、擬似的に中央揃え風にするにはオフセット調整が必要
+    # 簡易的に、ここでは行ごとに分割して中央揃え描画するロジックを使用
+    
+    lines = wrap_text_smart(q_text, 25) # 1行25文字程度
+    for line in lines:
+        c.drawCentredString(width/2, text_y, line)
+        text_y -= 12*mm
+    
+    c.setFont(FONT_SANS, 14)
+    c.setFillColor(HexColor(COLORS['accent']))
+    c.drawCentredString(width/2, text_y - 10*mm, f"- {q_author}")
+
+    c.showPage()
+
     c.save()
     buffer.seek(0)
     return buffer
@@ -658,7 +720,6 @@ elif st.session_state.step == 4:
             # contents = [prompt] + [images...]
             # response = client.models.generate_content(...)
             # data = json.loads(response.text)
-           # ▼▼▼ ここから貼り付け開始 ▼▼▼
             
             # デモ用ダミーデータ（PDF生成に必要な全項目を網羅した完全版）
             data = {
@@ -666,12 +727,10 @@ elif st.session_state.step == 4:
                 "catchphrase": "静寂の青き建築家",
                 
                 # 2. キーワード対比 (P2用)
-                # ※ここが足りないとP2が空白になります
                 "twelve_past_keywords": ["混沌", "模倣", "ノイズ", "迷い", "多弁", "装飾", "迎合", "未熟"],
                 "twelve_future_keywords": ["静寂", "本質", "余白", "確信", "沈黙", "構造", "孤高", "洗練"],
                 
                 # 3. センスバランス (P4用)
-                # ※left, rightのキーがないとエラーになります
                 "sense_metrics": [
                     {"left": "具象", "right": "抽象", "value": 80}, 
                     {"left": "感情", "right": "論理", "value": 60},
@@ -702,23 +761,26 @@ elif st.session_state.step == 4:
                     {"name": "アンドレアス・グルスキー", "detail": "俯瞰的な視点と、幾何学的な構造美を追求する姿勢が共鳴しています。"}
                 ],
                 
-                # 7. ネクストビジョン (P6下段用)
+                # 7. ネクストビジョン (P6下段用) ★3つ提示に変更
                 "final_proposals": [
                     {"point": "無機質な被写体選び", "detail": "植物などの有機物ではなく、ビルや階段などの構造物を撮る。"},
-                    {"point": "彩度を落とす", "detail": "色は情報のノイズになり得るため、彩度を-20%する。"}
-                ]
+                    {"point": "彩度を落とす", "detail": "色は情報のノイズになり得るため、彩度を-20%する。"},
+                    {"point": "余白のトリミング", "detail": "被写体を中央ではなく、隅に配置し、圧倒的な余白を作る。"}
+                ],
+
+                # 8. 最後の名言 (P7用) ★新規追加
+                "inspiring_quote": {
+                    "text": "完璧とは、付け加えるものが何もないときではなく、取り除くものが何もないときに達成される。",
+                    "author": "サン＝テグジュペリ"
+                }
             }
             
-            # ▲▲▲ ここまで貼り付け終了 ▲▲▲
-
-    # ▼▼▼ 【重要】この4行がないと結果が表示されません！ ▼▼▼
+            # 【重要】データ保存と更新
             st.session_state.analysis_data = data
             pdf_buffer = create_pdf(data)
             send_email_with_pdf(st.session_state.user_email, pdf_buffer)
             st.rerun()
-            # ▲▲▲ 追加終わり ▲▲▲
 
-            
     else:
         data = st.session_state.analysis_data
         render_web_result(data)
