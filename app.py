@@ -11,12 +11,11 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.application import MIMEApplication
 
-# Google系ライブラリ
+# Google系ライブラリ（★標準ライブラリに変更）
+import google.generativeai as genai
 import pandas as pd
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
-from google import genai
-from google.genai import types
 
 # デザイン・可視化
 import plotly.graph_objects as go
@@ -35,7 +34,7 @@ from reportlab.lib.utils import ImageReader
 # ---------------------------------------------------------
 st.set_page_config(page_title="Visionary Analysis | ThomYoshida", layout="wide") 
 
-# デザイン定義 (COLORS - 世界観研究所グレー v3.3)
+# デザイン定義 (COLORS - 世界観研究所グレー v3.4)
 COLORS = {
     "bg": "#2A2A2A", "text": "#E8E8E8", "accent": "#D6AE60", 
     "sub": "#8BA6B0", "forest": "#5F9EA0", "card": "#383838",    
@@ -52,9 +51,9 @@ except:
     FONT_SERIF = 'Helvetica'
     FONT_SANS = 'Helvetica'
 
-# APIキー設定
+# APIキー設定（★標準ライブラリの設定方法）
 if "GEMINI_API_KEY" in st.secrets:
-    os.environ["GEMINI_API_KEY"] = st.secrets["GEMINI_API_KEY"]
+    genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 
 # パスワード認証機能
 def check_password():
@@ -73,7 +72,7 @@ def check_password():
 check_password()
 
 # ---------------------------------------------------------
-# 1. 診断データ (30 Questions)
+# 1. 診断データ (30 Questions - Full Version)
 # ---------------------------------------------------------
 QUIZ_DATA = [
     {"q": "Q1. 制作を始めるきっかけは？", "opts": ["内から湧き出る衝動・感情", "外部の要請や明確なコンセプト"], "type_a": "内から湧き出る衝動・感情"},
@@ -127,7 +126,7 @@ def apply_custom_css():
 
 apply_custom_css()
 
-# ★重要: 画像圧縮関数 (API制限対策)
+# ★重要: 画像圧縮関数
 def resize_image_for_api(image, max_width=1024):
     width_percent = (max_width / float(image.size[0]))
     if width_percent < 1:
@@ -611,19 +610,17 @@ elif st.session_state.step == 3:
                     st.rerun()
                 else: st.warning("情報を入力してください。")
 
-# STEP 4 (AI Auto-Switch + Retry Logic)
+# STEP 4 (AI Standard SDK Auto-Switch)
 elif st.session_state.step == 4:
     if "analysis_data" not in st.session_state:
         with st.spinner("Connecting to Visionary Core... AIが世界観を解析中..."):
             
-            # --- AI Logic with Multiple Fallbacks ---
+            # --- Standard SDK Implementation ---
             success = False
             
             if os.environ.get("GEMINI_API_KEY"):
-                client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
-                
                 # Prompt Definition
-                prompt = f"""
+                prompt_text = f"""
                 あなたは世界的なアートディレクター Thom Yoshida です。
                 ユーザーの「専門分野」と「診断タイプ」に基づき、その人の世界観を分析し、
                 専用の診断レポートJSONを作成してください。
@@ -665,16 +662,17 @@ elif st.session_state.step == 4:
                 """
                 
                 # --- STRATEGY 1: Vision Models (Image + Text) ---
-                vision_models = ['gemini-1.5-flash', 'gemini-1.5-flash-001', 'gemini-1.5-pro']
-                contents_vision = [prompt] + st.session_state.uploaded_images
+                vision_models = ['gemini-1.5-flash', 'gemini-1.5-pro']
+                # Standard SDK input format: [text, img1, img2, ...]
+                contents_vision = [prompt_text] + st.session_state.uploaded_images
                 
                 for model_name in vision_models:
                     try:
                         print(f"Trying model: {model_name}...")
-                        response = client.models.generate_content(
-                            model=model_name, 
-                            contents=contents_vision,
-                            config=types.GenerateContentConfig(response_mime_type="application/json")
+                        model = genai.GenerativeModel(model_name)
+                        response = model.generate_content(
+                            contents_vision,
+                            generation_config={"response_mime_type": "application/json"}
                         )
                         data = json.loads(response.text)
                         success = True
@@ -682,17 +680,17 @@ elif st.session_state.step == 4:
                         break
                     except Exception as e:
                         print(f"Failed {model_name}: {e}")
-                        time.sleep(1) # short wait
+                        time.sleep(1)
                 
                 # --- STRATEGY 2: Text Only Fallback (Image ignored) ---
                 if not success:
                     try:
                         print("Trying Text-Only Fallback with gemini-pro...")
                         # 404/429回避のため、画像を捨ててテキストのみでリクエスト
-                        response = client.models.generate_content(
-                            model='gemini-pro', 
-                            contents=prompt, # Images removed
-                            config=types.GenerateContentConfig(response_mime_type="application/json")
+                        model = genai.GenerativeModel('gemini-pro')
+                        response = model.generate_content(
+                            prompt_text,
+                            generation_config={"response_mime_type": "application/json"}
                         )
                         data = json.loads(response.text)
                         success = True
