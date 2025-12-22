@@ -73,7 +73,7 @@ def check_password():
 check_password()
 
 # ---------------------------------------------------------
-# 1. 診断データ (30 Questions - Full Version)
+# 1. 診断データ (30 Questions)
 # ---------------------------------------------------------
 QUIZ_DATA = [
     {"q": "Q1. 制作を始めるきっかけは？", "opts": ["内から湧き出る衝動・感情", "外部の要請や明確なコンセプト"], "type_a": "内から湧き出る衝動・感情"},
@@ -129,7 +129,6 @@ apply_custom_css()
 
 # ★重要: 画像圧縮関数 (API制限対策)
 def resize_image_for_api(image, max_width=1024):
-    """画像をAPI送信に適したサイズにリサイズする"""
     width_percent = (max_width / float(image.size[0]))
     if width_percent < 1:
         height_size = int((float(image.size[1]) * float(width_percent)))
@@ -575,17 +574,15 @@ elif st.session_state.step == 2:
         st.markdown("#### Future Vision")
         future_files = st.file_uploader("Ideal (Max 3)", type=["jpg", "png"], accept_multiple_files=True, key="future")
     if st.button("次へ進む（レポート作成へ）"):
-        # ★メタ修正: ここで画像を保存して永続化する
         if not past_files:
             st.error("分析のために、少なくとも1枚の作品画像をアップロードしてください。")
         else:
             st.session_state.uploaded_images = [] # リセット
-            # 過去作品の圧縮・保存
+            # 圧縮・保存
             for f in past_files:
                 img = Image.open(f)
                 resized_img = resize_image_for_api(img)
                 st.session_state.uploaded_images.append(resized_img)
-            # 未来イメージの圧縮・保存
             if future_files:
                 for f in future_files:
                     img = Image.open(f)
@@ -614,80 +611,109 @@ elif st.session_state.step == 3:
                     st.rerun()
                 else: st.warning("情報を入力してください。")
 
-# STEP 4 (AI + Retry Logic)
+# STEP 4 (AI Auto-Switch + Retry Logic)
 elif st.session_state.step == 4:
     if "analysis_data" not in st.session_state:
         with st.spinner("Connecting to Visionary Core... AIが世界観を解析中..."):
             
+            # --- AI Logic with Multiple Fallbacks ---
+            success = False
+            
             if os.environ.get("GEMINI_API_KEY"):
-                max_retries = 3
-                for attempt in range(max_retries):
-                    try:
-                        client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
-                        
-                        prompt = f"""
-                        あなたは世界的なアートディレクター Thom Yoshida です。
-                        ユーザーの「専門分野」と「診断タイプ」に基づき、その人の世界観を分析し、
-                        専用の診断レポートJSONを作成してください。
+                client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+                
+                # Prompt Definition
+                prompt = f"""
+                あなたは世界的なアートディレクター Thom Yoshida です。
+                ユーザーの「専門分野」と「診断タイプ」に基づき、その人の世界観を分析し、
+                専用の診断レポートJSONを作成してください。
 
-                        【ユーザー情報】
-                        - 専門分野: {st.session_state.specialty}
-                        - 診断タイプ: {st.session_state.quiz_result}
-                        
-                        【必須出力JSON構造】
-                        {{
-                            "catchphrase": "短いキャッチコピー(15文字以内)",
-                            "twelve_past_keywords": ["過去を表す単語12個"],
-                            "twelve_future_keywords": ["未来を表す単語12個"],
-                            "sense_metrics": [
-                                {{"left": "対立軸左", "right": "対立軸右", "value": 0〜100の数値}} を8個
-                            ],
-                            "formula": {{
-                                "values": {{"word": "価値観", "detail": "詳細"}},
-                                "strengths": {{"word": "強み", "detail": "詳細"}},
-                                "interests": {{"word": "好き", "detail": "詳細"}}
-                            }},
-                            "roadmap_steps": [
-                                {{"title": "Stepタイトル", "detail": "詳細"}} を3つ
-                            ],
-                            "artist_archetypes": [
-                                {{"name": "ロールモデル名", "detail": "なぜその人なのか"}} を3名
-                            ],
-                            "final_proposals": [
-                                {{"point": "ビジョン要点", "detail": "詳細"}} を5つ
-                            ],
-                            "alternative_expressions": [
-                                "おすすめの別表現手法" を3つ
-                            ],
-                            "inspiring_quote": {{
-                                "text": "その人の世界観に最も響く、実在する偉人の名言（日本語訳）",
-                                "author": "著者名"
-                            }}
-                        }}
-                        """
-                        # ★メタ修正: ここで画像データをプロンプトに含める
-                        contents = [prompt] + st.session_state.uploaded_images
-                        
-                        # ★モデルを安定版 gemini-1.5-flash に指定 (画像認識対応)
+                【ユーザー情報】
+                - 専門分野: {st.session_state.specialty}
+                - 診断タイプ: {st.session_state.quiz_result}
+                
+                【必須出力JSON構造】
+                {{
+                    "catchphrase": "短いキャッチコピー(15文字以内)",
+                    "twelve_past_keywords": ["過去を表す単語12個"],
+                    "twelve_future_keywords": ["未来を表す単語12個"],
+                    "sense_metrics": [
+                        {{"left": "対立軸左", "right": "対立軸右", "value": 0〜100の数値}} を8個
+                    ],
+                    "formula": {{
+                        "values": {{"word": "価値観", "detail": "詳細"}},
+                        "strengths": {{"word": "強み", "detail": "詳細"}},
+                        "interests": {{"word": "好き", "detail": "詳細"}}
+                    }},
+                    "roadmap_steps": [
+                        {{"title": "Stepタイトル", "detail": "詳細"}} を3つ
+                    ],
+                    "artist_archetypes": [
+                        {{"name": "ロールモデル名", "detail": "なぜその人なのか"}} を3名
+                    ],
+                    "final_proposals": [
+                        {{"point": "ビジョン要点", "detail": "詳細"}} を5つ
+                    ],
+                    "alternative_expressions": [
+                        "おすすめの別表現手法" を3つ
+                    ],
+                    "inspiring_quote": {{
+                        "text": "その人の世界観に最も響く、実在する偉人の名言（日本語訳）",
+                        "author": "著者名"
+                    }}
+                }}
+                """
+                
+                # --- STRATEGY 1: Vision Models (Image + Text) ---
+                vision_models = ['gemini-1.5-flash', 'gemini-1.5-flash-001', 'gemini-1.5-pro']
+                contents_vision = [prompt] + st.session_state.uploaded_images
+                
+                for model_name in vision_models:
+                    try:
+                        print(f"Trying model: {model_name}...")
                         response = client.models.generate_content(
-                            model='gemini-1.5-flash', 
-                            contents=contents,
+                            model=model_name, 
+                            contents=contents_vision,
                             config=types.GenerateContentConfig(response_mime_type="application/json")
                         )
                         data = json.loads(response.text)
-                        break 
-                        
+                        success = True
+                        print(f"Success with {model_name}")
+                        break
                     except Exception as e:
-                        if "429" in str(e) and attempt < max_retries - 1:
-                            time.sleep(10)
-                        elif attempt == max_retries - 1:
-                            st.error(f"AI Error (Quota Exceeded): {e}")
-                            data = {
-                                "catchphrase": "Visionary Mode", "twelve_past_keywords": [], "twelve_future_keywords": [], "sense_metrics": [], "formula": {}, "roadmap_steps": [], "artist_archetypes": [], "final_proposals": [], "alternative_expressions": [], "inspiring_quote": {"text": "Creation is the act of connecting.", "author": "System"}
-                            }
-            else:
+                        print(f"Failed {model_name}: {e}")
+                        time.sleep(1) # short wait
+                
+                # --- STRATEGY 2: Text Only Fallback (Image ignored) ---
+                if not success:
+                    try:
+                        print("Trying Text-Only Fallback with gemini-pro...")
+                        # 404/429回避のため、画像を捨ててテキストのみでリクエスト
+                        response = client.models.generate_content(
+                            model='gemini-pro', 
+                            contents=prompt, # Images removed
+                            config=types.GenerateContentConfig(response_mime_type="application/json")
+                        )
+                        data = json.loads(response.text)
+                        success = True
+                        st.warning("※画像認識サーバーが混雑しているため、テキスト情報のみで分析しました。")
+                    except Exception as e:
+                        print(f"Text Fallback Failed: {e}")
+
+            # --- STRATEGY 3: Final Safety Net (Dummy Data) ---
+            if not success:
+                st.error("AI Analysis Failed (Service Busy). Loading default specimen.")
                 data = {
-                    "catchphrase": "Visionary Mode", "twelve_past_keywords": [], "twelve_future_keywords": [], "sense_metrics": [], "formula": {}, "roadmap_steps": [], "artist_archetypes": [], "final_proposals": [], "alternative_expressions": [], "inspiring_quote": {"text": "API Key Not Found", "author": "System"}
+                    "catchphrase": "Visionary Mode",
+                    "twelve_past_keywords": ["Origin", "Noise", "Copy", "Past", "Ego", "Gray", "Blur", "Dust"],
+                    "twelve_future_keywords": ["Vision", "Core", "Original", "Future", "Altruism", "Vivid", "Clear", "Star"],
+                    "sense_metrics": [{"left": "Logic", "right": "Emotion", "value": 70}] * 8,
+                    "formula": {"values": {"word": "System", "detail": "Fallback"}, "strengths": {"word": "Resilience", "detail": "Backup"}, "interests": {"word": "Safety", "detail": "Secure"}},
+                    "roadmap_steps": [{"title": "Step 1", "detail": "Analyze Connection"}, {"title": "Step 2", "detail": "Retry Later"}, {"title": "Step 3", "detail": "Contact Support"}],
+                    "artist_archetypes": [{"name": "System Admin", "detail": "Ensures continuity."}],
+                    "final_proposals": [{"point": "Check API Key", "detail": "Verify settings."}, {"point": "Check Quota", "detail": "You may have exceeded free tier."}],
+                    "alternative_expressions": ["Manual Review", "Direct Contact"],
+                    "inspiring_quote": {"text": "Creation is the act of connecting.", "author": "Thom Yoshida"}
                 }
 
             st.session_state.analysis_data = data
