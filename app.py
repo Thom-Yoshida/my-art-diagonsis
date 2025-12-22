@@ -37,9 +37,15 @@ st.set_page_config(page_title="Visionary Analysis | ThomYoshida", layout="wide")
 
 # デザイン定義 (COLORS - 世界観研究所グレー v3.1)
 COLORS = {
-    "bg": "#2A2A2A", "text": "#E8E8E8", "accent": "#D6AE60", 
-    "sub": "#8BA6B0", "forest": "#5F9EA0", "card": "#383838",    
-    "pdf_bg": "#FAFAF8", "pdf_text": "#2C2C2C", "pdf_sub": "#666666"
+    "bg": "#2A2A2A",      
+    "text": "#E8E8E8",    
+    "accent": "#D6AE60",  
+    "sub": "#8BA6B0",     
+    "forest": "#5F9EA0",  
+    "card": "#383838",    
+    "pdf_bg": "#FAFAF8",  
+    "pdf_text": "#2C2C2C",
+    "pdf_sub": "#666666"
 }
 
 # フォント登録
@@ -73,7 +79,7 @@ def check_password():
 check_password()
 
 # ---------------------------------------------------------
-# 1. 診断データ (30 Questions - Full Version)
+# 1. 診断データ (30 Questions)
 # ---------------------------------------------------------
 QUIZ_DATA = [
     {"q": "Q1. 制作を始めるきっかけは？", "opts": ["内から湧き出る衝動・感情", "外部の要請や明確なコンセプト"], "type_a": "内から湧き出る衝動・感情"},
@@ -163,12 +169,18 @@ def load_data_from_sheets():
         sheet_name = st.secrets.get("SHEET_NAME", "customer_list")
         sheet = client.open(sheet_name).sheet1
         data = sheet.get_all_values()
-        if len(data) < 2: return pd.DataFrame()
-        headers = data[0]
-        rows = data[1:]
-        df = pd.DataFrame(rows, columns=headers)
+        if len(data) < 1: return pd.DataFrame() # ヘッダーすらない場合
+        
+        # データフレーム化（1行目をヘッダーとする）
+        df = pd.DataFrame(data)
+        # 1行目をヘッダーに設定
+        new_header = df.iloc[0] 
+        df = df[1:] 
+        df.columns = new_header
         return df
-    except Exception: return pd.DataFrame()
+    except Exception as e:
+        print(f"Load Error: {e}")
+        return pd.DataFrame()
 
 def send_email_with_pdf(user_email, pdf_buffer):
     if "GMAIL_ADDRESS" not in st.secrets or "GMAIL_APP_PASSWORD" not in st.secrets: return False
@@ -196,10 +208,8 @@ def send_email_with_pdf(user_email, pdf_buffer):
         return False
 
 # ---------------------------------------------------------
-# 4. PDF生成ロジック (Refined Layout)
+# 4. PDF生成ロジック
 # ---------------------------------------------------------
-
-# Helper: スマートテキストラップ (15文字/助詞対応)
 def wrap_text_smart(text, max_char_count):
     if not text: return []
     delimiters = ['、', '。', 'て', 'に', 'を', 'は', 'が', 'と', 'へ', 'で', 'や', 'の', 'も', 'し', 'い', 'か', 'ね', 'よ', '！', '？']
@@ -260,14 +270,13 @@ def draw_arrow_slider(c, x, y, width_mm, left_text, right_text, value):
     c.setFillColor(HexColor(COLORS['forest']))
     c.circle(dot_x, y, 2.5*mm, fill=1, stroke=1)
 
-# --- PDF生成メイン関数 ---
 def create_pdf(json_data):
     buffer = io.BytesIO()
     c = canvas.Canvas(buffer, pagesize=landscape(A4))
     width, height = landscape(A4)
     MARGIN_X = width * 0.12
     
-    # P1: COVER
+    # P1
     try:
         c.drawImage("cover.jpg", 0, 0, width=width, height=height, preserveAspectRatio=False)
         c.setFillColor(HexColor('#000000'))
@@ -288,7 +297,7 @@ def create_pdf(json_data):
     c.drawCentredString(width/2, 20*mm, f"Designed by ThomYoshida AI | {datetime.datetime.now().strftime('%Y.%m.%d')}")
     c.showPage()
 
-    # P2: KEYWORDS
+    # P2
     draw_header(c, "01. 過去と未来の対比", 2)
     c.setFont(FONT_SERIF, 22)
     c.setFillColor(HexColor(COLORS['pdf_sub']))
@@ -311,7 +320,7 @@ def create_pdf(json_data):
         y -= 13*mm
     c.showPage()
 
-    # P3: FORMULA (Suki & Layout Fixed)
+    # P3
     draw_header(c, "02. 独自の成功法則", 3)
     formula = json_data.get('formula', {})
     cy = height/2 - 10*mm
@@ -342,7 +351,7 @@ def create_pdf(json_data):
     c.drawCentredString(width/2, height - 40*mm, f"「{json_data.get('catchphrase', '')}」")
     c.showPage()
 
-    # P4: SENSE BALANCE
+    # P4
     draw_header(c, "03. 感性のバランス", 4)
     metrics = json_data.get('sense_metrics', [])
     y = height - 65*mm
@@ -352,7 +361,7 @@ def create_pdf(json_data):
         draw_arrow_slider(c, x, curr_y, 48, m.get('left'), m.get('right'), m.get('value'))
     c.showPage()
 
-    # P5: ROLE MODELS (Title Updated)
+    # P5
     draw_header(c, "04. おすすめするロールモデル", 5) 
     archs = json_data.get('artist_archetypes', [])
     y = height - 55*mm
@@ -365,7 +374,7 @@ def create_pdf(json_data):
         y -= 48*mm
     c.showPage()
 
-    # P6: ROADMAP
+    # P6
     draw_header(c, "05. 未来へのロードマップ", 6)
     steps = json_data.get('roadmap_steps', [])
     y = height - 65*mm
@@ -381,7 +390,7 @@ def create_pdf(json_data):
         y -= 45*mm
     c.showPage()
 
-    # P7: VISION & ALTERNATIVES
+    # P7
     draw_header(c, "06. 次なるビジョンと選択肢", 7)
     c.setFont(FONT_SERIF, 20)
     c.setFillColor(HexColor(COLORS['forest']))
@@ -407,7 +416,7 @@ def create_pdf(json_data):
         y_alt -= 30*mm
     c.showPage()
 
-    # P8: MESSAGE (Smart Line Break)
+    # P8
     image_url = "https://images.unsplash.com/photo-1495312040802-a929cd14a6ab?q=80&w=2940&auto=format&fit=crop"
     try:
         response = requests.get(image_url, stream=True, timeout=10)
@@ -447,7 +456,7 @@ def create_pdf(json_data):
     return buffer
 
 # ---------------------------------------------------------
-# 5. Pipeline & Data
+# 5. Web UI & Pipeline
 # ---------------------------------------------------------
 def render_web_result(data):
     st.markdown("---")
@@ -478,11 +487,61 @@ def render_web_result(data):
         f = data.get('formula', {})
         st.info(f"**価値観**\n\n{f.get('values', {}).get('word')}")
         st.warning(f"**強み**\n\n{f.get('strengths', {}).get('word')}")
-        st.success(f"**好き**\n\n{f.get('interests', {}).get('word')}") # Web表示
+        st.success(f"**好き**\n\n{f.get('interests', {}).get('word')}")
     st.markdown("### Recommended Alternative Expressions")
     alts = data.get('alternative_expressions', [])
     for alt in alts:
         st.write(f"◇ {alt}")
+
+def render_admin_dashboard():
+    st.title("🚁 Strategy Cockpit")
+    st.markdown("### Manager Dashboard")
+    with st.spinner("Loading Database..."):
+        df = load_data_from_sheets()
+        
+    if df.empty:
+        st.warning("No data available yet.")
+        return
+
+    col1, col2, col3 = st.columns(3)
+    with col1: st.metric("Total Leads", len(df))
+    with col2: st.metric("Recent", "---")
+    with col3: st.metric("Status", "Active")
+
+    st.markdown("---")
+    col_chart, col_data = st.columns([1, 2])
+    
+    with col_chart:
+        st.subheader("Type Distribution")
+        # 5列目(index 4)が診断タイプと仮定（[date, name, email, specialty, type]）
+        if len(df.columns) >= 5:
+            type_col = df.columns[4] 
+            type_counts = df[type_col].value_counts()
+            fig = go.Figure(data=[go.Pie(labels=type_counts.index, values=type_counts.values, hole=.3)])
+            fig.update_layout(margin=dict(t=0, b=0, l=0, r=0), paper_bgcolor='rgba(0,0,0,0)')
+            st.plotly_chart(fig, use_container_width=True)
+
+    with col_data:
+        st.subheader("Customer List")
+        st.dataframe(df, use_container_width=True)
+        csv = df.to_csv(index=False).encode('utf-8')
+        st.download_button("📥 Download CSV", csv, "list.csv", "text/csv")
+
+# ==========================================
+# 6. Main Flow (Pipeline)
+# ==========================================
+
+# --- Admin Access (Sidebar) ---
+with st.sidebar:
+    st.markdown("---")
+    if st.checkbox("Manager Access", key="admin_mode"):
+        admin_pass = st.text_input("Access Key", type="password")
+        if admin_pass == st.secrets.get("ADMIN_PASSWORD", "admin123"):
+            st.success("Access Granted")
+            render_admin_dashboard()
+            st.stop()
+        elif admin_pass:
+            st.error("Access Denied")
 
 if 'step' not in st.session_state: st.session_state.step = 1
 if 'quiz_result' not in st.session_state: st.session_state.quiz_result = None
@@ -503,7 +562,7 @@ if st.session_state.step == 1:
             ans = st.radio(item["q"], item["opts"], key=f"q{i}", horizontal=True, index=None)
             answers.append((ans, item["type_a"]))
         st.write("---")
-        submit_button = st.form_submit_button(label="PROCEED TO VISION")
+        submit_button = st.form_submit_button(label="次へ進む")
     if submit_button:
         if not specialty: st.warning("専門分野を入力してください。")
         elif any(a[0] is None for a in answers): st.error("すべての質問に回答してください。")
@@ -531,7 +590,7 @@ elif st.session_state.step == 2:
     with col2:
         st.markdown("#### Future Vision")
         future_files = st.file_uploader("Ideal (Max 3)", type=["jpg", "png"], accept_multiple_files=True, key="future")
-    if st.button("NEXT STEP: UNLOCK REPORT"):
+    if st.button("次へ進む（レポート作成へ）"):
         if not past_files: st.error("画像をアップロードしてください。")
         else:
             st.session_state.step = 3
@@ -546,7 +605,7 @@ elif st.session_state.step == 3:
             col_f1, col_f2 = st.columns(2)
             with col_f1: user_name = st.text_input("Name")
             with col_f2: user_email = st.text_input("Email")
-            submit = st.form_submit_button("GENERATE REPORT", type="primary")
+            submit = st.form_submit_button("診断結果を見る", type="primary")
             if submit:
                 if user_name and user_email:
                     st.session_state.user_name = user_name
@@ -641,7 +700,7 @@ elif st.session_state.step == 4:
         else:
             st.warning("⚠️ レポート作成完了（メール送信失敗：設定を確認してください）")
         pdf_buffer = create_pdf(data)
-        st.download_button("📥 DOWNLOAD REPORT", pdf_buffer, "Visionary_Report.pdf", "application/pdf")
-        if st.button("START OVER"):
+        st.download_button("📥 診断レポートをダウンロード", pdf_buffer, "Visionary_Report.pdf", "application/pdf")
+        if st.button("最初からやり直す"):
             st.session_state.clear()
             st.rerun()
