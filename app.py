@@ -34,23 +34,28 @@ from reportlab.lib.utils import ImageReader
 # ==========================================
 st.set_page_config(page_title="Visionary Analysis | ThomYoshida", layout="wide") 
 
-# デザイン定義 (COLORS - 世界観研究所グレー v4.1)
+# ★修正点：視認性向上・純黒純白排除のためのカラーパレット刷新 (v4.2)
 COLORS = {
-    "bg": "#2A2A2A", "text": "#E8E8E8", "accent": "#D6AE60", 
-    "sub": "#8BA6B0", "forest": "#5F9EA0", "card": "#383838",    
-    "pdf_bg": "#FAFAF8", "pdf_text": "#2C2C2C", "pdf_sub": "#666666"
+    "bg": "#222222",        # 真っ黒ではない深いグレー（背景）
+    "text": "#F2F2F2",      # 真っ白ではない明るいグレー（文字）
+    "accent": "#D6AE60",    # ゴールド（アクセント）
+    "sub": "#A0BACC",       # 視認性を上げたサブカラー（青灰色）
+    "forest": "#6FB3B8",    # 視認性を上げたアクセント（緑青色）
+    "card": "#333333",      # 背景より少し明るいカード色
+    "input_bg": "#404040",  # 入力フォームの背景（明確に区別）
+    "pdf_bg": "#F5F5F0",    # 生成り色（PDF背景）
+    "pdf_text": "#1A1A1A",  # 墨色（PDF文字）
+    "pdf_sub": "#555555"    # 濃いグレー（PDFサブ文字）
 }
 
 # 日本語フォント自動セットアップ
 def setup_japanese_font():
     font_filename = "IPAexGothic.ttf"
-    # ここでは簡易的に、ファイルがない場合は標準フォントに倒す
     try:
         if os.path.exists(font_filename):
             pdfmetrics.registerFont(TTFont('IPAexGothic', font_filename))
             return 'IPAexGothic', 'IPAexGothic'
         else:
-            # Cloud環境でのフォールバック
             from reportlab.pdfbase.cidfonts import UnicodeCIDFont
             pdfmetrics.registerFont(UnicodeCIDFont('HeiseiMin-W3'))
             pdfmetrics.registerFont(UnicodeCIDFont('HeiseiKakuGo-W5')) 
@@ -67,7 +72,6 @@ AVAILABLE_MODELS = []
 if "GEMINI_API_KEY" in st.secrets:
     try:
         genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-        # 接続テスト: 利用可能なモデルを取得してみる
         for m in genai.list_models():
             if 'generateContent' in m.supported_generation_methods:
                 AVAILABLE_MODELS.append(m.name)
@@ -75,7 +79,6 @@ if "GEMINI_API_KEY" in st.secrets:
     except Exception as e:
         MODEL_STATUS = f"Error: {str(e)}"
 
-# サイドバーにシステムステータスを表示（デバッグ用）
 with st.sidebar:
     st.markdown("### 🛠 System Status")
     st.caption(f"Lib Version: {genai.__version__}")
@@ -91,17 +94,60 @@ with st.sidebar:
         admin_pass = st.text_input("Access Key", type="password")
         if admin_pass == st.secrets.get("ADMIN_PASSWORD", "admin123"):
             st.success("Access Granted")
-            # ダッシュボード表示ロジックはここに記述（省略）
             st.stop()
 
-# デザインCSS
+# ★修正点：CSSによる視認性強化と配色の適用
 st.markdown(f"""
 <style>
-    html, body, [class*="css"] {{ font-size: 18px; }}
-    .stApp {{ background-color: {COLORS["bg"]}; color: {COLORS["text"]}; }}
-    h1, h2, h3, h4 {{ font-family: "Hiragino Mincho ProN", serif !important; color: {COLORS["text"]} !important; }}
-    .stTextInput > div > div > input {{ background-color: {COLORS["card"]}; color: #FFF; }}
-    div.stButton > button {{ background-color: {COLORS["sub"]}; color: white; border: none; padding: 10px 24px; }}
+    html, body, [class*="css"] {{
+        font-size: 18px;
+        background-color: {COLORS["bg"]};
+        color: {COLORS["text"]};
+    }}
+    .stApp {{
+        background-color: {COLORS["bg"]};
+        color: {COLORS["text"]};
+    }}
+    /* 見出しの視認性向上 */
+    h1, h2, h3, h4 {{
+        font-family: "Hiragino Mincho ProN", serif !important;
+        color: {COLORS["text"]} !important;
+        text-shadow: 0px 0px 1px rgba(0,0,0,0.5); /* 文字をくっきりさせる */
+    }}
+    /* 入力フォームの視認性向上 */
+    .stTextInput > div > div > input {{
+        background-color: {COLORS["input_bg"]} !important;
+        color: #FFFFFF !important; /* 入力文字は読みやすく白に近づける */
+        border: 1px solid #555 !important;
+        border-radius: 4px;
+    }}
+    /* テキストエリア等のラベル */
+    label {{
+        color: {COLORS["sub"]} !important;
+        font-weight: bold;
+    }}
+    /* ボタンデザイン */
+    div.stButton > button {{
+        background-color: {COLORS["sub"]};
+        color: #1A1A1A; /* ボタン文字は濃くしてコントラスト確保 */
+        font-weight: bold;
+        border: none;
+        padding: 10px 24px;
+        border-radius: 4px;
+        transition: all 0.3s;
+    }}
+    div.stButton > button:hover {{
+        background-color: {COLORS["accent"]};
+        color: #000;
+        transform: translateY(-2px);
+    }}
+    /* カード風表示の背景 */
+    div[data-testid="stForm"] {{
+        background-color: {COLORS["card"]};
+        padding: 20px;
+        border-radius: 8px;
+        border: 1px solid #444;
+    }}
 </style>
 """, unsafe_allow_html=True)
 
@@ -188,7 +234,7 @@ def send_email_with_pdf(user_email, pdf_buffer):
     except: return False
 
 # ---------------------------------------------------------
-# 3. PDF生成ロジック (デザイン要望完全対応)
+# 3. PDF生成ロジック (デザイン要望完全対応・純黒純白排除)
 # ---------------------------------------------------------
 def wrap_text_smart(text, max_char_count):
     if not text: return []
@@ -256,14 +302,14 @@ def create_pdf(json_data):
     width, height = landscape(A4)
     MARGIN_X = width * 0.12
     
-    # P1
+    # P1: COVER (純黒・純白回避)
     try:
         c.drawImage("cover.jpg", 0, 0, width=width, height=height, preserveAspectRatio=False)
-        c.setFillColor(HexColor('#000000'))
+        c.setFillColor(HexColor('#111111')) # 純黒回避 -> 濃いグレー
         c.setFillAlpha(0.3)
         c.rect(0, 0, width, height, fill=1, stroke=0)
         c.setFillAlpha(1.0)
-        TEXT_COLOR = HexColor('#FFFFFF')
+        TEXT_COLOR = HexColor('#F4F4F4') # 純白回避 -> オフホワイト
     except:
         c.setFillColor(HexColor(COLORS['pdf_bg']))
         c.rect(0, 0, width, height, fill=1, stroke=0)
@@ -283,11 +329,10 @@ def create_pdf(json_data):
     past_kws = json_data.get('twelve_past_keywords', [])
     y = height - 75*mm
     c.setFont(FONT_SANS, 11)
-    for kw in past_kws[:12]: # 12個表示
+    for kw in past_kws[:12]:
         c.drawCentredString(width/3, y, f"◇ {kw}")
         y -= 9.5*mm
     
-    # 真ん中の▷
     c.setFont(FONT_SANS, 50)
     c.setFillColor(HexColor(COLORS['accent']))
     c.drawCentredString(width/2, height/2 - 15*mm, "▷")
@@ -299,7 +344,7 @@ def create_pdf(json_data):
     y = height - 75*mm
     c.setFont(FONT_SANS, 16)
     c.setFillColor(HexColor(COLORS['pdf_text']))
-    for kw in future_kws[:12]: # 12個表示
+    for kw in future_kws[:12]:
         c.drawCentredString(width*2/3, y, f"◆ {kw}")
         y -= 9.5*mm
     c.showPage()
@@ -316,7 +361,7 @@ def create_pdf(json_data):
     ]
     for cx, cy_pos, title, word in positions:
         c.setStrokeColor(HexColor(COLORS['forest']))
-        c.setFillColor(HexColor('#FFFFFF'))
+        c.setFillColor(HexColor('#FFFFFF')) # 円の中は白に近い色でOK(視認性優先)
         c.setLineWidth(1.5)
         c.circle(cx, cy_pos, r, fill=1, stroke=1)
         c.setFont(FONT_SERIF, 18)
@@ -326,7 +371,6 @@ def create_pdf(json_data):
         c.setFillColor(HexColor(COLORS['pdf_text']))
         draw_wrapped_text(c, word, cx, cy_pos - 8*mm, FONT_SANS, 24, r*1.5, 30, centered=True)
     
-    # 中心の×
     c.setFont(FONT_SANS, 80)
     c.setFillColor(HexColor(COLORS['accent']))
     c.drawCentredString(width/2, cy + 5*mm, "×")
@@ -347,7 +391,7 @@ def create_pdf(json_data):
     c.showPage()
 
     # P5-P8: 20 chars wrapping
-    TEXT_WIDTH_20 = 115 * mm # 20文字程度が入る幅
+    TEXT_WIDTH_20 = 115 * mm 
 
     # P5
     draw_header(c, "04. おすすめするロールモデル", 5) 
@@ -413,11 +457,11 @@ def create_pdf(json_data):
             pil_img = Image.open(img_data)
             img_reader = ImageReader(pil_img)
             c.drawImage(img_reader, 0, 0, width=width, height=height, preserveAspectRatio=False)
-            c.setFillColor(HexColor('#000000'))
+            c.setFillColor(HexColor('#111111')) # 純黒回避
             c.setFillAlpha(0.5)
             c.rect(0, 0, width, height, fill=1, stroke=0)
             c.setFillAlpha(1.0)
-            TEXT_COLOR_END = HexColor('#FFFFFF')
+            TEXT_COLOR_END = HexColor('#F4F4F4') # 純白回避
             ACCENT_COLOR_END = HexColor(COLORS['accent'])
         else: raise Exception
     except:
@@ -430,7 +474,6 @@ def create_pdf(json_data):
     q_author = quote_data.get('author', '')
 
     c.setFillColor(TEXT_COLOR_END)
-    # P8は少し広めに
     STRICT_WIDTH_P8 = 190 * mm
     draw_wrapped_text(c, q_text, width/2, height/2 + 20*mm, FONT_SERIF, 28, STRICT_WIDTH_P8, 36, centered=True)
     c.setFont(FONT_SANS, 18)
@@ -612,11 +655,10 @@ elif st.session_state.step == 4:
                 }}
                 """
                 
-                # 自動検出ロジックでモデルを決定
                 try:
+                    # モデル自動検出・接続
                     target_model = None
                     if AVAILABLE_MODELS:
-                        # 1.5-flash または 1.5-pro を優先
                         for m in AVAILABLE_MODELS:
                             if '1.5' in m and 'flash' in m: target_model = m; break
                         if not target_model:
