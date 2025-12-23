@@ -34,14 +34,14 @@ from reportlab.lib.utils import ImageReader
 # ---------------------------------------------------------
 st.set_page_config(page_title="世界観診断 | Visionary Analysis", layout="wide") 
 
-# デザイン定義 (COLORS - v5.1 Clarity Boost)
+# デザイン定義 (COLORS - v5.2 Matte White Tuned)
 COLORS = {
-    "bg": "#1E1E1E",        # より深い黒でコントラスト確保
-    "text": "#F5F5F5",      # より明るい白
-    "accent": "#D6AE60",    # ゴールド
+    "bg": "#1E1E1E",        
+    "text": "#F0F0F0",      # ★修正: マットホワイトに変更
+    "accent": "#D6AE60",    
     "sub": "#A0BACC",       
     "forest": "#6FB3B8",    
-    "card": "#2D2D2D",      # カード背景
+    "card": "#2D2D2D",      
     "card_hover": "#383838",
     "input_bg": "#404040",  
     "pdf_bg": "#FAFAF8",    
@@ -87,11 +87,11 @@ def check_password():
 check_password()
 
 # ---------------------------------------------------------
-# 1. デザインCSS (視認性大幅強化)
+# 1. デザインCSS (文字色：マットホワイト適用)
 # ---------------------------------------------------------
 st.markdown(f"""
 <style>
-    /* 全体設定 */
+    /* ベース設定 */
     html, body, [class*="css"] {{
         font-size: 18px;
         background-color: {COLORS["bg"]};
@@ -100,27 +100,37 @@ st.markdown(f"""
     }}
     .stApp {{ background-color: {COLORS["bg"]}; }}
     
-    h1, h2, h3, h4 {{
+    /* 見出し設定 (h1-h5) */
+    h1, h2, h3, h4, h5 {{
         font-family: "Hiragino Mincho ProN", serif !important;
-        color: {COLORS["text"]} !important;
+        color: {COLORS["text"]} !important; /* マットホワイト適用 */
         letter-spacing: 0.05em;
     }}
 
-    /* ★修正: 設問エリアの視認性向上 */
-    /* 設問文そのもの(label)を大きく明るく */
+    /* ★修正: 診断画面の説明文(p)と入力ラベル(label)をマットホワイトに */
+    .stMarkdown p {{
+        color: {COLORS["text"]} !important;
+        opacity: 0.95; /* わずかに透過させてマット感を出す */
+    }}
+    .stTextInput label {{
+        color: {COLORS["text"]} !important;
+        font-size: 1.0rem !important;
+        font-weight: normal !important;
+        opacity: 0.95;
+    }}
+    .stTextInput div[data-testid="stMarkdownContainer"] p {{
+         color: {COLORS["text"]} !important;
+    }}
+
+    /* 設問エリアの視認性 */
     .stRadio label p {{
         font-size: 1.3rem !important;
         font-weight: 600 !important;
-        color: {COLORS["accent"]} !important; /* 質問文をゴールドにして目立たせる */
+        color: {COLORS["accent"]} !important;
         margin-bottom: 10px;
     }}
 
-    /* 選択肢のカード化 */
-    div[role="radiogroup"] {{
-        background-color: transparent;
-        padding: 10px 0;
-    }}
-    
+    /* 選択肢カード */
     div[role="radiogroup"] > label {{
         background-color: {COLORS["card"]};
         padding: 15px 20px;
@@ -130,14 +140,11 @@ st.markdown(f"""
         transition: all 0.3s ease;
         box-shadow: 0 4px 6px rgba(0,0,0,0.3);
     }}
-    
     div[role="radiogroup"] > label:hover {{
         border-color: {COLORS["accent"]};
         background-color: {COLORS["card_hover"]};
         transform: translateX(5px);
     }}
-    
-    /* 選択肢の文字 */
     div[role="radiogroup"] > label p {{
         color: #FFFFFF !important;
         font-size: 1.1rem !important;
@@ -256,7 +263,7 @@ Thom Yoshida"""
     except: return False
 
 # ---------------------------------------------------------
-# 4. PDF生成ロジック (余白12%・改行位置・左右独立レイアウト)
+# 4. PDF生成ロジック
 # ---------------------------------------------------------
 
 def wrap_text_smart(text, max_char_count):
@@ -422,7 +429,7 @@ def create_pdf(json_data):
         draw_arrow_slider(c, x, curr_y, 48, m.get('left'), m.get('right'), m.get('value'))
     c.showPage()
 
-    # P5: ROLE MODELS (20 chars)
+    # P5: ROLE MODELS
     draw_header(c, "04. お手本にしたい人物", 5) 
     archs = json_data.get('artist_archetypes', [])
     y = height - 55*mm
@@ -436,39 +443,35 @@ def create_pdf(json_data):
         y -= 48*mm
     c.showPage()
 
-    # P6: ROADMAP (★左右完全分離レイアウト★)
+    # P6: ROADMAP
     draw_header(c, "05. 未来への道のり", 6)
     steps = json_data.get('roadmap_steps', [])
     y = height - 65*mm
     
-    # 左右スペース定義
-    LEFT_WIDTH = 70 * mm  # 見出し用スペース
-    RIGHT_WIDTH = CONTENT_WIDTH - LEFT_WIDTH - 10*mm # 解説用スペース（少し広めに）
+    # ★左右分離レイアウト
+    LEFT_WIDTH = 70 * mm  
+    RIGHT_WIDTH = CONTENT_WIDTH - LEFT_WIDTH - 10*mm
     
     for i, step in enumerate(steps):
-        # --- 左側：番号とタイトル ---
         c.setFont(FONT_SANS, 40)
         c.setFillColor(HexColor(COLORS['accent']))
-        c.drawString(MARGIN_X, y - 5*mm, f"0{i+1}") # 番号
+        c.drawString(MARGIN_X, y - 5*mm, f"0{i+1}")
         
         c.setFont(FONT_SERIF, 18)
         c.setFillColor(HexColor(COLORS['pdf_text']))
-        # タイトルを番号の横に配置（折り返しなし前提）
         c.drawString(MARGIN_X + 25*mm, y, step.get('title', ''))
         
-        # --- 右側：詳細解説（独立スペース） ---
         c.setFillColor(HexColor(COLORS['pdf_sub']))
-        # 詳細文の開始位置を右側に固定 (MARGIN_X + LEFT_WIDTH)
         draw_wrapped_text(c, step.get('detail', ''), MARGIN_X + LEFT_WIDTH, y + 2*mm, FONT_SANS, 12, RIGHT_WIDTH, 18)
         
         y -= 45*mm
     c.showPage()
 
-    # P7: VISION & ALTERNATIVES (Center Split)
+    # P7: VISION & ALTERNATIVES
     draw_header(c, "06. 次なるビジョンと表現", 7)
     COL_WIDTH = (CONTENT_WIDTH - 10*mm) / 2
     
-    # Left Column
+    # Left
     c.setFont(FONT_SERIF, 20)
     c.setFillColor(HexColor(COLORS['forest']))
     c.drawString(MARGIN_X, height - 45*mm, "Next Vision")
@@ -481,21 +484,22 @@ def create_pdf(json_data):
         draw_wrapped_text(c, p.get('detail', ''), MARGIN_X + 5*mm, y - 8*mm, FONT_SANS, 11, COL_WIDTH, 14)
         y -= 24*mm
         
-    # Right Column
-    x_right = MARGIN_X + COL_WIDTH + 10*mm
+    # Right
+    RIGHT_START_X = width/2 + 10*mm # Center + 10mm
     c.setFont(FONT_SERIF, 20)
     c.setFillColor(HexColor(COLORS['forest']))
-    c.drawString(x_right, height - 45*mm, "Other Expressions")
+    c.drawString(RIGHT_START_X, height - 45*mm, "Other Expressions")
     alts = json_data.get('alternative_expressions', [])
     y_alt = height - 60*mm
     for alt in alts[:3]:
         c.setFont(FONT_SANS, 14)
         c.setFillColor(HexColor(COLORS['pdf_text']))
-        draw_wrapped_text(c, f"◇ {alt}", x_right, y_alt, FONT_SANS, 14, COL_WIDTH, 20)
+        draw_wrapped_text(c, f"◇ {alt}", RIGHT_START_X, y_alt, FONT_SANS, 14, COL_WIDTH, 20)
         y_alt -= 30*mm
+    
     c.showPage()
 
-    # P8: MESSAGE (15 chars)
+    # P8: MESSAGE
     image_url = "https://images.unsplash.com/photo-1495312040802-a929cd14a6ab?q=80&w=2940&auto=format&fit=crop"
     try:
         response = requests.get(image_url, stream=True, timeout=10)
@@ -521,7 +525,6 @@ def create_pdf(json_data):
     q_author = quote_data.get('author', '')
 
     c.setFillColor(TEXT_COLOR_END)
-    # ★15文字幅 (約150mm)
     TEXT_WIDTH_15 = 150 * mm
     draw_wrapped_text(c, q_text, width/2, height/2 + 20*mm, FONT_SERIF, 28, TEXT_WIDTH_15, 36, centered=True)
     c.setFont(FONT_SANS, 18)
