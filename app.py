@@ -34,14 +34,15 @@ from reportlab.lib.utils import ImageReader
 # ---------------------------------------------------------
 st.set_page_config(page_title="世界観診断 | Visionary Analysis", layout="wide") 
 
-# デザイン定義 (COLORS - v5.0 High Contrast)
+# デザイン定義 (COLORS - v5.1 Clarity Boost)
 COLORS = {
-    "bg": "#222222",        
-    "text": "#F2F2F2",      
-    "accent": "#D6AE60",    
+    "bg": "#1E1E1E",        # より深い黒でコントラスト確保
+    "text": "#F5F5F5",      # より明るい白
+    "accent": "#D6AE60",    # ゴールド
     "sub": "#A0BACC",       
     "forest": "#6FB3B8",    
-    "card": "#333333",      
+    "card": "#2D2D2D",      # カード背景
+    "card_hover": "#383838",
     "input_bg": "#404040",  
     "pdf_bg": "#FAFAF8",    
     "pdf_text": "#2C2C2C",
@@ -86,10 +87,11 @@ def check_password():
 check_password()
 
 # ---------------------------------------------------------
-# 1. デザインCSS (視認性向上)
+# 1. デザインCSS (視認性大幅強化)
 # ---------------------------------------------------------
 st.markdown(f"""
 <style>
+    /* 全体設定 */
     html, body, [class*="css"] {{
         font-size: 18px;
         background-color: {COLORS["bg"]};
@@ -103,31 +105,53 @@ st.markdown(f"""
         color: {COLORS["text"]} !important;
         letter-spacing: 0.05em;
     }}
-    
-    /* ラジオボタン */
-    .stRadio p {{
-        color: #FFFFFF !important;
-        font-weight: 500 !important;
-        font-size: 1.1rem !important;
+
+    /* ★修正: 設問エリアの視認性向上 */
+    /* 設問文そのもの(label)を大きく明るく */
+    .stRadio label p {{
+        font-size: 1.3rem !important;
+        font-weight: 600 !important;
+        color: {COLORS["accent"]} !important; /* 質問文をゴールドにして目立たせる */
+        margin-bottom: 10px;
     }}
+
+    /* 選択肢のカード化 */
+    div[role="radiogroup"] {{
+        background-color: transparent;
+        padding: 10px 0;
+    }}
+    
     div[role="radiogroup"] > label {{
         background-color: {COLORS["card"]};
-        padding: 12px 15px;
-        border-radius: 8px;
-        margin-bottom: 8px;
+        padding: 15px 20px;
+        border-radius: 10px;
+        margin-bottom: 12px;
         border: 1px solid #555;
-        transition: 0.2s;
-    }}
-    div[role="radiogroup"] > label:hover {{
-        border-color: {COLORS["accent"]};
-        background-color: {COLORS["input_bg"]};
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.3);
     }}
     
+    div[role="radiogroup"] > label:hover {{
+        border-color: {COLORS["accent"]};
+        background-color: {COLORS["card_hover"]};
+        transform: translateX(5px);
+    }}
+    
+    /* 選択肢の文字 */
+    div[role="radiogroup"] > label p {{
+        color: #FFFFFF !important;
+        font-size: 1.1rem !important;
+        font-weight: 400 !important;
+        margin: 0 !important;
+    }}
+
     /* 入力フォーム */
     .stTextInput > div > div > input {{
         background-color: {COLORS["input_bg"]} !important;
         color: #FFFFFF !important; 
         border: 1px solid #666 !important;
+        font-size: 1.1rem;
+        padding: 10px;
     }}
     
     /* ボタン */
@@ -138,6 +162,7 @@ st.markdown(f"""
         border: none;
         padding: 12px 30px;
         border-radius: 6px;
+        font-size: 1.1rem;
     }}
 </style>
 """, unsafe_allow_html=True)
@@ -231,24 +256,21 @@ Thom Yoshida"""
     except: return False
 
 # ---------------------------------------------------------
-# 4. PDF生成ロジック (余白12%・改行位置・わかりやすい言葉)
+# 4. PDF生成ロジック (余白12%・改行位置・左右独立レイアウト)
 # ---------------------------------------------------------
 
 def wrap_text_smart(text, max_char_count):
     if not text: return []
-    # 助詞や句読点など、「ここで改行すると読みやすい」文字
     delimiters = ['、', '。', 'て', 'に', 'を', 'は', 'が', 'と', 'へ', 'で', 'や', 'の', 'も', 'し', 'い', 'か', 'ね', 'よ', '！', '？']
     lines = []
     current_line = ""
     for char in text:
         current_line += char
-        # 目標文字数の85%を超えたら、助詞での改行を伺う
         if len(current_line) >= max_char_count * 0.85:
             if char in delimiters:
                 lines.append(current_line)
                 current_line = ""
                 continue
-            # 上限（+2文字）を超えたら強制改行（単語途中でもやむなしだが、頻度は下がる）
             if len(current_line) >= max_char_count + 2:
                 lines.append(current_line)
                 current_line = ""
@@ -268,7 +290,6 @@ def draw_wrapped_text(c, text, x, y, font, size, max_width_mm, leading, centered
 
 def draw_header(c, title, page_num):
     width, height = landscape(A4)
-    # 12%余白
     MARGIN_X = width * 0.12 
     c.setFillColor(HexColor(COLORS['pdf_bg']))
     c.rect(0, 0, width, height, fill=1, stroke=0)
@@ -306,9 +327,7 @@ def create_pdf(json_data):
     c = canvas.Canvas(buffer, pagesize=landscape(A4))
     width, height = landscape(A4)
     
-    # 余白12%
     MARGIN_X = width * 0.12
-    # 本文幅
     CONTENT_WIDTH = width - (MARGIN_X * 2)
     
     # P1: COVER
@@ -333,10 +352,10 @@ def create_pdf(json_data):
     c.showPage()
 
     # P2: KEYWORDS
-    draw_header(c, "01. あなたを作る「過去」と「未来」", 2) # 日本語化
+    draw_header(c, "01. あなたを作る「過去」と「未来」", 2)
     c.setFont(FONT_SERIF, 22)
     c.setFillColor(HexColor(COLORS['pdf_sub']))
-    c.drawCentredString(width/3, height - 55*mm, "原点 / 過去") # 日本語化
+    c.drawCentredString(width/3, height - 55*mm, "原点 / 過去")
     
     past_kws = json_data.get('twelve_past_keywords', [])
     y = height - 75*mm
@@ -351,7 +370,7 @@ def create_pdf(json_data):
 
     c.setFont(FONT_SERIF, 30)
     c.setFillColor(HexColor(COLORS['forest']))
-    c.drawCentredString(width*2/3, height - 55*mm, "未来 / 理想") # 日本語化
+    c.drawCentredString(width*2/3, height - 55*mm, "未来 / 理想")
     
     future_kws = json_data.get('twelve_future_keywords', [])
     y = height - 75*mm
@@ -363,14 +382,14 @@ def create_pdf(json_data):
     c.showPage()
 
     # P3: FORMULA
-    draw_header(c, "02. あなただけの成功方程式", 3) # 日本語化
+    draw_header(c, "02. あなただけの成功方程式", 3)
     formula = json_data.get('formula', {})
     cy = height/2 - 10*mm
     r = 38*mm 
     positions = [
-        (width/2 - r*1.55, cy + r*0.8, "大切にしたいこと", formula.get('values', {}).get('word', '')), # 価値観->大切にしたいこと
-        (width/2 + r*1.55, cy + r*0.8, "得意なこと", formula.get('strengths', {}).get('word', '')), # 強み->得意なこと
-        (width/2, cy - r*1.2, "好きなこと", formula.get('interests', {}).get('word', '')) # 好き->好きなこと
+        (width/2 - r*1.55, cy + r*0.8, "大切にしたいこと", formula.get('values', {}).get('word', '')),
+        (width/2 + r*1.55, cy + r*0.8, "得意なこと", formula.get('strengths', {}).get('word', '')),
+        (width/2, cy - r*1.2, "好きなこと", formula.get('interests', {}).get('word', ''))
     ]
     for cx, cy_pos, title, word in positions:
         c.setStrokeColor(HexColor(COLORS['forest']))
@@ -403,93 +422,77 @@ def create_pdf(json_data):
         draw_arrow_slider(c, x, curr_y, 48, m.get('left'), m.get('right'), m.get('value'))
     c.showPage()
 
-    # P5: ROLE MODELS (20 chars approx)
-    draw_header(c, "04. お手本にしたい人物", 5) # ロールモデル->お手本にしたい人物
+    # P5: ROLE MODELS (20 chars)
+    draw_header(c, "04. お手本にしたい人物", 5) 
     archs = json_data.get('artist_archetypes', [])
     y = height - 55*mm
-    
-    # 20文字程度が入る幅 (約115mm)
     TEXT_WIDTH_20 = 115 * mm 
-    
     for i, a in enumerate(archs[:3]):
         c.setFont(FONT_SERIF, 22)
         c.setFillColor(HexColor(COLORS['forest']))
         c.drawString(MARGIN_X, y, f"◆ {a.get('name')}")
-        
         c.setFillColor(HexColor(COLORS['pdf_text']))
-        # 詳細文の幅制限
         draw_wrapped_text(c, a.get('detail', ''), MARGIN_X + 8*mm, y - 12*mm, FONT_SANS, 14, TEXT_WIDTH_20, 20)
         y -= 48*mm
     c.showPage()
 
-    # P6: ROADMAP (20 chars approx)
-    draw_header(c, "05. 未来への道のり", 6) # ロードマップ->未来への道のり
+    # P6: ROADMAP (★左右完全分離レイアウト★)
+    draw_header(c, "05. 未来への道のり", 6)
     steps = json_data.get('roadmap_steps', [])
     y = height - 65*mm
     
-    # 20文字程度が入る幅
-    TEXT_WIDTH_P6 = 110 * mm 
+    # 左右スペース定義
+    LEFT_WIDTH = 70 * mm  # 見出し用スペース
+    RIGHT_WIDTH = CONTENT_WIDTH - LEFT_WIDTH - 10*mm # 解説用スペース（少し広めに）
     
     for i, step in enumerate(steps):
+        # --- 左側：番号とタイトル ---
         c.setFont(FONT_SANS, 40)
         c.setFillColor(HexColor(COLORS['accent']))
-        c.drawString(MARGIN_X, y - 5*mm, f"0{i+1}")
+        c.drawString(MARGIN_X, y - 5*mm, f"0{i+1}") # 番号
         
         c.setFont(FONT_SERIF, 18)
         c.setFillColor(HexColor(COLORS['pdf_text']))
-        c.drawString(MARGIN_X + 30*mm, y, step.get('title', ''))
+        # タイトルを番号の横に配置（折り返しなし前提）
+        c.drawString(MARGIN_X + 25*mm, y, step.get('title', ''))
         
+        # --- 右側：詳細解説（独立スペース） ---
         c.setFillColor(HexColor(COLORS['pdf_sub']))
-        draw_wrapped_text(c, step.get('detail', ''), MARGIN_X + 30*mm, y - 12*mm, FONT_SANS, 12, TEXT_WIDTH_P6, 18)
+        # 詳細文の開始位置を右側に固定 (MARGIN_X + LEFT_WIDTH)
+        draw_wrapped_text(c, step.get('detail', ''), MARGIN_X + LEFT_WIDTH, y + 2*mm, FONT_SANS, 12, RIGHT_WIDTH, 18)
+        
         y -= 45*mm
     c.showPage()
 
-    # P7: VISION & ALTERNATIVES (Center Split / 20 chars)
+    # P7: VISION & ALTERNATIVES (Center Split)
     draw_header(c, "06. 次なるビジョンと表現", 7)
+    COL_WIDTH = (CONTENT_WIDTH - 10*mm) / 2
     
-    # ★中央分割の厳密な計算
-    CENTER_X = width / 2
-    # 左右のコンテンツが使える幅（中央線から少し離す）
-    HALF_CONTENT_WIDTH = (CONTENT_WIDTH / 2) - 10*mm
-    
-    # 左カラム: Next Vision
+    # Left Column
     c.setFont(FONT_SERIF, 20)
     c.setFillColor(HexColor(COLORS['forest']))
-    # 左側の開始位置 = MARGIN_X
     c.drawString(MARGIN_X, height - 45*mm, "Next Vision")
-    
     proposals = json_data.get('final_proposals', [])
     y = height - 60*mm
     for p in proposals[:5]:
         c.setFont(FONT_SANS, 14)
         c.setFillColor(HexColor(COLORS['pdf_text']))
         c.drawString(MARGIN_X, y, f"・{p.get('point')}")
-        # 幅を半分に制限して20文字程度に
-        draw_wrapped_text(c, p.get('detail', ''), MARGIN_X + 5*mm, y - 8*mm, FONT_SANS, 11, HALF_CONTENT_WIDTH, 14)
+        draw_wrapped_text(c, p.get('detail', ''), MARGIN_X + 5*mm, y - 8*mm, FONT_SANS, 11, COL_WIDTH, 14)
         y -= 24*mm
         
-    # 右カラム: Alternatives
-    # 右側の開始位置 = 中央 + 10mm
-    RIGHT_START_X = CENTER_X + 10*mm
-    
+    # Right Column
+    x_right = MARGIN_X + COL_WIDTH + 10*mm
     c.setFont(FONT_SERIF, 20)
     c.setFillColor(HexColor(COLORS['forest']))
-    c.drawString(RIGHT_START_X, height - 45*mm, "Other Expressions")
-    
+    c.drawString(x_right, height - 45*mm, "Other Expressions")
     alts = json_data.get('alternative_expressions', [])
     y_alt = height - 60*mm
     for alt in alts[:3]:
         c.setFont(FONT_SANS, 14)
         c.setFillColor(HexColor(COLORS['pdf_text']))
-        # 幅を半分に制限
-        draw_wrapped_text(c, f"◇ {alt}", RIGHT_START_X, y_alt, FONT_SANS, 14, HALF_CONTENT_WIDTH, 20)
+        draw_wrapped_text(c, f"◇ {alt}", x_right, y_alt, FONT_SANS, 14, COL_WIDTH, 20)
         y_alt -= 30*mm
-        
-    # 中央の区切り線（オプション）
-    c.setStrokeColor(HexColor(COLORS['pdf_sub']))
-    c.setLineWidth(0.3)
-    c.line(CENTER_X, height - 50*mm, CENTER_X, 20*mm)
-    
     c.showPage()
 
     # P8: MESSAGE (15 chars)
@@ -518,7 +521,7 @@ def create_pdf(json_data):
     q_author = quote_data.get('author', '')
 
     c.setFillColor(TEXT_COLOR_END)
-    # ★15文字で改行させるための幅設定 (約150mm)
+    # ★15文字幅 (約150mm)
     TEXT_WIDTH_15 = 150 * mm
     draw_wrapped_text(c, q_text, width/2, height/2 + 20*mm, FONT_SERIF, 28, TEXT_WIDTH_15, 36, centered=True)
     c.setFont(FONT_SANS, 18)
@@ -577,7 +580,6 @@ if st.session_state.step == 1:
     st.title("世界観診断 | Visionary Analysis")
     st.caption("あなたの感性と才能を言語化する、クリエイティブ診断ツール")
     
-    # ★変更: 入力欄のラベルと例
     st.markdown("##### 00. 得意＆好きな表現")
     specialty = st.text_input("例：写真、映像、絵画、身体表現、造形、デザイン、演技、など")
     
@@ -661,7 +663,6 @@ elif st.session_state.step == 4:
             success = False
             
             if "GEMINI_API_KEY" in st.secrets:
-                # ★修正: 高校生でもわかる言葉で指示
                 prompt_text = f"""
                 あなたは世界的なアートディレクター Thom Yoshida です。
                 ユーザーの「得意な表現」と「診断タイプ」に基づき、その人の世界観を分析し、
