@@ -29,26 +29,26 @@ from reportlab.lib.units import mm
 from reportlab.lib.colors import HexColor
 from reportlab.lib.utils import ImageReader
 
-# ==========================================
-# 0. 初期設定 & システム診断
-# ==========================================
-st.set_page_config(page_title="Aesthetic DNA Analysis | ThomYoshida", layout="wide") 
+# ---------------------------------------------------------
+# 0. 初期設定 & フォント自動セットアップ
+# ---------------------------------------------------------
+st.set_page_config(page_title="世界観診断 | Visionary Analysis", layout="wide") 
 
-# カラーパレット (v5.1: 視認性最大化・ハイコントラスト版)
+# デザイン定義 (COLORS - v5.0 High Contrast)
 COLORS = {
-    "bg": "#1E1E1E",        # 背景：深いマットな黒
-    "text": "#FFFFFF",      # 文字：純白（コントラスト最大化）
-    "accent": "#FFD700",    # アクセント：輝きの強いゴールド（視認性向上）
-    "sub": "#A0C4D6",       # サブ：明るいブルーグレー
-    "forest": "#70C2BE",    # 深緑：明るめに調整
-    "card": "#222222",      # カード背景：より黒に近づけて白文字を引き立てる
-    "input_bg": "#333333",  # 入力エリア
-    "pdf_bg": "#F9F9F7",    # PDF背景（紙の質感）
-    "pdf_text": "#1A1A1A",  # PDF文字（墨色）
-    "pdf_sub": "#555555"    # PDFサブ
+    "bg": "#222222",        
+    "text": "#F2F2F2",      
+    "accent": "#D6AE60",    
+    "sub": "#A0BACC",       
+    "forest": "#6FB3B8",    
+    "card": "#333333",      
+    "input_bg": "#404040",  
+    "pdf_bg": "#FAFAF8",    
+    "pdf_text": "#2C2C2C",
+    "pdf_sub": "#555555"
 }
 
-# 日本語フォント自動セットアップ
+# 日本語フォント設定
 def setup_japanese_font():
     font_filename = "IPAexGothic.ttf"
     try:
@@ -65,147 +65,121 @@ def setup_japanese_font():
 
 FONT_SERIF, FONT_SANS = setup_japanese_font()
 
-# APIキー設定 & 診断
-MODEL_STATUS = "Unknown"
-AVAILABLE_MODELS = []
-
+# APIキー設定
 if "GEMINI_API_KEY" in st.secrets:
-    try:
-        genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-        for m in genai.list_models():
-            if 'generateContent' in m.supported_generation_methods:
-                AVAILABLE_MODELS.append(m.name)
-        MODEL_STATUS = "Connected"
-    except Exception as e:
-        MODEL_STATUS = f"Error: {str(e)}"
+    genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 
-# 管理用サイドバー
-with st.sidebar:
-    if st.checkbox("System Access", key="admin_mode"):
-        admin_pass = st.text_input("Key", type="password")
-        if admin_pass == st.secrets.get("ADMIN_PASSWORD", "admin123"):
-            st.success(f"Status: {MODEL_STATUS}")
-        else:
-            st.stop()
+# パスワード認証
+def check_password():
+    if "password_correct" not in st.session_state: st.session_state.password_correct = False
+    if "APP_PASSWORD" not in st.secrets: return True
+    if st.session_state.password_correct: return True
+    st.markdown("### 🔒 Restricted Access")
+    password_input = st.text_input("パスコードを入力してください", type="password")
+    if password_input:
+        if password_input == st.secrets["APP_PASSWORD"]:
+            st.session_state.password_correct = True
+            st.rerun()
+        else: st.error("パスコードが違います")
+    st.stop()
 
-# CSS適用（視認性最大化・ハイコントラスト）
+check_password()
+
+# ---------------------------------------------------------
+# 1. デザインCSS (視認性向上)
+# ---------------------------------------------------------
 st.markdown(f"""
 <style>
     html, body, [class*="css"] {{
-        font-family: "Hiragino Mincho ProN", "Yu Mincho", serif;
+        font-size: 18px;
         background-color: {COLORS["bg"]};
         color: {COLORS["text"]};
-        line-height: 1.8;
+        font-family: "Hiragino Kaku Gothic ProN", "Meiryo", sans-serif;
     }}
-    .stApp {{
-        background-color: {COLORS["bg"]};
-    }}
-    h1, h2, h3 {{
+    .stApp {{ background-color: {COLORS["bg"]}; }}
+    
+    h1, h2, h3, h4 {{
+        font-family: "Hiragino Mincho ProN", serif !important;
         color: {COLORS["text"]} !important;
-        font-weight: normal;
-        letter-spacing: 0.1em;
-        text-shadow: 0px 0px 2px rgba(0,0,0,0.8); /* 文字を浮かび上がらせる */
+        letter-spacing: 0.05em;
     }}
+    
+    /* ラジオボタン */
+    .stRadio p {{
+        color: #FFFFFF !important;
+        font-weight: 500 !important;
+        font-size: 1.1rem !important;
+    }}
+    div[role="radiogroup"] > label {{
+        background-color: {COLORS["card"]};
+        padding: 12px 15px;
+        border-radius: 8px;
+        margin-bottom: 8px;
+        border: 1px solid #555;
+        transition: 0.2s;
+    }}
+    div[role="radiogroup"] > label:hover {{
+        border-color: {COLORS["accent"]};
+        background-color: {COLORS["input_bg"]};
+    }}
+    
+    /* 入力フォーム */
     .stTextInput > div > div > input {{
         background-color: {COLORS["input_bg"]} !important;
-        color: #FFF !important;
+        color: #FFFFFF !important; 
         border: 1px solid #666 !important;
     }}
     
-    /* === 診断フォームの視認性最大化 === */
-    div[data-testid="stForm"] {{
-        background-color: {COLORS["card"]};
-        padding: 40px;
-        border-radius: 4px;
-        border: 1px solid #444;
-        box-shadow: 0 4px 20px rgba(0,0,0,0.5); /* 影で背景との分離を強調 */
-    }}
-    
-    /* 質問文（ラジオボタンのラベル） */
-    .stRadio > label {{
-        color: #FFFFFF !important;     /* 純白 */
-        font-size: 1.15em !important;  /* サイズアップ */
-        font-weight: bold !important;  /* 太字 */
-        opacity: 1 !important;         /* 不透明度MAX */
-        margin-bottom: 10px !important;
-        text-shadow: 0px 1px 2px rgba(0,0,0,0.8); /* 視認性向上 */
-        border-left: 3px solid {COLORS["accent"]}; /* 左線で強調 */
-        padding-left: 10px;
-    }}
-    
-    /* 回答選択肢 */
-    .stRadio div[role="radiogroup"] label div[data-testid="stMarkdownContainer"] p {{
-        color: #FFFFFF !important;    /* 純白 */
-        font-size: 1.0em !important;
-        font-weight: 500 !important;  /* 少し太く */
-        opacity: 1 !important;
-    }}
-    
-    /* 選択されたラジオボタンの強調 */
-    .stRadio div[role="radiogroup"] label[data-checked="true"] {{
-        background-color: rgba(255, 255, 255, 0.1); /* 選択時のハイライト */
-        border-radius: 4px;
-    }}
-
-    /* ボタンデザイン */
+    /* ボタン */
     div.stButton > button {{
         background-color: {COLORS["sub"]};
-        color: #000000 !important; /* 黒文字でコントラスト確保 */
-        font-family: "Hiragino Sans", sans-serif;
-        font-weight: 800 !important; /* 極太 */
+        color: #1A1A1A;
+        font-weight: bold;
         border: none;
-        padding: 14px 30px;
-        border-radius: 2px;
-        letter-spacing: 0.05em;
-        transition: all 0.4s ease;
-    }}
-    div.stButton > button:hover {{
-        background-color: {COLORS["accent"]};
-        color: #000000 !important;
-        transform: translateY(-2px);
-        box-shadow: 0 4px 12px rgba(212, 175, 55, 0.4); /* 光る演出 */
+        padding: 12px 30px;
+        border-radius: 6px;
     }}
 </style>
 """, unsafe_allow_html=True)
 
 # ---------------------------------------------------------
-# 1. 診断データ（変更なし）
+# 2. 診断データ
 # ---------------------------------------------------------
 QUIZ_DATA = [
-    {"q": "Q1. 制作の衝動は、どこから生まれますか？", "opts": ["内側から湧き上がる、言葉にできない感情", "外側からの刺激や、解決すべき課題"], "type_a": "内側から湧き上がる、言葉にできない感情", "axis": "source"},
-    {"q": "Q2. アイデアを形にする時、最初にするのは？", "opts": ["ノートの端に、意味のない線を走らせる", "白い紙に、構造やキーワードを書き出す"], "type_a": "ノートの端に、意味のない線を走らせる", "axis": "style"},
-    {"q": "Q3. あなたにとって「色」とは？", "opts": ["その瞬間の「気分」や「匂い」に近いもの", "計算された「記号」や「機能」に近いもの"], "type_a": "その瞬間の「気分」や「匂い」に近いもの", "axis": "style"},
-    {"q": "Q4. 理想的な制作スペースは？", "opts": ["好きな物に囲まれた、少し混沌とした秘密基地", "ノイズのない、整理整頓された実験室"], "type_a": "好きな物に囲まれた、少し混沌とした秘密基地", "axis": "style"},
-    {"q": "Q5. 制作のリズムについて。", "opts": ["波が来た時に一気に。乗らない時は何もしない。", "毎日淡々と。ルーティンを守り積み上げる。"], "type_a": "波が来た時に一気に。乗らない時は何もしない。", "axis": "source"},
-    {"q": "Q6. 行き詰まった時、どうしますか？", "opts": ["全く関係ない映画を観たり、旅に出る", "原因を分析し、基礎練習やリサーチに戻る"], "type_a": "全く関係ない映画を観たり、旅に出る", "axis": "source"},
-    {"q": "Q7. 作品の「完成」を告げる合図は？", "opts": ["「もうこれ以上触れない」という生理的な感覚", "「予定していた要件を満たした」という論理的な判断"], "type_a": "「もうこれ以上触れない」という生理的な感覚", "axis": "style"},
-    {"q": "Q8. 評価に対するスタンスは？", "opts": ["誰にも理解されなくても、自分が愛せればいい", "多くの人に届き、共感されることが喜び"], "type_a": "誰にも理解されなくても、自分が愛せればいい", "axis": "source"},
-    {"q": "Q9. 制作中に突然、別のアイデアが降ってきたら？", "opts": ["今の作業を放り出してでも、その光を追いかける", "まずは今の作品を完成させてから、次に着手する"], "type_a": "今の作業を放り出してでも、その光を追いかける", "axis": "style"},
-    {"q": "Q10. 道具選びで大切なのは？", "opts": ["手に馴染む感覚や、愛着が湧くかどうか", "スペックの高さや、効率的かどうか"], "type_a": "手に馴染む感覚や、愛着が湧くかどうか", "axis": "style"},
-    {"q": "Q11. 作品を通して、何を共有したい？", "opts": ["私の内側にある、言葉にならない「叫び」", "社会に対する、より良い「提案」"], "type_a": "私の内側にある、言葉にならない「叫び」", "axis": "source"},
-    {"q": "Q12. ラフスケッチはどんな感じ？", "opts": ["抽象的な線や、雰囲気の断片が多い", "具体的な配置図や、完成予想図に近い"], "type_a": "抽象的な線や、雰囲気の断片が多い", "axis": "style"},
-    {"q": "Q13. 惹かれるのはどんなアーティスト？", "opts": ["破天荒で、危うさを秘めた天才肌", "知的で、理論に裏打ちされた構築家"], "type_a": "破天荒で、危うさを秘めた天才肌", "axis": "source"},
-    {"q": "Q14. 「締め切り」との付き合い方は？", "opts": ["ギリギリまで粘って、クオリティを上げたい", "余裕を持って終わらせ、安心したい"], "type_a": "ギリギリまで粘って、クオリティを上げたい", "axis": "style"},
-    {"q": "Q15. チームでの制作は？", "opts": ["自分のリズムが乱れるので、実は苦手", "役割分担ができるので、効率的で好き"], "type_a": "自分のリズムが乱れるので、実は苦手", "axis": "source"},
-    {"q": "Q16. 昔の自分の作品を見ると？", "opts": ["その時の「感情」や「匂い」が蘇る", "技術的な「未熟さ」や「粗」が気になる"], "type_a": "その時の「感情」や「匂い」が蘇る", "axis": "style"},
-    {"q": "Q17. 新しい技術を学ぶ理由は？", "opts": ["表現したかった「あのイメージ」に近づけるから", "仕事の幅が広がり、有利になるから"], "type_a": "表現したかった「あのイメージ」に近づけるから", "axis": "source"},
-    {"q": "Q18. 制作中のBGMは？", "opts": ["感情を増幅させる曲を、大音量で", "集中を妨げない環境音か、無音"], "type_a": "感情を増幅させる曲を、大音量で", "axis": "style"},
-    {"q": "Q19. タイトルの付け方は？", "opts": ["詩的で、余白のある言葉を選ぶ", "中身が伝わる、的確な言葉を選ぶ"], "type_a": "詩的で、余白のある言葉を選ぶ", "axis": "style"},
-    {"q": "Q20. SNSで発信したいのは？", "opts": ["完成された「世界観」だけを見せたい", "制作過程や、日々の思考もシェアしたい"], "type_a": "完成された「世界観」だけを見せたい", "axis": "source"},
-    {"q": "Q21. 批判的な言葉を受け取ったら？", "opts": ["心が痛み、感情的に反発してしまう", "冷静に分析し、改善点として受け止める"], "type_a": "心が痛み、感情的に反発してしまう", "axis": "source"},
-    {"q": "Q22. 自分の作風を一言で言うと？", "opts": ["エモーショナルで、感覚的", "ロジカルで、機能的"], "type_a": "エモーショナルで、感覚的", "axis": "style"},
-    {"q": "Q23. 目標の立て方は？", "opts": ["大きな「夢」や「ビジョン」を描く", "具体的な「数値」や「ステップ」を決める"], "type_a": "大きな「夢」や「ビジョン」を描く", "axis": "source"},
-    {"q": "Q24. インプットの方法は？", "opts": ["直感的に気になったものを、深く掘り下げる", "体系的に、幅広く情報をチェックする"], "type_a": "直感的に気になったものを、深く掘り下げる", "axis": "style"},
-    {"q": "Q25. 失敗作はどうしますか？", "opts": ["見たくないので、勢いで捨ててしまう", "分析のために、大切に保管しておく"], "type_a": "見たくないので、勢いで捨ててしまう", "axis": "style"},
-    {"q": "Q26. 影響を受けやすいのは？", "opts": ["自然、音楽、夢などの「体験」", "本、論文、ニュースなどの「情報」"], "type_a": "自然、音楽、夢などの「体験」", "axis": "source"},
-    {"q": "Q27. 制作において重要なのは？", "opts": ["「何を」描くか（魂・主題）", "「どう」描くか（技術・構成）"], "type_a": "「何を」描くか（魂・主題）", "axis": "style"},
-    {"q": "Q28. 答えのない問題に直面したら？", "opts": ["自分の「直感」を信じて突破する", "要素を「分解」して解決策を探る"], "type_a": "自分の「直感」を信じて突破する", "axis": "style"},
-    {"q": "Q29. 完璧主義についてどう思う？", "opts": ["完成していなくても、魂がこもっていればいい", "細部まで完璧でなければ、出す意味がない"], "type_a": "完成していなくても、魂がこもっていればいい", "axis": "style"},
-    {"q": "Q30. あなたにとって表現とは？", "opts": ["生きることそのもの。呼吸と同じ。", "社会と関わるための、有効な手段。"], "type_a": "生きることそのもの。呼吸と同じ。", "axis": "source"},
+    {"q": "Q1. 制作を始めるきっかけは？", "opts": ["内から湧き出る衝動・感情", "外部の要請や明確なコンセプト"], "type_a": "内から湧き出る衝動・感情"},
+    {"q": "Q2. アイデア出しの方法は？", "opts": ["走り書きや落書きから広げる", "マインドマップや箇条書きで整理する"], "type_a": "走り書きや落書きから広げる"},
+    {"q": "Q3. 配色を決める時は？", "opts": ["その瞬間の感覚や好み", "色彩理論やターゲット層への効果"], "type_a": "その瞬間の感覚や好み"},
+    {"q": "Q4. 作業環境は？", "opts": ["混沌としているが落ち着く", "整理整頓され機能的"], "type_a": "混沌としているが落ち着く"},
+    {"q": "Q5. 制作スケジュールは？", "opts": ["気分が乗った時に一気に進める", "毎日決まった時間にコツコツ進める"], "type_a": "気分が乗った時に一気に進める"},
+    {"q": "Q6. スランプに陥った時は？", "opts": ["別の刺激（映画・旅）を求める", "原因を分析し、基礎練習などをする"], "type_a": "別の刺激（映画・旅）を求める"},
+    {"q": "Q7. 作品の「完成」の判断基準は？", "opts": ["もうこれ以上触れないと感じた時", "予定していた要件を満たした時"], "type_a": "もうこれ以上触れないと感じた時"},
+    {"q": "Q8. 他人の評価に対しては？", "opts": ["好き嫌いが分かれても構わない", "多くの人に理解されるか気になる"], "type_a": "好き嫌いが分かれても構わない"},
+    {"q": "Q9. 制作中に新しいアイデアが浮かんだら？", "opts": ["予定を変更してでも試す", "今の作品を完成させてから次でやる"], "type_a": "予定を変更してでも試す"},
+    {"q": "Q10. 道具や機材へのこだわりは？", "opts": ["使い心地や愛着を重視", "スペックや効率を重視"], "type_a": "使い心地や愛着を重視"},
+    {"q": "Q11. 作品を通して伝えたいのは？", "opts": ["自分の内面世界や叫び", "社会へのメッセージや解決策"], "type_a": "自分の内面世界や叫び"},
+    {"q": "Q12. ラフスケッチの描き方は？", "opts": ["抽象的な線や形が多い", "具体的な構成や配置図に近い"], "type_a": "抽象的な線や形が多い"},
+    {"q": "Q13. 憧れるアーティストは？", "opts": ["破天荒で天才肌の人物", "知的で理論的な人物"], "type_a": "破天荒で天才肌の人物"},
+    {"q": "Q14. 締め切りに対する姿勢は？", "opts": ["ギリギリまで粘ってクオリティを上げたい", "余裕を持って早めに終わらせたい"], "type_a": "ギリギリまで粘ってクオリティを上げたい"},
+    {"q": "Q15. チーム制作については？", "opts": ["自分のペースが乱れるので苦手", "役割分担できて効率的なので好き"], "type_a": "自分のペースが乱れるので苦手"},
+    {"q": "Q16. 過去の自分の作品を見ると？", "opts": ["その時の感情が蘇る", "技術的な未熟さが気になる"], "type_a": "その時の感情が蘇る"},
+    {"q": "Q17. 新しい技術を学ぶ動機は？", "opts": ["表現したいものが作れるようになるから", "仕事の幅が広がりそうだから"], "type_a": "表現したいものが作れるようになるから"},
+    {"q": "Q18. 制作中のBGMは？", "opts": ["感情を高める曲を大音量で", "集中を妨げない環境音や無音"], "type_a": "感情を高める曲を大音量で"},
+    {"q": "Q19. タイトルの付け方は？", "opts": ["詩的・抽象的", "説明的・具体的"], "type_a": "詩的・抽象的"},
+    {"q": "Q20. SNSでの発信は？", "opts": ["作品の世界観だけを見せたい", "制作過程や思考もシェアしたい"], "type_a": "作品の世界観だけを見せたい"},
+    {"q": "Q21. 批評を受けた時の反応は？", "opts": ["感情的に反発してしまうことがある", "冷静に改善点として受け止める"], "type_a": "感情的に反発してしまうことがある"},
+    {"q": "Q22. 自分の作風を一言で言うなら？", "opts": ["エモーショナル・感覚的", "ロジカル・機能的"], "type_a": "エモーショナル・感覚的"},
+    {"q": "Q23. 目標設定の方法は？", "opts": ["大きな夢やビジョンを描く", "具体的な数値やステップを決める"], "type_a": "大きな夢やビジョンを描く"},
+    {"q": "Q24. 情報収集のスタイルは？", "opts": ["直感的に気になったものを深掘り", "体系的に幅広くチェック"], "type_a": "直感的に気になったものを深掘り"},
+    {"q": "Q25. 失敗作の扱いは？", "opts": ["勢いで捨ててしまう", "分析のために取っておく"], "type_a": "勢いで捨ててしまう"},
+    {"q": "Q26. 影響を受けやすいのは？", "opts": ["自然、音楽、夢などの体験", "本、論文、ニュースなどの情報"], "type_a": "自然、音楽、夢などの体験"},
+    {"q": "Q27. 制作において重要なのは？", "opts": ["「何を描くか」（主題）", "「どう描くか」（構成・技術）"], "type_a": "「何を描くか」（主題）"},
+    {"q": "Q28. 複雑な問題に直面したら？", "opts": ["直感を信じて突破する", "要素を分解して解決する"], "type_a": "直感を信じて突破する"},
+    {"q": "Q29. 完璧主義についてどう思う？", "opts": ["完成しなくても魂がこもっていればいい", "細部まで完璧でないと気が済まない"], "type_a": "完成しなくても魂がこもっていればいい"},
+    {"q": "Q30. あなたにとってアートとは？", "opts": ["生きることそのもの", "社会貢献や仕事の手段"], "type_a": "生きることそのもの"},
 ]
 
 # ---------------------------------------------------------
-# 2. ユーティリティ関数
+# 3. ユーティリティ関数
 # ---------------------------------------------------------
 def resize_image_for_api(image, max_width=1024):
     width_percent = (max_width / float(image.size[0]))
@@ -235,11 +209,17 @@ def send_email_with_pdf(user_email, pdf_buffer):
     msg = MIMEMultipart()
     msg['From'] = sender_email
     msg['To'] = user_email
-    msg['Subject'] = "【Aesthetic Archive】美の公文書をお届けします"
-    msg.attach(MIMEText("あなたの美意識の解析結果をお届けします。\n\nThom Yoshida", 'plain'))
+    msg['Subject'] = "【世界観診断レポート】あなたの診断結果をお届けします"
+    body = """世界観診断をご利用いただきありがとうございます。
+あなたの診断結果レポート（PDF）をお送りします。
+
+この分析が、あなたの創作活動のヒントになれば幸いです。
+
+Thom Yoshida"""
+    msg.attach(MIMEText(body, 'plain'))
     pdf_buffer.seek(0)
-    part = MIMEApplication(pdf_buffer.read(), Name="Aesthetic_Analysis.pdf")
-    part['Content-Disposition'] = 'attachment; filename="Aesthetic_Analysis.pdf"'
+    part = MIMEApplication(pdf_buffer.read(), Name="Visionary_Analysis.pdf")
+    part['Content-Disposition'] = 'attachment; filename="Visionary_Analysis.pdf"'
     msg.attach(part)
     try:
         server = smtplib.SMTP('smtp.gmail.com', 587)
@@ -251,24 +231,25 @@ def send_email_with_pdf(user_email, pdf_buffer):
     except: return False
 
 # ---------------------------------------------------------
-# 3. PDF生成ロジック
+# 4. PDF生成ロジック (余白12%・改行位置・わかりやすい言葉)
 # ---------------------------------------------------------
+
 def wrap_text_smart(text, max_char_count):
     if not text: return []
-    # 読みやすさのための改行ルール
-    delimiters = ['、', '。', '！', '？', '」', '）', '…', '・']
+    # 助詞や句読点など、「ここで改行すると読みやすい」文字
+    delimiters = ['、', '。', 'て', 'に', 'を', 'は', 'が', 'と', 'へ', 'で', 'や', 'の', 'も', 'し', 'い', 'か', 'ね', 'よ', '！', '？']
     lines = []
     current_line = ""
     for char in text:
         current_line += char
-        # 20文字前後で、かつ区切りの良い文字が来たら改行
-        if len(current_line) >= max_char_count * 0.9: 
+        # 目標文字数の85%を超えたら、助詞での改行を伺う
+        if len(current_line) >= max_char_count * 0.85:
             if char in delimiters:
                 lines.append(current_line)
                 current_line = ""
                 continue
-            # 上限を超えたら強制改行
-            if len(current_line) >= max_char_count:
+            # 上限（+2文字）を超えたら強制改行（単語途中でもやむなしだが、頻度は下がる）
+            if len(current_line) >= max_char_count + 2:
                 lines.append(current_line)
                 current_line = ""
     if current_line: lines.append(current_line)
@@ -276,11 +257,8 @@ def wrap_text_smart(text, max_char_count):
 
 def draw_wrapped_text(c, text, x, y, font, size, max_width_mm, leading, centered=False):
     c.setFont(font, size)
-    # 文字幅計算 (日本語等幅フォント前提)
-    char_width_mm = size * 0.352 
-    # max_width_mm から算出した文字数制限を使用
+    char_width_mm = size * 0.352 * 0.95 
     max_chars = int(max_width_mm / char_width_mm)
-    
     lines = wrap_text_smart(text, max_chars)
     current_y = y
     for line in lines:
@@ -290,17 +268,21 @@ def draw_wrapped_text(c, text, x, y, font, size, max_width_mm, leading, centered
 
 def draw_header(c, title, page_num):
     width, height = landscape(A4)
+    # 12%余白
+    MARGIN_X = width * 0.12 
     c.setFillColor(HexColor(COLORS['pdf_bg']))
     c.rect(0, 0, width, height, fill=1, stroke=0)
     c.setStrokeColor(HexColor(COLORS['pdf_sub']))
     c.setLineWidth(0.5)
-    c.line(10*mm, height - 25*mm, width - 10*mm, height - 25*mm)
+    c.line(MARGIN_X, height - 25*mm, width - MARGIN_X, height - 25*mm)
+    
     c.setFont(FONT_SANS, 20)
     c.setFillColor(HexColor(COLORS['forest']))
-    c.drawString(15*mm, height - 20*mm, title) 
+    c.drawString(MARGIN_X, height - 20*mm, title) 
+    
     c.setFont(FONT_SANS, 12)
     c.setFillColor(HexColor(COLORS['pdf_sub']))
-    c.drawRightString(width - 15*mm, height - 20*mm, f"{page_num} / 8")
+    c.drawRightString(width - MARGIN_X, height - 20*mm, f"{page_num} / 8")
 
 def draw_arrow_slider(c, x, y, width_mm, left_text, right_text, value):
     bar_width = width_mm * mm
@@ -323,11 +305,12 @@ def create_pdf(json_data):
     buffer = io.BytesIO()
     c = canvas.Canvas(buffer, pagesize=landscape(A4))
     width, height = landscape(A4)
-    MARGIN_X = width * 0.12
     
-    # 20文字程度で改行させるための狭い幅設定 (フォントサイズによるが約80-90mm)
-    NARROW_WIDTH_MM = 85 * mm 
-
+    # 余白12%
+    MARGIN_X = width * 0.12
+    # 本文幅
+    CONTENT_WIDTH = width - (MARGIN_X * 2)
+    
     # P1: COVER
     try:
         c.drawImage("cover.jpg", 0, 0, width=width, height=height, preserveAspectRatio=False)
@@ -342,16 +325,19 @@ def create_pdf(json_data):
         TEXT_COLOR = HexColor(COLORS['pdf_text'])
     c.setFillColor(TEXT_COLOR)
     c.setFont(FONT_SERIF, 52)
-    c.drawCentredString(width/2, height/2 + 10*mm, json_data.get('catchphrase', 'Aesthetic DNA Report'))
+    c.drawCentredString(width/2, height/2 + 10*mm, json_data.get('catchphrase', 'Visionary Report'))
     c.setFont(FONT_SANS, 18)
     c.drawCentredString(width/2, height/2 - 25*mm, "WORLDVIEW ANALYSIS REPORT")
+    c.setFont(FONT_SERIF, 12)
+    c.drawCentredString(width/2, 20*mm, f"Designed by ThomYoshida AI | {datetime.datetime.now().strftime('%Y.%m.%d')}")
     c.showPage()
 
-    # P2: Keywords (整理された世界観)
-    draw_header(c, "01. 世界観の座標（原点と未来）", 2)
+    # P2: KEYWORDS
+    draw_header(c, "01. あなたを作る「過去」と「未来」", 2) # 日本語化
     c.setFont(FONT_SERIF, 22)
     c.setFillColor(HexColor(COLORS['pdf_sub']))
-    c.drawCentredString(width/3, height - 55*mm, "ORIGIN (過去・原点)")
+    c.drawCentredString(width/3, height - 55*mm, "原点 / 過去") # 日本語化
+    
     past_kws = json_data.get('twelve_past_keywords', [])
     y = height - 75*mm
     c.setFont(FONT_SANS, 11)
@@ -361,11 +347,12 @@ def create_pdf(json_data):
     
     c.setFont(FONT_SANS, 50)
     c.setFillColor(HexColor(COLORS['accent']))
-    c.drawCentredString(width/2, height/2 - 15*mm, "→")
+    c.drawCentredString(width/2, height/2 - 15*mm, "▷")
 
     c.setFont(FONT_SERIF, 30)
     c.setFillColor(HexColor(COLORS['forest']))
-    c.drawCentredString(width*2/3, height - 55*mm, "VISION (未来・理想)")
+    c.drawCentredString(width*2/3, height - 55*mm, "未来 / 理想") # 日本語化
+    
     future_kws = json_data.get('twelve_future_keywords', [])
     y = height - 75*mm
     c.setFont(FONT_SANS, 16)
@@ -375,40 +362,38 @@ def create_pdf(json_data):
         y -= 9.5*mm
     c.showPage()
 
-    # P3: Formula (整頓された成功法則)
-    draw_header(c, "02. あなただけの成功法則", 3)
+    # P3: FORMULA
+    draw_header(c, "02. あなただけの成功方程式", 3) # 日本語化
     formula = json_data.get('formula', {})
     cy = height/2 - 10*mm
     r = 38*mm 
     positions = [
-        (width/2 - r*1.55, cy + r*0.8, "価値観 (Values)", formula.get('values', {}).get('word', '')),
-        (width/2 + r*1.55, cy + r*0.8, "強み (Strengths)", formula.get('strengths', {}).get('word', '')),
-        (width/2, cy - r*1.2, "好き (Interests)", formula.get('interests', {}).get('word', ''))
+        (width/2 - r*1.55, cy + r*0.8, "大切にしたいこと", formula.get('values', {}).get('word', '')), # 価値観->大切にしたいこと
+        (width/2 + r*1.55, cy + r*0.8, "得意なこと", formula.get('strengths', {}).get('word', '')), # 強み->得意なこと
+        (width/2, cy - r*1.2, "好きなこと", formula.get('interests', {}).get('word', '')) # 好き->好きなこと
     ]
     for cx, cy_pos, title, word in positions:
         c.setStrokeColor(HexColor(COLORS['forest']))
         c.setFillColor(HexColor('#FFFFFF'))
         c.setLineWidth(1.5)
         c.circle(cx, cy_pos, r, fill=1, stroke=1)
-        c.setFont(FONT_SERIF, 16)
+        c.setFont(FONT_SERIF, 18)
         c.setFillColor(HexColor(COLORS['pdf_sub']))
         c.drawCentredString(cx, cy_pos + 12*mm, title) 
-        c.setFont(FONT_SANS, 22)
+        c.setFont(FONT_SANS, 24)
         c.setFillColor(HexColor(COLORS['pdf_text']))
-        # ここも20文字程度で折り返し
-        draw_wrapped_text(c, word, cx, cy_pos - 8*mm, FONT_SANS, 22, r*1.6, 28, centered=True)
+        draw_wrapped_text(c, word, cx, cy_pos - 8*mm, FONT_SANS, 24, r*1.5, 30, centered=True)
     
     c.setFont(FONT_SANS, 80)
     c.setFillColor(HexColor(COLORS['accent']))
     c.drawCentredString(width/2, cy + 5*mm, "×")
-    
-    # キャッチコピー
-    c.setFont(FONT_SERIF, 32)
+
+    c.setFont(FONT_SERIF, 36)
     c.setFillColor(HexColor(COLORS['pdf_text']))
     c.drawCentredString(width/2, height - 40*mm, f"「{json_data.get('catchphrase', '')}」")
     c.showPage()
 
-    # P4: Metrics
+    # P4: SENSE BALANCE
     draw_header(c, "03. 感性のバランス", 4)
     metrics = json_data.get('sense_metrics', [])
     y = height - 65*mm
@@ -418,25 +403,33 @@ def create_pdf(json_data):
         draw_arrow_slider(c, x, curr_y, 48, m.get('left'), m.get('right'), m.get('value'))
     c.showPage()
 
-    # P5: Role Models (20文字改行・寄り添う解説)
-    draw_header(c, "04. 導きとなるロールモデル", 5) 
+    # P5: ROLE MODELS (20 chars approx)
+    draw_header(c, "04. お手本にしたい人物", 5) # ロールモデル->お手本にしたい人物
     archs = json_data.get('artist_archetypes', [])
     y = height - 55*mm
+    
+    # 20文字程度が入る幅 (約115mm)
+    TEXT_WIDTH_20 = 115 * mm 
+    
     for i, a in enumerate(archs[:3]):
         c.setFont(FONT_SERIF, 22)
         c.setFillColor(HexColor(COLORS['forest']))
         c.drawString(MARGIN_X, y, f"◆ {a.get('name')}")
         
         c.setFillColor(HexColor(COLORS['pdf_text']))
-        # NARROW_WIDTH_MM を使用して約20文字で改行させる
-        draw_wrapped_text(c, a.get('detail', ''), MARGIN_X + 8*mm, y - 12*mm, FONT_SANS, 13, NARROW_WIDTH_MM, 20)
+        # 詳細文の幅制限
+        draw_wrapped_text(c, a.get('detail', ''), MARGIN_X + 8*mm, y - 12*mm, FONT_SANS, 14, TEXT_WIDTH_20, 20)
         y -= 48*mm
     c.showPage()
 
-    # P6: Roadmap (20文字改行・整理されたステップ)
-    draw_header(c, "05. 美意識を磨くステップ", 6)
+    # P6: ROADMAP (20 chars approx)
+    draw_header(c, "05. 未来への道のり", 6) # ロードマップ->未来への道のり
     steps = json_data.get('roadmap_steps', [])
     y = height - 65*mm
+    
+    # 20文字程度が入る幅
+    TEXT_WIDTH_P6 = 110 * mm 
+    
     for i, step in enumerate(steps):
         c.setFont(FONT_SANS, 40)
         c.setFillColor(HexColor(COLORS['accent']))
@@ -447,49 +440,74 @@ def create_pdf(json_data):
         c.drawString(MARGIN_X + 30*mm, y, step.get('title', ''))
         
         c.setFillColor(HexColor(COLORS['pdf_sub']))
-        # NARROW_WIDTH_MM を使用
-        draw_wrapped_text(c, step.get('detail', ''), MARGIN_X + 30*mm, y - 12*mm, FONT_SANS, 12, NARROW_WIDTH_MM, 18)
+        draw_wrapped_text(c, step.get('detail', ''), MARGIN_X + 30*mm, y - 12*mm, FONT_SANS, 12, TEXT_WIDTH_P6, 18)
         y -= 45*mm
     c.showPage()
 
-    # P7: Next Vision
-    draw_header(c, "06. 次なるビジョンと選択肢", 7)
+    # P7: VISION & ALTERNATIVES (Center Split / 20 chars)
+    draw_header(c, "06. 次なるビジョンと表現", 7)
+    
+    # ★中央分割の厳密な計算
+    CENTER_X = width / 2
+    # 左右のコンテンツが使える幅（中央線から少し離す）
+    HALF_CONTENT_WIDTH = (CONTENT_WIDTH / 2) - 10*mm
+    
+    # 左カラム: Next Vision
     c.setFont(FONT_SERIF, 20)
     c.setFillColor(HexColor(COLORS['forest']))
+    # 左側の開始位置 = MARGIN_X
     c.drawString(MARGIN_X, height - 45*mm, "Next Vision")
+    
     proposals = json_data.get('final_proposals', [])
     y = height - 60*mm
     for p in proposals[:5]:
         c.setFont(FONT_SANS, 14)
         c.setFillColor(HexColor(COLORS['pdf_text']))
         c.drawString(MARGIN_X, y, f"・{p.get('point')}")
-        # NARROW_WIDTH_MM を使用
-        draw_wrapped_text(c, p.get('detail', ''), MARGIN_X + 5*mm, y - 6*mm, FONT_SANS, 11, NARROW_WIDTH_MM, 14)
+        # 幅を半分に制限して20文字程度に
+        draw_wrapped_text(c, p.get('detail', ''), MARGIN_X + 5*mm, y - 8*mm, FONT_SANS, 11, HALF_CONTENT_WIDTH, 14)
         y -= 24*mm
         
-    x_right = width/2 + 10*mm
+    # 右カラム: Alternatives
+    # 右側の開始位置 = 中央 + 10mm
+    RIGHT_START_X = CENTER_X + 10*mm
+    
     c.setFont(FONT_SERIF, 20)
     c.setFillColor(HexColor(COLORS['forest']))
-    c.drawString(x_right, height - 45*mm, "Alternative Expressions")
+    c.drawString(RIGHT_START_X, height - 45*mm, "Other Expressions")
+    
     alts = json_data.get('alternative_expressions', [])
     y_alt = height - 60*mm
     for alt in alts[:3]:
         c.setFont(FONT_SANS, 14)
         c.setFillColor(HexColor(COLORS['pdf_text']))
-        draw_wrapped_text(c, f"◇ {alt}", x_right, y_alt, FONT_SANS, 14, NARROW_WIDTH_MM, 20)
+        # 幅を半分に制限
+        draw_wrapped_text(c, f"◇ {alt}", RIGHT_START_X, y_alt, FONT_SANS, 14, HALF_CONTENT_WIDTH, 20)
         y_alt -= 30*mm
+        
+    # 中央の区切り線（オプション）
+    c.setStrokeColor(HexColor(COLORS['pdf_sub']))
+    c.setLineWidth(0.3)
+    c.line(CENTER_X, height - 50*mm, CENTER_X, 20*mm)
+    
     c.showPage()
 
-    # P8: Quote (贈る言葉)
+    # P8: MESSAGE (15 chars)
+    image_url = "https://images.unsplash.com/photo-1495312040802-a929cd14a6ab?q=80&w=2940&auto=format&fit=crop"
     try:
-        # 画像があれば背景にする
-        c.drawImage("cover.jpg", 0, 0, width=width, height=height, preserveAspectRatio=False)
-        c.setFillColor(HexColor('#111111'))
-        c.setFillAlpha(0.6) # 少し濃くして文字を読みやすく
-        c.rect(0, 0, width, height, fill=1, stroke=0)
-        c.setFillAlpha(1.0)
-        TEXT_COLOR_END = HexColor('#F4F4F4')
-        ACCENT_COLOR_END = HexColor(COLORS['accent'])
+        response = requests.get(image_url, stream=True, timeout=10)
+        if response.status_code == 200:
+            img_data = io.BytesIO(response.content)
+            pil_img = Image.open(img_data)
+            img_reader = ImageReader(pil_img)
+            c.drawImage(img_reader, 0, 0, width=width, height=height, preserveAspectRatio=False)
+            c.setFillColor(HexColor('#111111'))
+            c.setFillAlpha(0.5)
+            c.rect(0, 0, width, height, fill=1, stroke=0)
+            c.setFillAlpha(1.0)
+            TEXT_COLOR_END = HexColor('#F4F4F4')
+            ACCENT_COLOR_END = HexColor(COLORS['accent'])
+        else: raise Exception
     except:
         draw_header(c, "07. 贈る言葉", 8)
         TEXT_COLOR_END = HexColor(COLORS['pdf_text'])
@@ -500,32 +518,30 @@ def create_pdf(json_data):
     q_author = quote_data.get('author', '')
 
     c.setFillColor(TEXT_COLOR_END)
-    # 中央揃えで20文字程度改行
-    STRICT_WIDTH_P8 = 180 * mm # 中央配置用に少し広めに取るが、文字サイズ大で調整
-    draw_wrapped_text(c, q_text, width/2, height/2 + 20*mm, FONT_SERIF, 26, STRICT_WIDTH_P8, 36, centered=True)
-    
+    # ★15文字で改行させるための幅設定 (約150mm)
+    TEXT_WIDTH_15 = 150 * mm
+    draw_wrapped_text(c, q_text, width/2, height/2 + 20*mm, FONT_SERIF, 28, TEXT_WIDTH_15, 36, centered=True)
     c.setFont(FONT_SANS, 18)
     c.setFillColor(ACCENT_COLOR_END)
     c.drawCentredString(width/2, height/2 - 35*mm, f"- {q_author}")
-    
     c.setFont(FONT_SANS, 12)
     c.setFillColor(TEXT_COLOR_END)
-    c.drawRightString(width - 15*mm, 15*mm, "8 / 8")
+    c.drawRightString(width - MARGIN_X, 15*mm, "8 / 8")
     c.showPage()
     c.save()
     buffer.seek(0)
     return buffer
 
 # ==========================================
-# 4. Pipeline Main Flow (UI: 寄り添う言葉選び)
+# 5. Pipeline Main Flow
 # ==========================================
 def render_web_result(data):
     st.markdown("---")
-    st.caption("YOUR AESTHETIC DNA")
+    st.caption("診断結果")
     st.title(f"『 {data.get('catchphrase')} 』")
     col1, col2 = st.columns([1, 1.5])
     with col1:
-        st.markdown("### Sense Balance")
+        st.markdown("### 感性のバランス")
         metrics = data.get('sense_metrics', [])
         categories = [m['right'] for m in metrics]
         values = [m['value'] for m in metrics]
@@ -534,7 +550,7 @@ def render_web_result(data):
             values.append(values[0])
         fig = go.Figure(data=go.Scatterpolar(
             r=values, theta=categories, fill='toself',
-            line_color=COLORS['accent'], fillcolor='rgba(212, 175, 55, 0.3)'
+            line_color=COLORS['accent'], fillcolor='rgba(214, 174, 96, 0.3)'
         ))
         fig.update_layout(
             polar=dict(radialaxis=dict(visible=True, range=[0, 100], showticklabels=False), bgcolor=COLORS['bg']),
@@ -544,96 +560,66 @@ def render_web_result(data):
         )
         st.plotly_chart(fig, use_container_width=True)
     with col2:
-        st.markdown("### The Formula")
-        st.write("あなたの混沌とした世界観を、3つの言葉に整理しました。")
+        st.markdown("### 成功の方程式")
         f = data.get('formula', {})
-        st.info(f"**価値観 (Values)**\n\n{f.get('values', {}).get('word')}\n\n*{f.get('values', {}).get('detail')}*")
-        st.warning(f"**強み (Strengths)**\n\n{f.get('strengths', {}).get('word')}\n\n*{f.get('strengths', {}).get('detail')}*")
-        st.success(f"**好き (Interests)**\n\n{f.get('interests', {}).get('word')}\n\n*{f.get('interests', {}).get('detail')}*")
+        st.info(f"**大切にしたいこと**\n\n{f.get('values', {}).get('word')}")
+        st.warning(f"**得意なこと**\n\n{f.get('strengths', {}).get('word')}")
+        st.success(f"**好きなこと**\n\n{f.get('interests', {}).get('word')}")
 
 if 'step' not in st.session_state: st.session_state.step = 1
 if 'quiz_result' not in st.session_state: st.session_state.quiz_result = None
 if 'uploaded_images' not in st.session_state: st.session_state.uploaded_images = []
-if 'axis_scores' not in st.session_state: st.session_state.axis_scores = {"source": 0, "style": 0}
 
 # STEP 1
 if st.session_state.step == 1:
     try: st.image("cover.jpg", use_container_width=True)
     except: pass
-    st.title("Aesthetic DNA Analysis")
-    st.caption("混沌とした思考を、美学へと整理する時間。正解はありません。")
-    st.markdown("##### 00. YOUR SPECIALTY")
-    specialty = st.text_input("あなたの専門分野・表現媒体（例：写真、建築、言葉）")
-    st.markdown("##### 01. SENSE CHECK")
-    st.write("直感で選んでください。迷ったら、心がざわつく方へ。")
+    st.title("世界観診断 | Visionary Analysis")
+    st.caption("あなたの感性と才能を言語化する、クリエイティブ診断ツール")
+    
+    # ★変更: 入力欄のラベルと例
+    st.markdown("##### 00. 得意＆好きな表現")
+    specialty = st.text_input("例：写真、映像、絵画、身体表現、造形、デザイン、演技、など")
+    
+    st.markdown("##### 01. 感性チェック")
+    st.write("直感で回答してください。あなたの創作の源泉を探ります。")
     with st.form(key='quiz_form'):
         answers = []
         for i, item in enumerate(QUIZ_DATA):
             ans = st.radio(item["q"], item["opts"], key=f"q{i}", horizontal=True, index=None)
-            answers.append((ans, item["type_a"], item.get("axis", "style")))
+            answers.append((ans, item["type_a"]))
         st.write("---")
-        # ボタン名の最適化：没入への誘い
-        submit_button = st.form_submit_button(label="美意識の源泉へ潜る")
-    
+        submit_button = st.form_submit_button(label="次へ進む")
     if submit_button:
-        if not specialty: st.warning("専門分野を教えてください。")
-        elif any(a[0] is None for a in answers): st.error("すべての問いに、直感で答えてください。")
+        if not specialty: st.warning("得意な表現を入力してください。")
+        elif any(a[0] is None for a in answers): st.error("すべての質問に回答してください。")
         else:
             st.session_state.specialty = specialty
-            
-            # --- 集計ロジック (変更なし) ---
-            score_source = 0 
-            score_style = 0  
-            count_source = 0
-            count_style = 0
-
-            for ans, type_a_val, axis in answers:
-                if axis == "source":
-                    count_source += 1
-                    if ans == type_a_val: score_source += 1
-                else:
-                    count_style += 1
-                    if ans == type_a_val: score_style += 1
-            
-            pct_source = int((score_source / count_source) * 100) if count_source > 0 else 0
-            pct_style = int((score_style / count_style) * 100) if count_style > 0 else 0
-            
-            st.session_state.axis_scores = {"source": pct_source, "style": pct_style}
-
-            # --- アーキタイプ判定 ---
-            if pct_source >= 50 and pct_style >= 50:
-                archetype = "【深淵の詩人 (The Abyssal Poet)】\n内向的 × 抽象的\n（孤独を愛し、言葉にならない感情を掬い上げる）"
-            elif pct_source >= 50 and pct_style < 50:
-                archetype = "【静寂の建築家 (The Silent Architect)】\n内向的 × 具体的\n（内なるこだわりを、完璧な技術と静寂で形にする）"
-            elif pct_source < 50 and pct_style >= 50:
-                archetype = "【太陽の扇動者 (The Solar Agitator)】\n外向的 × 抽象的\n（情熱で大衆を巻き込み、熱狂の渦を生む）"
-            else:
-                archetype = "【鋼の戦略家 (The Steel Strategist)】\n外向的 × 具体的\n（市場の声を聴き、最適解を導き出す）"
-            
-            st.session_state.quiz_result = archetype
+            score_a = 0
+            for ans, type_a_val in answers:
+                if ans == type_a_val: score_a += 1
+            percent = int((score_a / 30) * 100)
+            if score_a >= 20: st.session_state.quiz_result = f"直感・情熱型 (情熱度: {percent}%)"
+            elif score_a >= 16: st.session_state.quiz_result = f"バランス型・直感寄り (情熱度: {percent}%)"
+            elif score_a >= 11: st.session_state.quiz_result = f"バランス型・論理寄り (情熱度: {percent}%)"
+            else: st.session_state.quiz_result = f"論理・構築型 (情熱度: {percent}%)"
             st.session_state.step = 2
             st.rerun()
 
 # STEP 2
 elif st.session_state.step == 2:
-    st.header("02. VISION INTEGRATION")
-    st.info(f"Archetype: **{st.session_state.quiz_result}**")
-    st.caption("あなたの「原点」と「未来」をつなぎ合わせます。")
-    
+    st.header("02. ビジョンの統合")
+    st.info(f"診断タイプ: **{st.session_state.quiz_result}** / 専門: **{st.session_state.specialty}**")
     col1, col2 = st.columns(2)
     with col1:
-        st.markdown("#### あなたの原点 (Origin)")
-        st.caption("過去の作品や、影響を受けた風景など")
-        past_files = st.file_uploader("Upload (Max 3)", type=["jpg", "png"], accept_multiple_files=True, key="past")
+        st.markdown("#### 過去の作品・原点")
+        past_files = st.file_uploader("Origin (Max 3)", type=["jpg", "png"], accept_multiple_files=True, key="past")
     with col2:
-        st.markdown("#### 未来のビジョン (Vision)")
-        st.caption("理想とするイメージや、憧れの景色など")
-        future_files = st.file_uploader("Upload (Max 3)", type=["jpg", "png"], accept_multiple_files=True, key="future")
-    
-    # ボタン名の最適化：接続への誘い
-    if st.button("過去と未来を接続（リンク）する"):
+        st.markdown("#### 未来のイメージ・理想")
+        future_files = st.file_uploader("Ideal (Max 3)", type=["jpg", "png"], accept_multiple_files=True, key="future")
+    if st.button("次へ進む（レポート作成へ）"):
         if not past_files:
-            st.error("分析精度を高めるため、少なくとも1枚の画像をアップロードしてください。")
+            st.error("分析のために、少なくとも1枚の作品画像をアップロードしてください。")
         else:
             st.session_state.uploaded_images = []
             for f in past_files:
@@ -650,15 +636,14 @@ elif st.session_state.step == 2:
 
 # STEP 3
 elif st.session_state.step == 3:
-    st.header("03. UNLOCK YOUR REPORT")
+    st.header("03. レポートの受け取り")
     with st.container():
-        st.markdown(f"""<div style="background-color: {COLORS['card']}; padding: 30px; border-radius: 4px; border-left: 4px solid {COLORS['accent']}; text-align: left;"><h3 style="color: {COLORS['accent']}; margin:0;">Analysis Ready</h3><p style="margin-top:10px;">あなたの美意識の構造解析が完了しました。<br>このレポートが、迷いの中にあるあなたの道標となりますように。</p></div><br>""", unsafe_allow_html=True)
+        st.markdown(f"""<div style="background-color: {COLORS['card']}; padding: 30px; border-radius: 10px; border: 1px solid {COLORS['accent']}; text-align: center;"><h3 style="color: {COLORS['accent']};">Analysis Ready</h3><p>診断結果レポートを発行します。</p></div><br>""", unsafe_allow_html=True)
         with st.form("lead_capture"):
             col_f1, col_f2 = st.columns(2)
-            with col_f1: user_name = st.text_input("Name")
-            with col_f2: user_email = st.text_input("Email")
-            # ボタン名の最適化：解読への誘い
-            submit = st.form_submit_button("Aesthetic DNA を解読する", type="primary")
+            with col_f1: user_name = st.text_input("お名前")
+            with col_f2: user_email = st.text_input("メールアドレス")
+            submit = st.form_submit_button("診断結果を見る", type="primary")
             if submit:
                 if user_name and user_email:
                     st.session_state.user_name = user_name
@@ -666,65 +651,57 @@ elif st.session_state.step == 3:
                     save_to_google_sheets(user_name, user_email, st.session_state.specialty, st.session_state.quiz_result)
                     st.session_state.step = 4
                     st.rerun()
-                else: st.warning("お名前とメールアドレスを入力してください。")
+                else: st.warning("情報を入力してください。")
 
-# STEP 4 (AI Execution & PDF Generation)
+# STEP 4 (AI Analysis)
 elif st.session_state.step == 4:
     if "analysis_data" not in st.session_state:
-        with st.spinner("Connecting to Visionary Core... 混沌を整理し、美学を編集中..."):
+        with st.spinner("AIが世界観を分析しています..."):
             
             success = False
             
-            # --- AI Logic (プロンプト：寄り添い・整理整頓・読みやすさ) ---
             if "GEMINI_API_KEY" in st.secrets:
+                # ★修正: 高校生でもわかる言葉で指示
                 prompt_text = f"""
-                あなたは世界的なアートディレクターであり、表現者の孤独な心に寄り添うメンター Thom Yoshida です。
-                ユーザーの「専門分野」と「アーキタイプ」に基づき、彼らの混沌とした世界観を「整理整頓」し、
-                背中を押すような温かい診断レポートJSONを作成してください。
+                あなたは世界的なアートディレクター Thom Yoshida です。
+                ユーザーの「得意な表現」と「診断タイプ」に基づき、その人の世界観を分析し、
+                専用の診断レポートJSONを作成してください。
+
+                【重要：言葉選びのルール】
+                ・専門用語やカタカナ語（コンテクスト、パラダイムなど）は極力避け、高校生でも直感的にわかる言葉を使ってください。
+                ・「〜だ」「〜である」調ではなく、丁寧で温かみのある言葉遣いにしてください。
 
                 【ユーザー情報】
-                - 専門分野: {st.session_state.specialty}
-                - 診断アーキタイプ: {st.session_state.quiz_result}
+                - 得意な表現: {st.session_state.specialty}
+                - 診断タイプ: {st.session_state.quiz_result}
                 
-                【必須トーン＆マナー】
-                - **寄り添い**: 否定せず、迷いを肯定する。
-                - **整理整頓**: 複雑な思考を、シンプルで美しい言葉に要約する。
-                - **詩的**: 機能的な言葉ではなく、心に響く言葉を選ぶ。
-
                 【必須出力JSON構造】
                 {{
-                    "catchphrase": "その人の混沌を一言で美学に変える、詩的なキャッチコピー(15文字以内)",
-                    "twelve_past_keywords": ["{st.session_state.quiz_result}の原点にある、ノスタルジックな単語12個"],
-                    "twelve_future_keywords": ["{st.session_state.quiz_result}が目指すべき、希望の単語12個"],
+                    "catchphrase": "短いキャッチコピー(15文字以内)",
+                    "twelve_past_keywords": ["過去や原点を表す単語12個（日本語）"],
+                    "twelve_future_keywords": ["未来や理想を表す単語12個（日本語）"],
                     "sense_metrics": [
-                        {{"left": "Concrete/Logic", "right": "Abstract/Sense", "value": {st.session_state.axis_scores['style']}}}, 
-                        {{"left": "Social/Outer", "right": "Inner/Soul", "value": {st.session_state.axis_scores['source']}}},
-                        {{"left": "Speed", "right": "Quality", "value": 0〜100の数値}},
-                        {{"left": "Simplicity", "right": "Complexity", "value": 0〜100の数値}},
-                        {{"left": "Function", "right": "Story", "value": 0〜100の数値}},
-                        {{"left": "Tradition", "right": "Innovation", "value": 0〜100の数値}},
-                        {{"left": "Realism", "right": "Fantasy", "value": 0〜100の数値}},
-                        {{"left": "Light", "right": "Shadow", "value": 0〜100の数値}}
+                        {{"left": "対立軸左(例:直感)", "right": "対立軸右(例:論理)", "value": 0〜100の数値}} を8個
                     ],
                     "formula": {{
-                        "values": {{"word": "価値観の核", "detail": "なぜそれを大切にすべきか、優しく解説(20文字×2行程度)"}},
-                        "strengths": {{"word": "唯一無二の武器", "detail": "その武器がどう世界を変えるか、勇気づける解説(20文字×2行程度)"}},
-                        "interests": {{"word": "魂の栄養源", "detail": "どんな時に心が満たされるか、整理した解説(20文字×2行程度)"}}
+                        "values": {{"word": "大切にしたいこと(一言)", "detail": "その解説(40文字以内)"}},
+                        "strengths": {{"word": "あなたの強み(一言)", "detail": "その解説(40文字以内)"}},
+                        "interests": {{"word": "好きなこと(一言)", "detail": "その解説(40文字以内)"}}
                     }},
                     "roadmap_steps": [
-                        {{"title": "Stepタイトル", "detail": "無理なく進めるための、優しい具体的ステップ(20文字×3行程度)"}} を3つ
+                        {{"title": "Stepタイトル(短く)", "detail": "具体的な行動内容(60文字以内)"}} を3つ
                     ],
                     "artist_archetypes": [
-                        {{"name": "ロールモデル名", "detail": "その人の生き方がどう参考になるか(20文字×3行程度)"}} を3名
+                        {{"name": "お手本となる人物名", "detail": "なぜその人なのか(60文字以内)"}} を3名
                     ],
                     "final_proposals": [
-                        {{"point": "ビジョン要点", "detail": "詳細(20文字×2行程度)"}} を5つ
+                        {{"point": "ビジョンの要点", "detail": "解説(40文字以内)"}} を5つ
                     ],
                     "alternative_expressions": [
-                        "今の表現に行き詰まった時の、別のアプローチ" を3つ
+                        "おすすめの別の表現方法(短く)" を3つ
                     ],
                     "inspiring_quote": {{
-                        "text": "迷える表現者の心を救う、偉人の名言（日本語訳）",
+                        "text": "その人の世界観に最も響く、偉人の名言（日本語訳）",
                         "author": "著者名"
                     }}
                 }}
@@ -732,13 +709,17 @@ elif st.session_state.step == 4:
                 
                 try:
                     target_model = None
-                    if AVAILABLE_MODELS:
-                        for m in AVAILABLE_MODELS:
+                    available = []
+                    try:
+                        for m in genai.list_models():
+                            if 'generateContent' in m.supported_generation_methods:
+                                available.append(m.name)
+                    except: pass
+
+                    if available:
+                        for m in available:
                             if '1.5' in m and 'flash' in m: target_model = m; break
-                        if not target_model:
-                            for m in AVAILABLE_MODELS:
-                                if '1.5' in m and 'pro' in m: target_model = m; break
-                        if not target_model: target_model = AVAILABLE_MODELS[0]
+                        if not target_model: target_model = available[0]
                     
                     if target_model:
                         model = genai.GenerativeModel(target_model)
@@ -747,22 +728,21 @@ elif st.session_state.step == 4:
                         data = json.loads(response.text)
                         success = True
                 except Exception as e:
-                    print(f"AI Generation Error: {e}")
+                    print(f"AI Error: {e}")
 
-            # --- Force Completion (Fallback) ---
             if not success:
-                st.warning("⚠️ AIサーバーが混雑しているため、デモモードでレポートを生成しました。")
+                st.warning("⚠️ アクセス集中により、デモモードでレポートを作成しました。")
                 data = {
-                    "catchphrase": "静寂の中で、光を編む。", 
-                    "twelve_past_keywords": ["孤独", "雨音", "図書室", "秘密", "灰色", "硝子", "深海", "ノイズ", "記憶", "フィルム", "余白", "迷路"],
-                    "twelve_future_keywords": ["共鳴", "灯火", "夜明け", "確信", "透明", "呼吸", "星座", "純度", "解放", "調和", "波紋", "飛翔"],
-                    "sense_metrics": [{"left": "Logic", "right": "Emotion", "value": 80}] * 8,
-                    "formula": {"values": {"word": "内なる静寂", "detail": "外の喧騒を遮断し、自分の声を聞く時間。それがあなたの創造の源です。"}, "strengths": {"word": "繊細な観察眼", "detail": "他人が見落とす微細な変化に気づく力。それは弱さではなく、最強の武器です。"}, "interests": {"word": "儚いものの美", "detail": "消えゆくもの、移ろうものへの愛着。そこに永遠の価値を見出しています。"}},
-                    "roadmap_steps": [{"title": "Step 1: 孤独の確保", "detail": "1日15分、誰とも繋がらない時間を持ってください。"}, {"title": "Step 2: 感情の言語化", "detail": "モヤモヤした感情に、自分だけの名前をつけてみましょう。"}, {"title": "Step 3: 小さな発信", "detail": "完成していなくても、断片を見せるだけで誰かが救われます。"}],
-                    "artist_archetypes": [{"name": "ソール・ライター", "detail": "野心を持たず、窓ガラス越しの日常を愛した写真家。静かな視点の参考に。"}],
-                    "final_proposals": [{"point": "自分のペースを守る", "detail": "速さよりも深さを大切に。"}],
-                    "alternative_expressions": ["写真と言葉", "アンビエント音楽"],
-                    "inspiring_quote": {"text": "重要なのは、何を撮るかではなく、何を感じるかだ。", "author": "Andre Kertesz"}
+                    "catchphrase": "Visionary Mode", 
+                    "twelve_past_keywords": ["原点", "情熱", "模倣", "過去", "自我", "混沌", "迷い", "塵", "影", "壁", "限界", "静寂"],
+                    "twelve_future_keywords": ["ビジョン", "核心", "独創", "未来", "貢献", "鮮明", "光", "星", "流れ", "空", "翼", "自由"],
+                    "sense_metrics": [{"left": "論理", "right": "直感", "value": 70}] * 8,
+                    "formula": {"values": {"word": "システム", "detail": "安全な運用"}, "strengths": {"word": "回復力", "detail": "バックアップ機能"}, "interests": {"word": "安定", "detail": "継続すること"}},
+                    "roadmap_steps": [{"title": "Step 1", "detail": "接続を確認する"}, {"title": "Step 2", "detail": "再試行する"}, {"title": "Step 3", "detail": "サポートに連絡する"}],
+                    "artist_archetypes": [{"name": "システム管理者", "detail": "継続性を保証する人"}],
+                    "final_proposals": [{"point": "APIキー確認", "detail": "設定を見直してください"}, {"point": "制限確認", "detail": "無料枠を超えている可能性があります"}],
+                    "alternative_expressions": ["手動レビュー", "直接連絡"],
+                    "inspiring_quote": {"text": "創造とは、結びつけることである。", "author": "Thom Yoshida"}
                 }
 
             st.session_state.analysis_data = data
@@ -773,17 +753,13 @@ elif st.session_state.step == 4:
     else:
         data = st.session_state.analysis_data
         render_web_result(data)
-        st.markdown("### Report Delivered")
+        st.markdown("### レポート完了")
         if st.session_state.get("email_sent_status", False):
-            st.success(f"📩 {st.session_state.user_email} に美の公文書を送信しました。")
+            st.success(f"📩 {st.session_state.user_email} にレポートを送信しました。")
         else:
             st.warning("⚠️ レポート作成完了（メール送信失敗：設定を確認してください）")
-        
         pdf_buffer = create_pdf(data)
-        # ボタン名の最適化：保存への誘い
-        st.download_button("📥 分析レポート（美の公文書）を保存", pdf_buffer, "Aesthetic_Analysis.pdf", "application/pdf")
-        
-        # ボタン名の最適化：リセットへの誘い
-        if st.button("意識をフラットに戻す"):
+        st.download_button("📥 診断レポートをダウンロード", pdf_buffer, "Visionary_Report.pdf", "application/pdf")
+        if st.button("最初からやり直す"):
             st.session_state.clear()
             st.rerun()
