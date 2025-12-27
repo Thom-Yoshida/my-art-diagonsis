@@ -1,3 +1,36 @@
+
+import streamlit as st
+import os
+import json
+import io
+import datetime
+import smtplib
+import requests
+import time
+from PIL import Image
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from email.mime.application import MIMEApplication
+from email.header import Header
+
+# Google系ライブラリ
+import google.generativeai as genai
+import pandas as pd
+import gspread
+from oauth2client.service_account import ServiceAccountCredentials
+
+# デザイン・可視化
+import plotly.graph_objects as go
+
+# PDF生成
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import A4, landscape
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
+from reportlab.lib.units import mm
+from reportlab.lib.colors import HexColor
+from reportlab.lib.utils import ImageReader
+
 # --- 接続テストここから ---
 st.write("--- 🔧 システム接続診断 ---")
 
@@ -37,37 +70,6 @@ else:
 st.write("-----------------------------")
 # --- 接続テストここまで ---
 
-import streamlit as st
-import os
-import json
-import io
-import datetime
-import smtplib
-import requests
-import time
-from PIL import Image
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
-from email.mime.application import MIMEApplication
-from email.header import Header
-
-# Google系ライブラリ
-import google.generativeai as genai
-import pandas as pd
-import gspread
-from oauth2client.service_account import ServiceAccountCredentials
-
-# デザイン・可視化
-import plotly.graph_objects as go
-
-# PDF生成
-from reportlab.pdfgen import canvas
-from reportlab.lib.pagesizes import A4, landscape
-from reportlab.pdfbase import pdfmetrics
-from reportlab.pdfbase.ttfonts import TTFont
-from reportlab.lib.units import mm
-from reportlab.lib.colors import HexColor
-from reportlab.lib.utils import ImageReader
 
 # ---------------------------------------------------------
 # 0. 初期設定 & フォント自動セットアップ
