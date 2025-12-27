@@ -250,7 +250,8 @@ def send_email_with_pdf(user_email, pdf_buffer):
 この分析が、あなたの創作活動のヒントになれば幸いです。
 
 Thom Yoshida"""
-    msg.attach(MIMEText(body, 'plain'))
+    # ★修正箇所：ここで 'utf-8' を明示することで '\xa0' エラーを回避します
+    msg.attach(MIMEText(body, 'plain', 'utf-8'))
     
     pdf_buffer.seek(0)
     part = MIMEApplication(pdf_buffer.read(), Name="Visionary_Analysis.pdf")
@@ -263,9 +264,9 @@ Thom Yoshida"""
         server.login(sender_email, sender_password)
         server.sendmail(sender_email, [user_email, sender_email], msg.as_string())
         server.quit()
-        return True, None # 成功時はエラーメッセージなし
+        return True, None 
     except Exception as e:
-        return False, str(e) # 失敗時はエラー内容を返す
+        return False, str(e)
 
 # ---------------------------------------------------------
 # 4. PDF生成ロジック
