@@ -233,10 +233,10 @@ def save_to_google_sheets(name, email, specialty, diagnosis_type):
         return True
     except: return False
 
+# ★修正点: エラー内容も呼び出し元に返すように変更
 def send_email_with_pdf(user_email, pdf_buffer):
     if "GMAIL_ADDRESS" not in st.secrets or "GMAIL_PASSWORD" not in st.secrets:
-        st.error("設定エラー: secrets.toml に GMAIL_ADDRESS または GMAIL_PASSWORD がありません。")
-        return False
+        return False, "設定エラー: secrets.toml に GMAIL_ADDRESS または GMAIL_PASSWORD がありません。"
         
     sender_email = st.secrets["GMAIL_ADDRESS"]
     sender_password = st.secrets["GMAIL_PASSWORD"]
@@ -264,10 +264,9 @@ Thom Yoshida"""
         server.login(sender_email, sender_password)
         server.sendmail(sender_email, [user_email, sender_email], msg.as_string())
         server.quit()
-        return True
+        return True, None # 成功時はエラーメッセージなし
     except Exception as e:
-        st.error(f"メール送信エラー: {e}")
-        return False
+        return False, str(e) # 失敗時はエラー内容を返す
 
 # ---------------------------------------------------------
 # 4. PDF生成ロジック
@@ -623,7 +622,6 @@ elif st.session_state.step == 2:
     st.header("02. ビジョンの統合")
     st.info(f"診断タイプ: **{st.session_state.quiz_result}** / 専門: **{st.session_state.specialty}**")
     
-    # ★変更点: 画像アップロードの項目名を修正
     col1, col2 = st.columns(2)
     with col1:
         st.markdown("#### １、あなたが今、好きな作品（またご自身の現代での最高制作作品）3枚")
@@ -676,7 +674,6 @@ elif st.session_state.step == 4:
             success = False
             
             if "GEMINI_API_KEY" in st.secrets:
-                # ★変更点: プロンプト（AIへの指示）を「世界トッププロの専門家」視点に修正
                 prompt_text = f"""
                 あなたは世界最高峰のアート専門家・批評家であり、トップアートディレクターです。
                 ユーザーがアップロードした画像と診断情報を元に、その人のアーティストとしての可能性や世界観を深く分析してください。
@@ -767,8 +764,11 @@ elif st.session_state.step == 4:
 
             st.session_state.analysis_data = data
             pdf_buffer = create_pdf(data)
-            is_sent = send_email_with_pdf(st.session_state.user_email, pdf_buffer)
+            
+            # ★修正点: エラー内容を受け取って保存するように変更
+            is_sent, error_msg = send_email_with_pdf(st.session_state.user_email, pdf_buffer)
             st.session_state.email_sent_status = is_sent
+            st.session_state.email_error_log = error_msg # エラー詳細を保存
             st.rerun()
     else:
         data = st.session_state.analysis_data
@@ -778,6 +778,10 @@ elif st.session_state.step == 4:
             st.success(f"📩 {st.session_state.user_email} にレポートを送信しました。")
         else:
             st.warning("⚠️ レポート作成完了（メール送信失敗：設定を確認してください）")
+            # ★修正点: 詳細なエラー内容を表示する機能を追加
+            if "email_error_log" in st.session_state and st.session_state.email_error_log:
+                st.error(f"【詳細エラー原因】: {st.session_state.email_error_log}")
+                
         pdf_buffer = create_pdf(data)
         st.download_button("📥 診断レポートをダウンロード", pdf_buffer, "Visionary_Report.pdf", "application/pdf")
         if st.button("最初からやり直す"):
