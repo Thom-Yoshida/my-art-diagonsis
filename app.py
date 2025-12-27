@@ -711,7 +711,7 @@ if st.session_state.step == 1:
     st.caption("あなたの感性と才能を言語化する、クリエイティブ分析ツール")
     
     st.markdown("##### 00. 得意＆好きな表現")
-    specialty = st.text_input("例：写真、映像、絵画、身体表現、造形、デザイン、演技、など")
+    specialty = st.text_input("例：写真、映像、絵画、身体表現、造形、デザイン、演技、など。１つに絞ると結果が高精度")
     
     st.markdown("##### 01. 感性チェック")
     st.write("直感で回答してください。あなたの創作の源泉を探ります。")
