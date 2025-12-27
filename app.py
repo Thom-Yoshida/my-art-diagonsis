@@ -171,20 +171,20 @@ st.markdown(f"""
         font-size: 1.1rem;
     }}
 
-    /* ★追加: ファイルアップローダーをコンパクトにするCSS */
-    [data-testid='stFileUploader'] {{
+    /* ファイルアップローダーをコンパクトにする */
+    [data-testid='stFileUploader'] {
         width: 100%;
-    }}
-    [data-testid='stFileUploader'] section {{
+    }
+    [data-testid='stFileUploader'] section {
         padding: 10px;
         min-height: 0px;
-    }}
-    [data-testid='stFileUploader'] div[class*="drop-container"] {{
+    }
+    [data-testid='stFileUploader'] div[class*="drop-container"] {
         padding: 10px; 
-    }}
-    [data-testid='stFileUploader'] small {{
-        display: none; /* "Drag and drop file here" のような細かい説明を消す */
-    }}
+    }
+    [data-testid='stFileUploader'] small {
+        display: none; 
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -268,17 +268,30 @@ def send_email_with_pdf(user_email, pdf_buffer):
     sender_password = str(st.secrets["GMAIL_PASSWORD"]).strip().replace('\xa0', '').replace('\u3000', ' ')
     user_email = str(user_email).strip().replace('\xa0', '').replace('\u3000', ' ')
     
+    # ▼▼▼ LINEのURL（ここをご自身の公式LINEのURLに書き換えてください） ▼▼▼
+    LINE_URL = "https://line.me/R/ti/p/@your_line_id" 
+    
     msg = MIMEMultipart()
     msg['From'] = sender_email
     msg['To'] = user_email
     msg['Subject'] = Header("【世界観診断レポート】あなたの診断結果をお届けします", 'utf-8')
     
-    body = """世界観診断をご利用いただきありがとうございます。
+    body = f"""世界観診断をご利用いただきありがとうございます。
 あなたの診断結果レポート（PDF）をお送りします。
+
+添付のPDFを開いて、あなたの創作活動の指針となる「美の設計図」をご確認ください。
+
+【🎁 さらに特別なプレゼント】
+診断結果を受け取ったあなただけに、
+「世界観を収益化する秘密のロードマップ」などの限定情報をLINEで配信しています。
+
+▼ 今すぐ特典を受け取る（公式LINE）
+{LINE_URL}
 
 この分析が、あなたの創作活動のヒントになれば幸いです。
 
 Thom Yoshida"""
+
     body = body.replace('\u00a0', ' ').replace('\xa0', ' ')
     msg.attach(MIMEText(body, 'plain', 'utf-8'))
     
@@ -301,23 +314,42 @@ Thom Yoshida"""
 # 4. PDF生成ロジック
 # ---------------------------------------------------------
 
+# ★修正: 汎用改行ロジック (句点必須 + 助詞 + 文字数)
 def wrap_text_smart(text, max_char_count=15):
     if not text: return []
-    delimiters = ['、', '。', 'て', 'に', 'を', 'は', 'が', 'と', 'へ', 'で', 'や', 'の', 'も', 'し', 'い', 'か', 'ね', 'よ', '！', '？']
-    lines = []
-    current_line = ""
-    for char in text:
-        current_line += char
-        if len(current_line) >= max_char_count * 0.85:
-            if char in delimiters:
-                lines.append(current_line)
-                current_line = ""
-                continue
-            if len(current_line) >= max_char_count + 2:
-                lines.append(current_line)
-                current_line = ""
-    if current_line: lines.append(current_line)
-    return lines
+    
+    # まず句点（。）で分割して強制改行
+    raw_lines = []
+    for t in text.split('。'):
+        if t.strip(): # 空行以外
+            raw_lines.append(t + '。')
+    if not raw_lines: raw_lines = [text] # 句点がない場合
+    elif text.endswith('。') == False: # 末尾に句点がない場合の処理
+        # splitの最後の要素から句点を削除（splitで付加したため）
+        raw_lines[-1] = raw_lines[-1].rstrip('。')
+
+    # 次に、各行に対して助詞・文字数での改行処理を適用
+    final_lines = []
+    delimiters = ['、', 'て', 'に', 'を', 'は', 'が', 'と', 'へ', 'で', 'や', 'の', 'も', 'し', 'い', 'か', 'ね', 'よ', '！', '？']
+    
+    for line in raw_lines:
+        current_subline = ""
+        for char in line:
+            current_subline += char
+            if len(current_subline) >= max_char_count * 0.85:
+                # 助詞・句読点など
+                if char in delimiters:
+                    final_lines.append(current_subline)
+                    current_subline = ""
+                    continue
+                # 文字数オーバー
+                if len(current_subline) >= max_char_count + 2:
+                    final_lines.append(current_subline)
+                    current_subline = ""
+        if current_subline:
+            final_lines.append(current_subline)
+            
+    return final_lines
 
 def draw_wrapped_text(c, text, x, y, font, size, width_limit_mm, leading, centered=False, char_limit=15):
     c.setFont(font, size)
@@ -362,21 +394,33 @@ def draw_arrow_slider(c, x, y, width_mm, left_text, right_text, value):
     c.setFillColor(HexColor(COLORS['forest']))
     c.circle(dot_x, y, 2.5*mm, fill=1, stroke=1)
 
+# ★修正: 8ページ目専用 (句読点のみで改行、文字数制限なし)
 def draw_quote_special(c, text, x, y, font, size, leading):
     c.setFont(font, size)
-    parts = [p + '。' for p in text.split('。') if p.strip()]
-    if not parts: parts = [text]
-    elif text.endswith('。') == False:
-        if text.split('。')[-1].strip():
-             parts[-1] = parts[-1].rstrip('。')
+    # 句読点で分割
+    import re
+    # 句点(。)または読点(、)で分割し、区切り文字を含める
+    parts = re.split('([。、])', text)
+    # 区切り文字を前の文にくっつける処理
+    lines = []
+    current = ""
+    for p in parts:
+        if p in ['。', '、']:
+            current += p
+            lines.append(current)
+            current = ""
+        else:
+            current += p
+    if current: lines.append(current)
 
     current_y = y
-    for part in parts:
-        sub_lines = wrap_text_smart(part, max_char_count=20)
-        for line in sub_lines:
-            c.drawCentredString(x, current_y, line)
-            current_y -= leading
-        current_y -= (leading * 0.5)
+    for line in lines:
+        if not line.strip(): continue
+        c.drawCentredString(x, current_y, line.strip())
+        current_y -= leading
+        # 句点の後は少し空ける（段落感）
+        if '。' in line:
+             current_y -= (leading * 0.5)
 
 def create_pdf(json_data):
     buffer = io.BytesIO()
@@ -559,7 +603,7 @@ def create_pdf(json_data):
     
     c.showPage()
 
-    # P8: MESSAGE
+    # P8: MESSAGE (句読点のみで改行)
     image_url = "https://images.unsplash.com/photo-1495312040802-a929cd14a6ab?q=80&w=2940&auto=format&fit=crop"
     try:
         response = requests.get(image_url, stream=True, timeout=10)
@@ -586,6 +630,7 @@ def create_pdf(json_data):
     q_title = quote_data.get('title', '')
 
     c.setFillColor(TEXT_COLOR_END)
+    # 句読点のみで改行ロジック使用
     draw_quote_special(c, q_text, width/2, height/2 + 25*mm, FONT_SERIF, 24, 32)
     
     c.setFont(FONT_SANS, 16)
@@ -731,7 +776,6 @@ elif st.session_state.step == 3:
     st.header("03. レポートの受け取り")
     with st.container():
         st.markdown(f"""<div style="background-color: {COLORS['card']}; padding: 30px; border-radius: 10px; border: 1px solid {COLORS['accent']}; text-align: center;"><h3 style="color: {COLORS['accent']};">Analysis Ready</h3><p>診断結果レポートを発行します。</p></div><br>""", unsafe_allow_html=True)
-        # 入力フォーム変更
         with st.form("lead_capture"):
             col_f1, col_f2 = st.columns(2)
             with col_f1: 
@@ -746,10 +790,8 @@ elif st.session_state.step == 3:
             if submit:
                 if user_name and user_email and region:
                     st.session_state.user_name = user_name
-                    # メールアドレスのクリーニング
                     st.session_state.user_email = user_email.strip().replace('\xa0', '').replace('\u3000', ' ')
                     
-                    # 保存処理
                     is_saved, save_error = save_to_google_sheets(
                         user_name, age_group, region, st.session_state.user_email, 
                         st.session_state.specialty, st.session_state.quiz_result
@@ -765,7 +807,6 @@ elif st.session_state.step == 3:
 # STEP 4 (AI Analysis)
 elif st.session_state.step == 4:
     if "analysis_data" not in st.session_state:
-        # 待機メッセージ変更
         with st.spinner("詳しく分析中です。1分程度お待ちください。"):
             
             success = False
@@ -875,9 +916,7 @@ elif st.session_state.step == 4:
         st.markdown("---")
         st.markdown("### 📩 詳細レポートを送信しました")
         
-        # 2. メールの送信結果によって表示を変える
         if st.session_state.get("email_sent_status", False):
-            # 成功時：ダウンロードボタンを消し、メール確認を促すメッセージのみにする
             st.success(f"""
             **{st.session_state.user_name} 様の診断レポート（PDF）を、以下のメールアドレス宛に送信いたしました。**
             
@@ -888,7 +927,6 @@ elif st.session_state.step == 4:
             st.info("このレポートは、あなたの今後の創作活動の指針となる「美の設計図」です。大切に保存してください。")
             
         else:
-            # 失敗時：エラーを表示し、緊急避難的にダウンロードボタンを出す
             st.error("⚠️ メール送信に失敗しました。")
             if "email_error_log" in st.session_state and st.session_state.email_error_log:
                 st.error(f"【エラー原因】: {st.session_state.email_error_log}")
@@ -897,7 +935,6 @@ elif st.session_state.step == 4:
             pdf_buffer = create_pdf(data)
             st.download_button("📥 診断レポートをダウンロード", pdf_buffer, "Visionary_Report.pdf", "application/pdf")
 
-        # 3. リセットボタン
         st.markdown("<br><br>", unsafe_allow_html=True)
         if st.button("トップに戻る"):
             st.session_state.clear()
