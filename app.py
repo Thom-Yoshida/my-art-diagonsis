@@ -34,7 +34,6 @@ from reportlab.lib.utils import ImageReader
 # ---------------------------------------------------------
 # 0. 初期設定 & フォント自動セットアップ
 # ---------------------------------------------------------
-# ★修正: ブラウザのタブ名も「Visionary Blueprint」に変更
 st.set_page_config(page_title="Visionary Blueprint | 世界観の設計図", layout="wide") 
 
 # デザイン定義 (COLORS - v5.2 Matte White Tuned)
@@ -313,6 +312,7 @@ Thom Yoshida"""
 # 4. PDF生成ロジック
 # ---------------------------------------------------------
 
+# ★修正: 汎用改行ロジック (句点必須 + 助詞 + 文字数)
 def wrap_text_smart(text, max_char_count=15):
     if not text: return []
     
@@ -436,7 +436,21 @@ def create_pdf(json_data):
         TEXT_COLOR = HexColor(COLORS['pdf_text'])
     c.setFillColor(TEXT_COLOR)
     c.setFont(FONT_SERIF, 52)
-    c.drawCentredString(width/2, height/2 + 10*mm, json_data.get('catchphrase', 'Visionary Report'))
+    
+    # ★修正: P1タイトルの改行対応 (10文字、句読点優先)
+    draw_wrapped_text(
+        c,
+        json_data.get('catchphrase', 'Visionary Report'),
+        width/2,
+        height/2 + 40*mm,
+        FONT_SERIF,
+        52,
+        0,
+        60,
+        centered=True,
+        char_limit=10
+    )
+    
     c.setFont(FONT_SANS, 18)
     c.drawCentredString(width/2, height/2 - 25*mm, "WORLDVIEW ANALYSIS REPORT")
     c.setFont(FONT_SERIF, 12)
@@ -514,7 +528,7 @@ def create_pdf(json_data):
         draw_arrow_slider(c, x, curr_y, 48, m.get('left'), m.get('right'), m.get('value'))
     c.showPage()
 
-    # P5: ROLE MODELS (ボリューム2倍、キーワード3つ)
+    # P5: ROLE MODELS
     draw_header(c, "04. お手本にしたい人物", 5) 
     archs = json_data.get('artist_archetypes', [])
     y = height - 55*mm
@@ -534,7 +548,7 @@ def create_pdf(json_data):
         y -= 48*mm
     c.showPage()
 
-    # P6: ROADMAP (改行30文字、ボリューム2倍、間隔拡大)
+    # P6: ROADMAP
     draw_header(c, "05. 未来への道のり", 6)
     steps = json_data.get('roadmap_steps', [])
     y = height - 65*mm
@@ -554,7 +568,7 @@ def create_pdf(json_data):
         y -= 55*mm
     c.showPage()
 
-    # P7: VISION & ALTERNATIVES (解説3倍、15文字改行、間隔拡大)
+    # P7: VISION & ALTERNATIVES
     draw_header(c, "06. 次なるビジョンと表現", 7)
     COL_WIDTH = (CONTENT_WIDTH - 10*mm) / 2
     
@@ -597,7 +611,7 @@ def create_pdf(json_data):
     
     c.showPage()
 
-    # P8: MESSAGE (句読点のみで改行)
+    # P8: MESSAGE
     image_url = "https://images.unsplash.com/photo-1495312040802-a929cd14a6ab?q=80&w=2940&auto=format&fit=crop"
     try:
         response = requests.get(image_url, stream=True, timeout=10)
@@ -699,7 +713,6 @@ if st.session_state.step == 1:
     try: st.image("cover.jpg", use_container_width=True)
     except: pass
     
-    # ★修正: メインタイトルとサブタイトルを美しく配置
     st.markdown(f"""
         <h1 style='text-align: center; font-family: "Hiragino Mincho ProN", serif; color: {COLORS['text']}; font-size: 3.5rem; margin-bottom: 0;'>
             Visionary Blueprint
@@ -711,7 +724,7 @@ if st.session_state.step == 1:
     st.caption("あなたの感性と才能を言語化する、クリエイティブ分析ツール")
     
     st.markdown("##### 00. 得意＆好きな表現")
-    specialty = st.text_input("例：写真、映像、絵画、身体表現、造形、デザイン、演技、など。１つに絞ると結果が高精度")
+    specialty = st.text_input("例：写真、映像、絵画、身体表現、造形、デザイン、演技、など")
     
     st.markdown("##### 01. 感性チェック")
     st.write("直感で回答してください。あなたの創作の源泉を探ります。")
