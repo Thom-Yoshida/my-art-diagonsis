@@ -39,7 +39,7 @@ st.set_page_config(page_title="世界観診断 | Visionary Analysis", layout="wi
 # デザイン定義 (COLORS - v5.2 Matte White Tuned)
 COLORS = {
     "bg": "#1E1E1E",        
-    "text": "#F0F0F0",      
+    "text": "#F7F7F7",      # ★変更: #F0F0F0 -> #F7F7F7
     "accent": "#D6AE60",    
     "sub": "#A0BACC",       
     "forest": "#6FB3B8",    
@@ -147,7 +147,7 @@ st.markdown(f"""
         transform: translateX(5px);
     }}
     div[role="radiogroup"] > label p {{
-        color: #F7F7F7 !important;
+        color: #F7F7F7 !important; /* ★変更 */
         font-size: 1.1rem !important;
         font-weight: 400 !important;
         margin: 0 !important;
@@ -156,7 +156,7 @@ st.markdown(f"""
     /* 入力フォーム */
     .stTextInput > div > div > input, .stSelectbox > div > div > div {{
         background-color: {COLORS["input_bg"]} !important;
-        color: #F7F7F7 !important; 
+        color: #F7F7F7 !important; /* ★変更 */
         border: 1px solid #666 !important;
         font-size: 1.1rem;
     }}
@@ -179,6 +179,8 @@ st.markdown(f"""
     [data-testid='stFileUploader'] section {{
         padding: 10px;
         min-height: 0px;
+        background-color: {COLORS['card']}; /* 背景色をカード色に */
+        border: 1px dashed {COLORS['accent']}; /* 枠線をアクセントカラーに */
     }}
     [data-testid='stFileUploader'] div[class*="drop-container"] {{
         padding: 10px; 
@@ -261,7 +263,7 @@ def save_to_google_sheets(name, age, region, email, specialty, diagnosis_type):
     except Exception as e:
         return False, str(e)
 
-# ★修正: LINE誘導を削除し、シンプルなメール本文に戻す
+# LINE誘導なしのシンプル版
 def send_email_with_pdf(user_email, pdf_buffer):
     if "GMAIL_ADDRESS" not in st.secrets or "GMAIL_PASSWORD" not in st.secrets:
         return False, "設定エラー: secrets.toml に GMAIL_ADDRESS または GMAIL_PASSWORD がありません。"
@@ -275,7 +277,6 @@ def send_email_with_pdf(user_email, pdf_buffer):
     msg['To'] = user_email
     msg['Subject'] = Header("【世界観診断レポート】あなたの診断結果をお届けします", 'utf-8')
     
-    # ★修正: シンプルな本文
     body = """世界観診断をご利用いただきありがとうございます。
 あなたの診断結果レポート（PDF）をお送りします。
 
@@ -317,7 +318,6 @@ def wrap_text_smart(text, max_char_count=15):
             raw_lines.append(t + '。')
     if not raw_lines: raw_lines = [text] # 句点がない場合
     elif text.endswith('。') == False: # 末尾に句点がない場合の処理
-        # splitの最後の要素から句点を削除（splitで付加したため）
         raw_lines[-1] = raw_lines[-1].rstrip('。')
 
     # 次に、各行に対して助詞・文字数での改行処理を適用
@@ -391,6 +391,7 @@ def draw_quote_special(c, text, x, y, font, size, leading):
     c.setFont(font, size)
     # 句読点で分割
     parts = re.split('([。、])', text)
+    # 区切り文字を前の文にくっつける処理
     lines = []
     current = ""
     for p in parts:
@@ -407,6 +408,7 @@ def draw_quote_special(c, text, x, y, font, size, leading):
         if not line.strip(): continue
         c.drawCentredString(x, current_y, line.strip())
         current_y -= leading
+        # 句点の後は少し空ける（段落感）
         if '。' in line:
              current_y -= (leading * 0.5)
 
@@ -481,7 +483,7 @@ def create_pdf(json_data):
     ]
     for cx, cy_pos, title, word in positions:
         c.setStrokeColor(HexColor(COLORS['forest']))
-        c.setFillColor(HexColor('#F7F7F7'))
+        c.setFillColor(HexColor('#F7F7F7')) # ★修正済み
         c.setLineWidth(1.5)
         c.circle(cx, cy_pos, r, fill=1, stroke=1)
         c.setFont(FONT_SERIF, 18)
@@ -732,14 +734,25 @@ elif st.session_state.step == 2:
     st.header("02. ビジョンの統合")
     st.info(f"診断タイプ: **{st.session_state.quiz_result}** / 専門: **{st.session_state.specialty}**")
     
+    # ★修正: レスポンシブ対応 & デザイン変更 (STEP 2)
     col1, col2 = st.columns(2, gap="medium")
+    
     with col1:
-        st.markdown("###### 1. 原点・現在 (Origin)")
-        st.caption("あなたが今、好きな作品（または自身の最高傑作）3枚")
+        st.markdown(f"""
+        <div style="padding: 10px; border: 1px solid {COLORS['accent']}; border-radius: 5px; margin-bottom: 10px;">
+            <strong style="color: {COLORS['accent']};">1. 原点・現在 (Origin)</strong><br>
+            <span style="color: #F7F7F7;">今、好きな作品（または自身の最高傑作）3枚</span>
+        </div>
+        """, unsafe_allow_html=True)
         past_files = st.file_uploader("Origin Upload", type=["jpg", "png"], accept_multiple_files=True, key="past", label_visibility="collapsed")
+    
     with col2:
-        st.markdown("###### 2. 未来・理想 (Ideal)")
-        st.caption("あなたの理想の世界観を描いた作品 3枚")
+        st.markdown(f"""
+        <div style="padding: 10px; border: 1px solid {COLORS['forest']}; border-radius: 5px; margin-bottom: 10px;">
+            <strong style="color: {COLORS['forest']};">2. 未来・理想 (Ideal)</strong><br>
+            <span style="color: #F7F7F7;">理想の世界観の作品 3枚</span>
+        </div>
+        """, unsafe_allow_html=True)
         future_files = st.file_uploader("Ideal Upload", type=["jpg", "png"], accept_multiple_files=True, key="future", label_visibility="collapsed")
         
     st.write("")
@@ -801,7 +814,6 @@ elif st.session_state.step == 4:
             success = False
             
             if "GEMINI_API_KEY" in st.secrets:
-                # ★修正: ユーザーの「得意な表現」に沿うようAIへの指示を強化
                 prompt_text = f"""
                 あなたは世界最高峰のアート専門家・批評家であり、トップアートディレクターです。
                 ユーザーがアップロードした画像と診断情報を元に、その人のアーティストとしての可能性や世界観を深く分析してください。
