@@ -233,7 +233,6 @@ def save_to_google_sheets(name, email, specialty, diagnosis_type):
         return True
     except: return False
 
-# ★修正点: エラー内容も呼び出し元に返すように変更
 def send_email_with_pdf(user_email, pdf_buffer):
     if "GMAIL_ADDRESS" not in st.secrets or "GMAIL_PASSWORD" not in st.secrets:
         return False, "設定エラー: secrets.toml に GMAIL_ADDRESS または GMAIL_PASSWORD がありません。"
@@ -531,11 +530,12 @@ def create_pdf(json_data):
     q_author = quote_data.get('author', '')
 
     c.setFillColor(TEXT_COLOR_END)
-    TEXT_WIDTH_15 = 150 * mm
-    draw_wrapped_text(c, q_text, width/2, height/2 + 20*mm, FONT_SERIF, 28, TEXT_WIDTH_15, 36, centered=True)
+    # ★修正箇所: 15文字程度で改行、余白を十分にとる（135mm, 行間42pt, 位置調整）
+    TEXT_WIDTH_FIXED = 135 * mm
+    draw_wrapped_text(c, q_text, width/2, height/2 + 25*mm, FONT_SERIF, 28, TEXT_WIDTH_FIXED, 42, centered=True)
     c.setFont(FONT_SANS, 18)
     c.setFillColor(ACCENT_COLOR_END)
-    c.drawCentredString(width/2, height/2 - 35*mm, f"- {q_author}")
+    c.drawCentredString(width/2, height/2 - 45*mm, f"- {q_author}")
     c.setFont(FONT_SANS, 12)
     c.setFillColor(TEXT_COLOR_END)
     c.drawRightString(width - MARGIN_X, 15*mm, "8 / 8")
@@ -765,10 +765,9 @@ elif st.session_state.step == 4:
             st.session_state.analysis_data = data
             pdf_buffer = create_pdf(data)
             
-            # ★修正点: エラー内容を受け取って保存するように変更
             is_sent, error_msg = send_email_with_pdf(st.session_state.user_email, pdf_buffer)
             st.session_state.email_sent_status = is_sent
-            st.session_state.email_error_log = error_msg # エラー詳細を保存
+            st.session_state.email_error_log = error_msg 
             st.rerun()
     else:
         data = st.session_state.analysis_data
@@ -778,7 +777,6 @@ elif st.session_state.step == 4:
             st.success(f"📩 {st.session_state.user_email} にレポートを送信しました。")
         else:
             st.warning("⚠️ レポート作成完了（メール送信失敗：設定を確認してください）")
-            # ★修正点: 詳細なエラー内容を表示する機能を追加
             if "email_error_log" in st.session_state and st.session_state.email_error_log:
                 st.error(f"【詳細エラー原因】: {st.session_state.email_error_log}")
                 
