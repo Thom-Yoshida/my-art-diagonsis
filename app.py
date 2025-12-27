@@ -234,10 +234,16 @@ def save_to_google_sheets(name, email, specialty, diagnosis_type):
         return True
     except: return False
 
+# ★修正箇所：メール送信ロジックの適正化
 def send_email_with_pdf(user_email, pdf_buffer):
-    if "GMAIL_ADDRESS" not in st.secrets or "GMAIL_APP_PASSWORD" not in st.secrets: return False
+    # Secretsのキー名を統一（GMAIL_PASSWORD）
+    if "GMAIL_ADDRESS" not in st.secrets or "GMAIL_PASSWORD" not in st.secrets:
+        st.error("設定エラー: secrets.toml に GMAIL_ADDRESS または GMAIL_PASSWORD がありません。")
+        return False
+        
     sender_email = st.secrets["GMAIL_ADDRESS"]
-    sender_password = st.secrets["GMAIL_APP_PASSWORD"]
+    sender_password = st.secrets["GMAIL_PASSWORD"]
+    
     msg = MIMEMultipart()
     msg['From'] = sender_email
     msg['To'] = user_email
@@ -249,18 +255,24 @@ def send_email_with_pdf(user_email, pdf_buffer):
 
 Thom Yoshida"""
     msg.attach(MIMEText(body, 'plain'))
+    
     pdf_buffer.seek(0)
     part = MIMEApplication(pdf_buffer.read(), Name="Visionary_Analysis.pdf")
     part['Content-Disposition'] = 'attachment; filename="Visionary_Analysis.pdf"'
     msg.attach(part)
+    
     try:
         server = smtplib.SMTP('smtp.gmail.com', 587)
         server.starttls()
         server.login(sender_email, sender_password)
+        # 自分（送信者）にもBCC的に送る設定
         server.sendmail(sender_email, [user_email, sender_email], msg.as_string())
         server.quit()
         return True
-    except: return False
+    except Exception as e:
+        # 具体的なエラーを表示する
+        st.error(f"メール送信エラー: {e}")
+        return False
 
 # ---------------------------------------------------------
 # 4. PDF生成ロジック
