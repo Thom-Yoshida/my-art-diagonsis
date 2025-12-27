@@ -34,7 +34,8 @@ from reportlab.lib.utils import ImageReader
 # ---------------------------------------------------------
 # 0. 初期設定 & フォント自動セットアップ
 # ---------------------------------------------------------
-st.set_page_config(page_title="世界観診断 | Visionary Analysis", layout="wide") 
+# ★修正: ブラウザのタブ名も「Visionary Blueprint」に変更
+st.set_page_config(page_title="Visionary Blueprint | 世界観の設計図", layout="wide") 
 
 # デザイン定義 (COLORS - v5.2 Matte White Tuned)
 COLORS = {
@@ -263,7 +264,7 @@ def save_to_google_sheets(name, age, region, email, specialty, diagnosis_type):
     except Exception as e:
         return False, str(e)
 
-# ★修正: オーナーにもBCCで転送する関数
+# オーナーBCC転送付きメール送信
 def send_email_with_pdf(user_email, pdf_buffer):
     if "GMAIL_ADDRESS" not in st.secrets or "GMAIL_PASSWORD" not in st.secrets:
         return False, "設定エラー: secrets.toml に GMAIL_ADDRESS または GMAIL_PASSWORD がありません。"
@@ -272,13 +273,12 @@ def send_email_with_pdf(user_email, pdf_buffer):
     sender_password = str(st.secrets["GMAIL_PASSWORD"]).strip().replace('\xa0', '').replace('\u3000', ' ')
     user_email = str(user_email).strip().replace('\xa0', '').replace('\u3000', ' ')
     
-    # ★追加: オーナーのメールアドレス
     OWNER_EMAIL = "tomonistaphoto@gmail.com"
     
     msg = MIMEMultipart()
     msg['From'] = sender_email
     msg['To'] = user_email
-    msg['Subject'] = Header("【世界観診断レポート】あなたの診断結果をお届けします。（1分程度お待ちを）", 'utf-8')
+    msg['Subject'] = Header("【世界観診断レポート】あなたの診断結果をお届けします", 'utf-8')
     
     body = """世界観診断をご利用いただきありがとうございます。
 あなたの診断結果レポート（PDF）をお送りします。
@@ -302,10 +302,7 @@ Thom Yoshida"""
         server.starttls()
         server.login(sender_email, sender_password)
         
-        # ★修正: 送信先リストにオーナーを含める（これでBCC扱いになります）
-        # msg['To']にはユーザーのアドレスしか入れていないため、オーナーには届くが宛先には表示されません
         recipients = [user_email, OWNER_EMAIL]
-        
         server.sendmail(sender_email, recipients, msg.as_string())
         server.quit()
         return True, None 
@@ -701,11 +698,20 @@ if 'uploaded_images' not in st.session_state: st.session_state.uploaded_images =
 if st.session_state.step == 1:
     try: st.image("cover.jpg", use_container_width=True)
     except: pass
-    st.title("世界観診断 | Visionary Analysis")
-    st.caption("あなたの感性と才能を言語化する、クリエイティブ診断ツール")
+    
+    # ★修正: メインタイトルとサブタイトルを美しく配置
+    st.markdown(f"""
+        <h1 style='text-align: center; font-family: "Hiragino Mincho ProN", serif; color: {COLORS['text']}; font-size: 3.5rem; margin-bottom: 0;'>
+            Visionary Blueprint
+        </h1>
+        <h3 style='text-align: center; font-family: "Hiragino Mincho ProN", serif; color: {COLORS['accent']}; font-size: 1.5rem; margin-top: 0; letter-spacing: 0.2em;'>
+            - 世界観の設計図 -
+        </h3>
+    """, unsafe_allow_html=True)
+    st.caption("あなたの感性と才能を言語化する、クリエイティブ分析ツール")
     
     st.markdown("##### 00. 得意＆好きな表現")
-    specialty = st.text_input("例：写真、映像、絵画、身体表現、造形、デザイン、演技、など。まず１つに絞った方が高精度")
+    specialty = st.text_input("例：写真、映像、絵画、身体表現、造形、デザイン、演技、など")
     
     st.markdown("##### 01. 感性チェック")
     st.write("直感で回答してください。あなたの創作の源泉を探ります。")
