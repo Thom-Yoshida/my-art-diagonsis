@@ -170,6 +170,21 @@ st.markdown(f"""
         border-radius: 6px;
         font-size: 1.1rem;
     }}
+
+    /* ★追加: ファイルアップローダーをコンパクトにするCSS */
+    [data-testid='stFileUploader'] {{
+        width: 100%;
+    }}
+    [data-testid='stFileUploader'] section {{
+        padding: 10px;
+        min-height: 0px;
+    }}
+    [data-testid='stFileUploader'] div[class*="drop-container"] {{
+        padding: 10px; 
+    }}
+    [data-testid='stFileUploader'] small {{
+        display: none; /* "Drag and drop file here" のような細かい説明を消す */
+    }}
 </style>
 """, unsafe_allow_html=True)
 
@@ -288,7 +303,6 @@ Thom Yoshida"""
 
 def wrap_text_smart(text, max_char_count=15):
     if not text: return []
-    # 助詞・句読点など
     delimiters = ['、', '。', 'て', 'に', 'を', 'は', 'が', 'と', 'へ', 'で', 'や', 'の', 'も', 'し', 'い', 'か', 'ね', 'よ', '！', '？']
     lines = []
     current_line = ""
@@ -348,26 +362,20 @@ def draw_arrow_slider(c, x, y, width_mm, left_text, right_text, value):
     c.setFillColor(HexColor(COLORS['forest']))
     c.circle(dot_x, y, 2.5*mm, fill=1, stroke=1)
 
-# ★修正: 8ページ目専用描画ロジック (句点必須改行 + 助詞優先20文字)
 def draw_quote_special(c, text, x, y, font, size, leading):
     c.setFont(font, size)
-    # 句点で分割 (空文字除去)
     parts = [p + '。' for p in text.split('。') if p.strip()]
-    # 元のテキストに句点がない場合の救済
     if not parts: parts = [text]
     elif text.endswith('。') == False:
-        # splitで最後の句点後が空なら無視されるが、そうでない場合は元の文を維持
         if text.split('。')[-1].strip():
-             parts[-1] = parts[-1].rstrip('。') # 一旦戻す
+             parts[-1] = parts[-1].rstrip('。')
 
     current_y = y
     for part in parts:
-        # 各パートを20文字・助詞優先で折り返し
         sub_lines = wrap_text_smart(part, max_char_count=20)
         for line in sub_lines:
             c.drawCentredString(x, current_y, line)
             current_y -= leading
-        # 句点の後は少し空ける（段落感）
         current_y -= (leading * 0.5)
 
 def create_pdf(json_data):
@@ -470,7 +478,7 @@ def create_pdf(json_data):
         draw_arrow_slider(c, x, curr_y, 48, m.get('left'), m.get('right'), m.get('value'))
     c.showPage()
 
-    # P5: ROLE MODELS (ボリューム2倍、キーワード3つ)
+    # P5: ROLE MODELS
     draw_header(c, "04. お手本にしたい人物", 5) 
     archs = json_data.get('artist_archetypes', [])
     y = height - 55*mm
@@ -490,7 +498,7 @@ def create_pdf(json_data):
         y -= 48*mm
     c.showPage()
 
-    # P6: ROADMAP (解説文2倍、30文字改行、間隔拡大)
+    # P6: ROADMAP
     draw_header(c, "05. 未来への道のり", 6)
     steps = json_data.get('roadmap_steps', [])
     y = height - 65*mm
@@ -506,18 +514,14 @@ def create_pdf(json_data):
         c.drawString(TITLE_X, y, step.get('title', ''))
         
         c.setFillColor(HexColor(COLORS['pdf_sub']))
-        # 解説文2倍に対応するためchar_limit=30, 行数増えるので間隔も要調整
         draw_wrapped_text(c, step.get('detail', ''), TITLE_X, y - 8*mm, FONT_SANS, 11, 160*mm, 16, char_limit=30)
-        
-        # 間隔を45mmから55mmに拡大
         y -= 55*mm
     c.showPage()
 
-    # P7: VISION & ALTERNATIVES (解説3倍、15文字改行、間隔拡大)
+    # P7: VISION & ALTERNATIVES
     draw_header(c, "06. 次なるビジョンと表現", 7)
     COL_WIDTH = (CONTENT_WIDTH - 10*mm) / 2
     
-    # Left
     c.setFont(FONT_SERIF, 20)
     c.setFillColor(HexColor(COLORS['forest']))
     c.drawString(MARGIN_X, height - 45*mm, "Next Vision")
@@ -530,7 +534,6 @@ def create_pdf(json_data):
         draw_wrapped_text(c, p.get('detail', ''), MARGIN_X + 5*mm, y - 8*mm, FONT_SANS, 11, 135*mm, 14)
         y -= 24*mm
         
-    # Right
     RIGHT_START_X = width/2 + 10*mm
     c.setFont(FONT_SERIF, 20)
     c.setFillColor(HexColor(COLORS['forest']))
@@ -550,15 +553,13 @@ def create_pdf(json_data):
         if detail:
             c.setFont(FONT_SANS, 10)
             c.setFillColor(HexColor(COLORS['pdf_sub']))
-            # 解説3倍（120文字）に対応、15文字改行
             draw_wrapped_text(c, detail, RIGHT_START_X + 5*mm, y_alt - 6*mm, FONT_SANS, 10, 135*mm, 12, char_limit=15)
             
-        # 間隔を30mmから50mmに拡大（文章量対応）
         y_alt -= 50*mm
     
     c.showPage()
 
-    # P8: MESSAGE (句点改行ロジック、肩書き)
+    # P8: MESSAGE
     image_url = "https://images.unsplash.com/photo-1495312040802-a929cd14a6ab?q=80&w=2940&auto=format&fit=crop"
     try:
         response = requests.get(image_url, stream=True, timeout=10)
@@ -585,7 +586,6 @@ def create_pdf(json_data):
     q_title = quote_data.get('title', '')
 
     c.setFillColor(TEXT_COLOR_END)
-    # 新ロジックで描画
     draw_quote_special(c, q_text, width/2, height/2 + 25*mm, FONT_SERIF, 24, 32)
     
     c.setFont(FONT_SANS, 16)
@@ -693,18 +693,23 @@ if st.session_state.step == 1:
 
 # STEP 2
 elif st.session_state.step == 2:
+    try: st.image("02.jpg", use_container_width=True)
+    except: pass
     st.header("02. ビジョンの統合")
     st.info(f"診断タイプ: **{st.session_state.quiz_result}** / 専門: **{st.session_state.specialty}**")
     
-    col1, col2 = st.columns(2)
+    col1, col2 = st.columns(2, gap="medium")
     with col1:
-        st.markdown("#### １、今、好きな作品（またご自身の最高作品）3枚")
-        past_files = st.file_uploader("Origin (Max 3)", type=["jpg", "png"], accept_multiple_files=True, key="past")
+        st.markdown("###### 1. 原点・現在 (Origin)")
+        st.caption("あなたが今、好きな作品（または自身の最高傑作）3枚")
+        past_files = st.file_uploader("Origin Upload", type=["jpg", "png"], accept_multiple_files=True, key="past", label_visibility="collapsed")
     with col2:
-        st.markdown("#### ２、理想の世界観の作品　3枚")
-        future_files = st.file_uploader("Ideal (Max 3)", type=["jpg", "png"], accept_multiple_files=True, key="future")
+        st.markdown("###### 2. 未来・理想 (Ideal)")
+        st.caption("あなたの理想の世界観を描いた作品 3枚")
+        future_files = st.file_uploader("Ideal Upload", type=["jpg", "png"], accept_multiple_files=True, key="future", label_visibility="collapsed")
         
-    if st.button("次へ進む（レポート作成へ）"):
+    st.write("")
+    if st.button("次へ進む（レポート作成へ）", use_container_width=True):
         if not past_files:
             st.error("分析のために、少なくとも1枚の作品画像をアップロードしてください。")
         else:
