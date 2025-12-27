@@ -37,7 +37,7 @@ st.set_page_config(page_title="世界観診断 | Visionary Analysis", layout="wi
 # デザイン定義 (COLORS - v5.2 Matte White Tuned)
 COLORS = {
     "bg": "#1E1E1E",        
-    "text": "#F0F0F0",      # ★修正: マットホワイトに変更
+    "text": "#F0F0F0",      
     "accent": "#D6AE60",    
     "sub": "#A0BACC",       
     "forest": "#6FB3B8",    
@@ -87,7 +87,7 @@ def check_password():
 check_password()
 
 # ---------------------------------------------------------
-# 1. デザインCSS (文字色：マットホワイト適用)
+# 1. デザインCSS
 # ---------------------------------------------------------
 st.markdown(f"""
 <style>
@@ -103,14 +103,13 @@ st.markdown(f"""
     /* 見出し設定 (h1-h5) */
     h1, h2, h3, h4, h5 {{
         font-family: "Hiragino Mincho ProN", serif !important;
-        color: {COLORS["text"]} !important; /* マットホワイト適用 */
+        color: {COLORS["text"]} !important;
         letter-spacing: 0.05em;
     }}
 
-    /* ★修正: 診断画面の説明文(p)と入力ラベル(label)をマットホワイトに */
     .stMarkdown p {{
         color: {COLORS["text"]} !important;
-        opacity: 0.95; /* わずかに透過させてマット感を出す */
+        opacity: 0.95;
     }}
     .stTextInput label {{
         color: {COLORS["text"]} !important;
@@ -122,7 +121,7 @@ st.markdown(f"""
          color: {COLORS["text"]} !important;
     }}
 
-    /* 設問エリアの視認性 */
+    /* 設問エリア */
     .stRadio label p {{
         font-size: 1.3rem !important;
         font-weight: 600 !important;
@@ -234,9 +233,7 @@ def save_to_google_sheets(name, email, specialty, diagnosis_type):
         return True
     except: return False
 
-# ★修正箇所：メール送信ロジックの適正化
 def send_email_with_pdf(user_email, pdf_buffer):
-    # Secretsのキー名を統一（GMAIL_PASSWORD）
     if "GMAIL_ADDRESS" not in st.secrets or "GMAIL_PASSWORD" not in st.secrets:
         st.error("設定エラー: secrets.toml に GMAIL_ADDRESS または GMAIL_PASSWORD がありません。")
         return False
@@ -265,12 +262,10 @@ Thom Yoshida"""
         server = smtplib.SMTP('smtp.gmail.com', 587)
         server.starttls()
         server.login(sender_email, sender_password)
-        # 自分（送信者）にもBCC的に送る設定
         server.sendmail(sender_email, [user_email, sender_email], msg.as_string())
         server.quit()
         return True
     except Exception as e:
-        # 具体的なエラーを表示する
         st.error(f"メール送信エラー: {e}")
         return False
 
@@ -371,10 +366,10 @@ def create_pdf(json_data):
     c.showPage()
 
     # P2: KEYWORDS
-    draw_header(c, "01. あなたを作る「過去」と「未来」", 2)
+    draw_header(c, "01. あなたを作る「原点」と「未来」", 2)
     c.setFont(FONT_SERIF, 22)
     c.setFillColor(HexColor(COLORS['pdf_sub']))
-    c.drawCentredString(width/3, height - 55*mm, "原点 / 過去")
+    c.drawCentredString(width/3, height - 55*mm, "原点 / 現在")
     
     past_kws = json_data.get('twelve_past_keywords', [])
     y = height - 75*mm
@@ -627,13 +622,16 @@ if st.session_state.step == 1:
 elif st.session_state.step == 2:
     st.header("02. ビジョンの統合")
     st.info(f"診断タイプ: **{st.session_state.quiz_result}** / 専門: **{st.session_state.specialty}**")
+    
+    # ★変更点: 画像アップロードの項目名を修正
     col1, col2 = st.columns(2)
     with col1:
-        st.markdown("#### 過去の作品・原点")
+        st.markdown("#### １、あなたが今、好きな作品（またご自身の現代での最高制作作品）3枚")
         past_files = st.file_uploader("Origin (Max 3)", type=["jpg", "png"], accept_multiple_files=True, key="past")
     with col2:
-        st.markdown("#### 未来のイメージ・理想")
+        st.markdown("#### ２、あなたの理想の世界観を描いた作品　3枚")
         future_files = st.file_uploader("Ideal (Max 3)", type=["jpg", "png"], accept_multiple_files=True, key="future")
+        
     if st.button("次へ進む（レポート作成へ）"):
         if not past_files:
             st.error("分析のために、少なくとも1枚の作品画像をアップロードしてください。")
@@ -673,19 +671,25 @@ elif st.session_state.step == 3:
 # STEP 4 (AI Analysis)
 elif st.session_state.step == 4:
     if "analysis_data" not in st.session_state:
-        with st.spinner("AIが世界観を分析しています..."):
+        with st.spinner("世界トップレベルのアート専門家が分析しています..."):
             
             success = False
             
             if "GEMINI_API_KEY" in st.secrets:
+                # ★変更点: プロンプト（AIへの指示）を「世界トッププロの専門家」視点に修正
                 prompt_text = f"""
-                あなたは世界的なアートディレクター Thom Yoshida です。
-                ユーザーの「得意な表現」と「診断タイプ」に基づき、その人の世界観を分析し、
-                専用の診断レポートJSONを作成してください。
+                あなたは世界最高峰のアート専門家・批評家であり、トップアートディレクターです。
+                ユーザーがアップロードした画像と診断情報を元に、その人のアーティストとしての可能性や世界観を深く分析してください。
+                
+                【役割設定】
+                ・MoMAのキュレーターのような美術史的知識と、トップクリエイターの審美眼を併せ持ってください。
+                ・表面的な感想ではなく、色彩、構図、光、質感から読み取れる「作家の魂」や「潜在的な美意識」を言語化してください。
+                ・言葉遣いは、専門的でありながらも、決して難解ではなく、相手（アーティスト）への敬意と温かみに満ちた日本語にしてください。
 
-                【重要：言葉選びのルール】
-                ・専門用語やカタカナ語（コンテクスト、パラダイムなど）は極力避け、高校生でも直感的にわかる言葉を使ってください。
-                ・「〜だ」「〜である」調ではなく、丁寧で温かみのある言葉遣いにしてください。
+                【分析対象の画像について】
+                前半の画像群は「ユーザーが今好きな作品、または自身の制作作品（原点・現在）」です。
+                後半の画像群（もしあれば）は「ユーザーが目指したい理想の世界観（未来・理想）」です。
+                この2つのギャップや共通点から、その人が進むべきクリエイティブな道筋を導き出してください。
 
                 【ユーザー情報】
                 - 得意な表現: {st.session_state.specialty}
@@ -693,31 +697,31 @@ elif st.session_state.step == 4:
                 
                 【必須出力JSON構造】
                 {{
-                    "catchphrase": "短いキャッチコピー(15文字以内)",
-                    "twelve_past_keywords": ["過去や原点を表す単語12個（日本語）"],
-                    "twelve_future_keywords": ["未来や理想を表す単語12個（日本語）"],
+                    "catchphrase": "その人の世界観を一言で表す美しいキャッチコピー(15文字以内)",
+                    "twelve_past_keywords": ["現在の作品から読み取れる美意識や要素を表す単語12個（日本語）"],
+                    "twelve_future_keywords": ["理想の作品から導き出される、目指すべき未来のキーワード12個（日本語）"],
                     "sense_metrics": [
-                        {{"left": "対立軸左(例:直感)", "right": "対立軸右(例:論理)", "value": 0〜100の数値}} を8個
+                        {{"left": "対立軸左(例:静寂)", "right": "対立軸右(例:躍動)", "value": 0〜100の数値}} を8個。その人の感性のバランスを分析して。
                     ],
                     "formula": {{
-                        "values": {{"word": "大切にしたいこと(一言)", "detail": "その解説(40文字以内)"}},
-                        "strengths": {{"word": "あなたの強み(一言)", "detail": "その解説(40文字以内)"}},
-                        "interests": {{"word": "好きなこと(一言)", "detail": "その解説(40文字以内)"}}
+                        "values": {{"word": "創作において最も大切にすべき価値観(一言)", "detail": "専門家からの解説(40文字以内)"}},
+                        "strengths": {{"word": "画像から見出される決定的な強み(一言)", "detail": "専門家からの解説(40文字以内)"}},
+                        "interests": {{"word": "潜在的に惹かれているテーマ(一言)", "detail": "専門家からの解説(40文字以内)"}}
                     }},
                     "roadmap_steps": [
-                        {{"title": "Stepタイトル(短く)", "detail": "具体的な行動内容(60文字以内)"}} を3つ
+                        {{"title": "Stepタイトル(短く)", "detail": "理想に近づくための具体的な制作・思考のアドバイス(60文字以内)"}} を3つ
                     ],
                     "artist_archetypes": [
-                        {{"name": "お手本となる人物名", "detail": "なぜその人なのか(60文字以内)"}} を3名
+                        {{"name": "このユーザーが参考にするべき巨匠や現代アーティスト名", "detail": "なぜその作家から学ぶべきかの専門的な理由(60文字以内)"}} を3名
                     ],
                     "final_proposals": [
-                        {{"point": "ビジョンの要点", "detail": "解説(40文字以内)"}} を5つ
+                        {{"point": "世界観を確立するための提言", "detail": "具体的なディレクション(40文字以内)"}} を5つ
                     ],
                     "alternative_expressions": [
-                        "おすすめの別の表現方法(短く)" を3つ
+                        "その人の感性が活きる、現在とは異なる表現手法や媒体(短く)" を3つ
                     ],
                     "inspiring_quote": {{
-                        "text": "その人の世界観に最も響く、偉人の名言（日本語訳）",
+                        "text": "その人の魂を震わせる、偉大な芸術家や哲学者の名言（日本語訳）",
                         "author": "著者名"
                     }}
                 }}
