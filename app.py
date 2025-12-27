@@ -817,7 +817,7 @@ elif st.session_state.step == 4:
         render_web_result(data)
         st.markdown("### レポート完了")
         if st.session_state.get("email_sent_status", False):
-            st.success(f"📩 {st.session_state.user_email} に「分析結果」を送信しました。")
+            st.success(f"📩 {st.session_state.user_email} にレポートを送信しました。")
         else:
             st.warning("⚠️ レポート作成完了（メール送信失敗：設定を確認してください）")
             if "email_error_log" in st.session_state and st.session_state.email_error_log:
