@@ -6,6 +6,7 @@ import datetime
 import smtplib
 import requests
 import time
+import re
 from PIL import Image
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -146,7 +147,7 @@ st.markdown(f"""
         transform: translateX(5px);
     }}
     div[role="radiogroup"] > label p {{
-        color: #F7F7F7 !important;
+        color: #FFFFFF !important;
         font-size: 1.1rem !important;
         font-weight: 400 !important;
         margin: 0 !important;
@@ -155,7 +156,7 @@ st.markdown(f"""
     /* 入力フォーム */
     .stTextInput > div > div > input, .stSelectbox > div > div > div {{
         background-color: {COLORS["input_bg"]} !important;
-        color: #F7F7F7 !important; 
+        color: #FFFFFF !important; 
         border: 1px solid #666 !important;
         font-size: 1.1rem;
     }}
@@ -260,7 +261,6 @@ def save_to_google_sheets(name, age, region, email, specialty, diagnosis_type):
     except Exception as e:
         return False, str(e)
 
-# ★修正: LINE誘導付きのメール送信関数
 def send_email_with_pdf(user_email, pdf_buffer):
     if "GMAIL_ADDRESS" not in st.secrets or "GMAIL_PASSWORD" not in st.secrets:
         return False, "設定エラー: secrets.toml に GMAIL_ADDRESS または GMAIL_PASSWORD がありません。"
@@ -277,7 +277,6 @@ def send_email_with_pdf(user_email, pdf_buffer):
     msg['To'] = user_email
     msg['Subject'] = Header("【世界観診断レポート】あなたの診断結果をお届けします", 'utf-8')
     
-    # ★修正: メール本文にLINE誘導を追加
     body = f"""世界観診断をご利用いただきありがとうございます。
 あなたの診断結果レポート（PDF）をお送りします。
 
@@ -316,7 +315,6 @@ Thom Yoshida"""
 # 4. PDF生成ロジック
 # ---------------------------------------------------------
 
-# ★修正: 汎用改行ロジック (句点必須 + 助詞 + 文字数)
 def wrap_text_smart(text, max_char_count=15):
     if not text: return []
     
@@ -396,12 +394,10 @@ def draw_arrow_slider(c, x, y, width_mm, left_text, right_text, value):
     c.setFillColor(HexColor(COLORS['forest']))
     c.circle(dot_x, y, 2.5*mm, fill=1, stroke=1)
 
-# ★修正: 8ページ目専用 (句読点のみで改行、文字数制限なし)
+# P8専用 (句読点のみで改行)
 def draw_quote_special(c, text, x, y, font, size, leading):
     c.setFont(font, size)
     # 句読点で分割
-    import re
-    # 句点(。)または読点(、)で分割し、区切り文字を含める
     parts = re.split('([。、])', text)
     # 区切り文字を前の文にくっつける処理
     lines = []
@@ -495,7 +491,7 @@ def create_pdf(json_data):
     ]
     for cx, cy_pos, title, word in positions:
         c.setStrokeColor(HexColor(COLORS['forest']))
-        c.setFillColor(HexColor('#F7F7F7'))
+        c.setFillColor(HexColor('#FFFFFF'))
         c.setLineWidth(1.5)
         c.circle(cx, cy_pos, r, fill=1, stroke=1)
         c.setFont(FONT_SERIF, 18)
@@ -524,7 +520,7 @@ def create_pdf(json_data):
         draw_arrow_slider(c, x, curr_y, 48, m.get('left'), m.get('right'), m.get('value'))
     c.showPage()
 
-    # P5: ROLE MODELS
+    # P5: ROLE MODELS (ボリューム2倍、キーワード3つ)
     draw_header(c, "04. お手本にしたい人物", 5) 
     archs = json_data.get('artist_archetypes', [])
     y = height - 55*mm
@@ -544,7 +540,7 @@ def create_pdf(json_data):
         y -= 48*mm
     c.showPage()
 
-    # P6: ROADMAP
+    # P6: ROADMAP (改行30文字、ボリューム2倍、間隔拡大)
     draw_header(c, "05. 未来への道のり", 6)
     steps = json_data.get('roadmap_steps', [])
     y = height - 65*mm
@@ -564,7 +560,7 @@ def create_pdf(json_data):
         y -= 55*mm
     c.showPage()
 
-    # P7: VISION & ALTERNATIVES
+    # P7: VISION & ALTERNATIVES (解説3倍、15文字改行、間隔拡大)
     draw_header(c, "06. 次なるビジョンと表現", 7)
     COL_WIDTH = (CONTENT_WIDTH - 10*mm) / 2
     
@@ -605,7 +601,7 @@ def create_pdf(json_data):
     
     c.showPage()
 
-    # P8: MESSAGE
+    # P8: MESSAGE (句読点のみで改行)
     image_url = "https://images.unsplash.com/photo-1495312040802-a929cd14a6ab?q=80&w=2940&auto=format&fit=crop"
     try:
         response = requests.get(image_url, stream=True, timeout=10)
@@ -813,9 +809,15 @@ elif st.session_state.step == 4:
             success = False
             
             if "GEMINI_API_KEY" in st.secrets:
+                # ★修正: ユーザーの「得意な表現」に沿うようAIへの指示を強化
                 prompt_text = f"""
                 あなたは世界最高峰のアート専門家・批評家であり、トップアートディレクターです。
                 ユーザーがアップロードした画像と診断情報を元に、その人のアーティストとしての可能性や世界観を深く分析してください。
+                
+                【最重要事項】
+                ユーザーの「得意な表現」は **「{st.session_state.specialty}」** です。
+                **全ての分析結果（特にロールモデル、ビジョン、表現手法）は、必ずこの「{st.session_state.specialty}」の文脈に沿ったものにしてください。**
+                （例：写真なら写真家を、映像なら映像作家や監督を、デザインならデザイナーをロールモデルとして提案する等）
                 
                 【役割設定】
                 ・MoMAのキュレーターのような美術史的知識と、トップクリエイターの審美眼を併せ持ってください。
@@ -848,7 +850,7 @@ elif st.session_state.step == 4:
                         {{"title": "Stepタイトル(短く)", "detail": "理想に近づくための具体的な制作・思考のアドバイス(180文字以内)"}} を3つ
                     ],
                     "artist_archetypes": [
-                        {{"name": "このユーザーが参考にするべき巨匠や現代アーティスト名", "keywords": ["関連キーワード1", "キーワード2", "キーワード3"], "detail": "なぜその作家から学ぶべきかの専門的な理由(120文字以内)"}} を3名
+                        {{"name": "{st.session_state.specialty}分野における巨匠や現代アーティスト名", "keywords": ["関連キーワード1", "キーワード2", "キーワード3"], "detail": "なぜその作家から学ぶべきかの専門的な理由(120文字以内)"}} を3名
                     ],
                     "final_proposals": [
                         {{"point": "世界観を確立するための提言", "detail": "具体的なディレクション(40文字以内)"}} を5つ
