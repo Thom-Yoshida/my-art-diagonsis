@@ -581,9 +581,24 @@ def render_web_result(data):
     with col2:
         st.markdown("### 成功の方程式")
         f = data.get('formula', {})
-        st.info(f"**大切にしたいこと**\n\n{f.get('values', {}).get('word')}")
-        st.warning(f"**得意なこと**\n\n{f.get('strengths', {}).get('word')}")
-        st.success(f"**好きなこと**\n\n{f.get('interests', {}).get('word')}")
+        
+        # ★修正: 青(info)と緑(success)を廃止し、デザイン統一したカスタムカードを使用
+        st.markdown(f"""
+        <div style="border: 1px solid {COLORS['accent']}; border-radius: 8px; padding: 15px; margin-bottom: 10px; background-color: {COLORS['card']};">
+            <p style="color: {COLORS['sub']}; font-size: 0.9rem; margin: 0;">大切にしたいこと</p>
+            <p style="color: {COLORS['text']}; font-size: 1.2rem; font-weight: bold; margin: 5px 0 0 0;">{f.get('values', {}).get('word')}</p>
+        </div>
+        
+        <div style="border: 1px solid {COLORS['accent']}; border-radius: 8px; padding: 15px; margin-bottom: 10px; background-color: {COLORS['card']};">
+            <p style="color: {COLORS['sub']}; font-size: 0.9rem; margin: 0;">得意なこと</p>
+            <p style="color: {COLORS['text']}; font-size: 1.2rem; font-weight: bold; margin: 5px 0 0 0;">{f.get('strengths', {}).get('word')}</p>
+        </div>
+        
+        <div style="border: 1px solid {COLORS['accent']}; border-radius: 8px; padding: 15px; margin-bottom: 10px; background-color: {COLORS['card']};">
+            <p style="color: {COLORS['sub']}; font-size: 0.9rem; margin: 0;">好きなこと</p>
+            <p style="color: {COLORS['text']}; font-size: 1.2rem; font-weight: bold; margin: 5px 0 0 0;">{f.get('interests', {}).get('word')}</p>
+        </div>
+        """, unsafe_allow_html=True)
 
 if 'step' not in st.session_state: st.session_state.step = 1
 if 'quiz_result' not in st.session_state: st.session_state.quiz_result = None
@@ -631,10 +646,10 @@ elif st.session_state.step == 2:
     
     col1, col2 = st.columns(2)
     with col1:
-        st.markdown("#### １、今、好きな作品（またご自身の最高作品）3枚")
+        st.markdown("#### １、あなたが今、好きな作品（またご自身の現代での最高制作作品）3枚")
         past_files = st.file_uploader("Origin (Max 3)", type=["jpg", "png"], accept_multiple_files=True, key="past")
     with col2:
-        st.markdown("#### ２、理想の世界観を描いた作品　3枚")
+        st.markdown("#### ２、あなたの理想の世界観を描いた作品　3枚")
         future_files = st.file_uploader("Ideal (Max 3)", type=["jpg", "png"], accept_multiple_files=True, key="future")
         
     if st.button("次へ進む（レポート作成へ）"):
@@ -693,8 +708,8 @@ elif st.session_state.step == 3:
 # STEP 4 (AI Analysis)
 elif st.session_state.step == 4:
     if "analysis_data" not in st.session_state:
-        # 待機メッセージ変更
-        with st.spinner("解析中1分お待ちください..."):
+        # ★修正: 待機メッセージ変更
+        with st.spinner("詳しく分析中です。1分程度お待ちください。"):
             
             success = False
             
