@@ -219,7 +219,6 @@ def resize_image_for_api(image, max_width=1024):
         return image.resize((max_width, height_size), Image.Resampling.LANCZOS)
     return image
 
-# ★修正: リスト保存項目を追加（年代・地域）
 def save_to_google_sheets(name, age, region, email, specialty, diagnosis_type):
     if "gcp_service_account" not in st.secrets:
         return False, "Secretsにgcp_service_accountの設定がありません"
@@ -237,7 +236,6 @@ def save_to_google_sheets(name, age, region, email, specialty, diagnosis_type):
         sheet_name = st.secrets.get("SHEET_NAME", "customer_list")
         sheet = client.open(sheet_name).sheet1
         now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        # 保存項目: 日時, 名前, 年代, 地域, メール, 専門, 診断結果
         sheet.append_row([now, name, age, region, email, specialty, diagnosis_type])
         return True, None
     except Exception as e:
@@ -284,40 +282,27 @@ Thom Yoshida"""
 # 4. PDF生成ロジック
 # ---------------------------------------------------------
 
-# ★修正: 助詞での改行を優先するロジックを強化
 def wrap_text_smart(text, max_char_count=15):
     if not text: return []
-    # 助詞・句読点リスト（改行推奨ポイント）
     delimiters = ['、', '。', 'て', 'に', 'を', 'は', 'が', 'と', 'へ', 'で', 'や', 'の', 'も', 'し', 'い', 'か', 'ね', 'よ', '！', '？']
     lines = []
     current_line = ""
-    
     for char in text:
         current_line += char
-        # 目標文字数に近づいたら改行チャンスを伺う
         if len(current_line) >= max_char_count * 0.85:
-            # 助詞・句読点ならそこで改行
             if char in delimiters:
                 lines.append(current_line)
                 current_line = ""
                 continue
-            # 目標文字数を少し超えたら強制改行（ただし言葉の途中でもやむなしだが、なるべく避ける）
             if len(current_line) >= max_char_count + 2:
                 lines.append(current_line)
                 current_line = ""
-    
     if current_line: lines.append(current_line)
     return lines
 
 def draw_wrapped_text(c, text, x, y, font, size, width_limit_mm, leading, centered=False):
     c.setFont(font, size)
-    # 文字数ベースで改行を計算（フォントサイズ等から逆算せず、文字数指定を優先）
-    # width_limit_mm は無視して、wrap_text_smartのデフォルト(15文字)を使用
-    # もし文字数を可変にしたい場合は wrap_text_smart に引数を渡す必要がありますが、
-    # 今回は要件で「15文字程度」と固定されているため、デフォルト値を使用します。
-    
     lines = wrap_text_smart(text, max_char_count=15)
-    
     current_y = y
     for line in lines:
         if centered: c.drawCentredString(x, current_y, line)
@@ -437,7 +422,6 @@ def create_pdf(json_data):
         c.drawCentredString(cx, cy_pos + 12*mm, title) 
         c.setFont(FONT_SANS, 24)
         c.setFillColor(HexColor(COLORS['pdf_text']))
-        # 引数 135*mm は無視されますが、draw_wrapped_text内で15文字制限を適用
         draw_wrapped_text(c, word, cx, cy_pos - 8*mm, FONT_SANS, 24, 135*mm, 30, centered=True)
     
     c.setFont(FONT_SANS, 80)
@@ -463,7 +447,6 @@ def create_pdf(json_data):
     draw_header(c, "04. お手本にしたい人物", 5) 
     archs = json_data.get('artist_archetypes', [])
     y = height - 55*mm
-    # 15文字制限を適用
     for i, a in enumerate(archs[:3]):
         c.setFont(FONT_SERIF, 22)
         c.setFillColor(HexColor(COLORS['forest']))
@@ -478,7 +461,6 @@ def create_pdf(json_data):
     steps = json_data.get('roadmap_steps', [])
     y = height - 65*mm
     
-    # ★修正: 左側に番号、右側にタイトルと「その真下」に解説（15文字改行）
     for i, step in enumerate(steps):
         # 番号
         c.setFont(FONT_SANS, 40)
@@ -556,7 +538,7 @@ def create_pdf(json_data):
     q_author = quote_data.get('author', '')
 
     c.setFillColor(TEXT_COLOR_END)
-    # ★修正: 名言を中央配置、15文字改行、余白十分、助詞改行ロジック適用
+    # 名言を中央配置、15文字改行、余白十分
     draw_wrapped_text(c, q_text, width/2, height/2 + 25*mm, FONT_SERIF, 28, 135*mm, 42, centered=True)
     c.setFont(FONT_SANS, 18)
     c.setFillColor(ACCENT_COLOR_END)
@@ -677,7 +659,7 @@ elif st.session_state.step == 3:
     st.header("03. レポートの受け取り")
     with st.container():
         st.markdown(f"""<div style="background-color: {COLORS['card']}; padding: 30px; border-radius: 10px; border: 1px solid {COLORS['accent']}; text-align: center;"><h3 style="color: {COLORS['accent']};">Analysis Ready</h3><p>診断結果レポートを発行します。</p></div><br>""", unsafe_allow_html=True)
-        # ★修正: 入力フォームを「名前、年代、地域、メール」に変更
+        # 入力フォーム変更
         with st.form("lead_capture"):
             col_f1, col_f2 = st.columns(2)
             with col_f1: 
@@ -695,7 +677,7 @@ elif st.session_state.step == 3:
                     # メールアドレスのクリーニング
                     st.session_state.user_email = user_email.strip().replace('\xa0', '').replace('\u3000', ' ')
                     
-                    # ★修正: 保存処理に年代と地域を追加
+                    # 保存処理
                     is_saved, save_error = save_to_google_sheets(
                         user_name, age_group, region, st.session_state.user_email, 
                         st.session_state.specialty, st.session_state.quiz_result
@@ -711,7 +693,7 @@ elif st.session_state.step == 3:
 # STEP 4 (AI Analysis)
 elif st.session_state.step == 4:
     if "analysis_data" not in st.session_state:
-        # ★修正: 待機メッセージを変更
+        # 待機メッセージ変更
         with st.spinner("解析中1分お待ちください..."):
             
             success = False
@@ -813,18 +795,37 @@ elif st.session_state.step == 4:
             st.session_state.email_error_log = error_msg 
             st.rerun()
     else:
+        # 1. 簡易結果は画面で見せる
         data = st.session_state.analysis_data
         render_web_result(data)
-        st.markdown("### レポート完了")
+        
+        st.markdown("---")
+        st.markdown("### 📩 詳細レポートを送信しました")
+        
+        # 2. メールの送信結果によって表示を変える
         if st.session_state.get("email_sent_status", False):
-            st.success(f"📩 {st.session_state.user_email} にレポートを送信しました。")
+            # 成功時：ダウンロードボタンを消し、メール確認を促すメッセージのみにする
+            st.success(f"""
+            **{st.session_state.user_name} 様の診断レポート（PDF）を、以下のメールアドレス宛に送信いたしました。**
+            
+            📧 送信先: **{st.session_state.user_email}**
+            
+            ※ 数分以内に届かない場合は、**迷惑メールフォルダ**もご確認ください。
+            """)
+            st.info("このレポートは、あなたの今後の創作活動の指針となる「美の設計図」です。大切に保存してください。")
+            
         else:
-            st.warning("⚠️ レポート作成完了（メール送信失敗：設定を確認してください）")
+            # 失敗時：エラーを表示し、緊急避難的にダウンロードボタンを出す
+            st.error("⚠️ メール送信に失敗しました。")
             if "email_error_log" in st.session_state and st.session_state.email_error_log:
-                st.error(f"【詳細エラー原因】: {st.session_state.email_error_log}")
-                
-        pdf_buffer = create_pdf(data)
-        st.download_button("📥 診断レポートをダウンロード", pdf_buffer, "Visionary_Report.pdf", "application/pdf")
-        if st.button("最初からやり直す"):
+                st.error(f"【エラー原因】: {st.session_state.email_error_log}")
+            
+            st.warning("メールが送れませんでしたので、こちらから直接ダウンロードしてください。")
+            pdf_buffer = create_pdf(data)
+            st.download_button("📥 診断レポートをダウンロード", pdf_buffer, "Visionary_Report.pdf", "application/pdf")
+
+        # 3. リセットボタン
+        st.markdown("<br><br>", unsafe_allow_html=True)
+        if st.button("トップに戻る"):
             st.session_state.clear()
             st.rerun()
