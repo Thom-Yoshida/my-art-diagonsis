@@ -278,7 +278,7 @@ def send_email_with_pdf(user_email, pdf_buffer):
     msg = MIMEMultipart()
     msg['From'] = sender_email
     msg['To'] = user_email
-    msg['Subject'] = Header("【世界観診断レポート】あなたの診断結果をお届けします", 'utf-8')
+    msg['Subject'] = Header("【世界観診断レポート】あなたの診断結果をお届けします。（1分程度お待ちを）", 'utf-8')
     
     body = """世界観診断をご利用いただきありがとうございます。
 あなたの診断結果レポート（PDF）をお送りします。
