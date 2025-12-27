@@ -146,7 +146,7 @@ st.markdown(f"""
         transform: translateX(5px);
     }}
     div[role="radiogroup"] > label p {{
-        color: #FFFFFF !important;
+        color: #F7F7F7 !important;
         font-size: 1.1rem !important;
         font-weight: 400 !important;
         margin: 0 !important;
@@ -155,7 +155,7 @@ st.markdown(f"""
     /* 入力フォーム */
     .stTextInput > div > div > input, .stSelectbox > div > div > div {{
         background-color: {COLORS["input_bg"]} !important;
-        color: #FFFFFF !important; 
+        color: #F7F7F7 !important; 
         border: 1px solid #666 !important;
         font-size: 1.1rem;
     }}
@@ -495,7 +495,7 @@ def create_pdf(json_data):
     ]
     for cx, cy_pos, title, word in positions:
         c.setStrokeColor(HexColor(COLORS['forest']))
-        c.setFillColor(HexColor('#FFFFFF'))
+        c.setFillColor(HexColor('#F7F7F7'))
         c.setLineWidth(1.5)
         c.circle(cx, cy_pos, r, fill=1, stroke=1)
         c.setFont(FONT_SERIF, 18)
