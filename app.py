@@ -300,9 +300,9 @@ def wrap_text_smart(text, max_char_count=15):
     if current_line: lines.append(current_line)
     return lines
 
-def draw_wrapped_text(c, text, x, y, font, size, width_limit_mm, leading, centered=False):
+def draw_wrapped_text(c, text, x, y, font, size, width_limit_mm, leading, centered=False, char_limit=15):
     c.setFont(font, size)
-    lines = wrap_text_smart(text, max_char_count=15)
+    lines = wrap_text_smart(text, max_char_count=char_limit)
     current_y = y
     for line in lines:
         if centered: c.drawCentredString(x, current_y, line)
@@ -342,6 +342,24 @@ def draw_arrow_slider(c, x, y, width_mm, left_text, right_text, value):
     dot_x = x + (value / 100) * bar_width
     c.setFillColor(HexColor(COLORS['forest']))
     c.circle(dot_x, y, 2.5*mm, fill=1, stroke=1)
+
+def draw_quote_special(c, text, x, y, font, size, leading):
+    c.setFont(font, size)
+    # 読点で分割して、間に空行を入れる
+    parts = text.split('、')
+    current_y = y
+    
+    for i, part in enumerate(parts):
+        line_text = part + ("、" if i < len(parts)-1 else "")
+        # 長い場合は通常の改行も適用
+        sub_lines = wrap_text_smart(line_text, max_char_count=15)
+        for line in sub_lines:
+            c.drawCentredString(x, current_y, line)
+            current_y -= leading
+        
+        # 読点区切りの後は1行空ける（ただし最後以外）
+        if i < len(parts)-1:
+            current_y -= leading # 空行
 
 def create_pdf(json_data):
     buffer = io.BytesIO()
@@ -443,20 +461,29 @@ def create_pdf(json_data):
         draw_arrow_slider(c, x, curr_y, 48, m.get('left'), m.get('right'), m.get('value'))
     c.showPage()
 
-    # P5: ROLE MODELS
+    # P5: ROLE MODELS (ボリューム2倍、キーワード3つ)
     draw_header(c, "04. お手本にしたい人物", 5) 
     archs = json_data.get('artist_archetypes', [])
     y = height - 55*mm
     for i, a in enumerate(archs[:3]):
-        c.setFont(FONT_SERIF, 22)
+        c.setFont(FONT_SERIF, 20)
         c.setFillColor(HexColor(COLORS['forest']))
         c.drawString(MARGIN_X, y, f"◆ {a.get('name')}")
+        
+        # キーワード3つを表示
+        kws = a.get('keywords', [])
+        kw_text = " / ".join(kws[:3])
+        c.setFont(FONT_SANS, 12)
+        c.setFillColor(HexColor(COLORS['accent']))
+        c.drawString(MARGIN_X + 5*mm, y - 8*mm, f"[{kw_text}]")
+
+        # 説明文（ボリューム増）
         c.setFillColor(HexColor(COLORS['pdf_text']))
-        draw_wrapped_text(c, a.get('detail', ''), MARGIN_X + 8*mm, y - 12*mm, FONT_SANS, 14, 135*mm, 20)
-        y -= 48*mm
+        draw_wrapped_text(c, a.get('detail', ''), MARGIN_X + 5*mm, y - 16*mm, FONT_SANS, 11, 150*mm, 15, char_limit=35)
+        y -= 48*mm # 間隔調整
     c.showPage()
 
-    # P6: ROADMAP
+    # P6: ROADMAP (改行30文字、ボリューム3割増)
     draw_header(c, "05. 未来への道のり", 6)
     steps = json_data.get('roadmap_steps', [])
     y = height - 65*mm
@@ -473,18 +500,19 @@ def create_pdf(json_data):
         c.setFillColor(HexColor(COLORS['pdf_text']))
         c.drawString(TITLE_X, y, step.get('title', ''))
         
-        # 解説（タイトルの真下に配置、15文字改行）
+        # 解説（30文字改行）
         c.setFillColor(HexColor(COLORS['pdf_sub']))
-        draw_wrapped_text(c, step.get('detail', ''), TITLE_X, y - 8*mm, FONT_SANS, 12, 135*mm, 18)
+        # char_limit=30 に変更
+        draw_wrapped_text(c, step.get('detail', ''), TITLE_X, y - 8*mm, FONT_SANS, 11, 160*mm, 16, char_limit=30)
         
         y -= 45*mm
     c.showPage()
 
-    # P7: VISION & ALTERNATIVES
+    # P7: VISION & ALTERNATIVES (用語の補足追加)
     draw_header(c, "06. 次なるビジョンと表現", 7)
     COL_WIDTH = (CONTENT_WIDTH - 10*mm) / 2
     
-    # Left
+    # Left: Vision
     c.setFont(FONT_SERIF, 20)
     c.setFillColor(HexColor(COLORS['forest']))
     c.drawString(MARGIN_X, height - 45*mm, "Next Vision")
@@ -497,22 +525,36 @@ def create_pdf(json_data):
         draw_wrapped_text(c, p.get('detail', ''), MARGIN_X + 5*mm, y - 8*mm, FONT_SANS, 11, 135*mm, 14)
         y -= 24*mm
         
-    # Right
-    RIGHT_START_X = width/2 + 10*mm # Center + 10mm
+    # Right: Other Expressions
+    RIGHT_START_X = width/2 + 10*mm
     c.setFont(FONT_SERIF, 20)
     c.setFillColor(HexColor(COLORS['forest']))
     c.drawString(RIGHT_START_X, height - 45*mm, "Other Expressions")
+    
     alts = json_data.get('alternative_expressions', [])
     y_alt = height - 60*mm
+    
+    # JSON構造変更に伴いループ処理修正
     for alt in alts[:3]:
+        # alt は辞書型 {"term": "...", "detail": "..."} を想定
+        term = alt.get('term', '') if isinstance(alt, dict) else str(alt)
+        detail = alt.get('detail', '') if isinstance(alt, dict) else ''
+
         c.setFont(FONT_SANS, 14)
         c.setFillColor(HexColor(COLORS['pdf_text']))
-        draw_wrapped_text(c, f"◇ {alt}", RIGHT_START_X, y_alt, FONT_SANS, 14, 135*mm, 20)
+        c.drawString(RIGHT_START_X, y_alt, f"◇ {term}")
+        
+        # 補足説明を描画
+        if detail:
+            c.setFont(FONT_SANS, 10)
+            c.setFillColor(HexColor(COLORS['pdf_sub']))
+            draw_wrapped_text(c, detail, RIGHT_START_X + 5*mm, y_alt - 6*mm, FONT_SANS, 10, 135*mm, 12, char_limit=18)
+            
         y_alt -= 30*mm
     
     c.showPage()
 
-    # P8: MESSAGE
+    # P8: MESSAGE (読点改行＋1行空き、肩書き)
     image_url = "https://images.unsplash.com/photo-1495312040802-a929cd14a6ab?q=80&w=2940&auto=format&fit=crop"
     try:
         response = requests.get(image_url, stream=True, timeout=10)
@@ -536,13 +578,21 @@ def create_pdf(json_data):
     quote_data = json_data.get('inspiring_quote', {})
     q_text = quote_data.get('text', '')
     q_author = quote_data.get('author', '')
+    q_title = quote_data.get('title', '') # 肩書き
 
     c.setFillColor(TEXT_COLOR_END)
-    # 名言を中央配置、15文字改行、余白十分
-    draw_wrapped_text(c, q_text, width/2, height/2 + 25*mm, FONT_SERIF, 28, 135*mm, 42, centered=True)
-    c.setFont(FONT_SANS, 18)
+    # 特殊描画関数を使用（読点で改行＋空行）
+    draw_quote_special(c, q_text, width/2, height/2 + 25*mm, FONT_SERIF, 24, 32)
+    
+    c.setFont(FONT_SANS, 16)
     c.setFillColor(ACCENT_COLOR_END)
-    c.drawCentredString(width/2, height/2 - 45*mm, f"- {q_author}")
+    # 著者名＋肩書き
+    author_str = f"- {q_author}"
+    if q_title:
+        author_str += f" ({q_title})"
+        
+    c.drawCentredString(width/2, height/2 - 55*mm, author_str)
+    
     c.setFont(FONT_SANS, 12)
     c.setFillColor(TEXT_COLOR_END)
     c.drawRightString(width - MARGIN_X, 15*mm, "8 / 8")
@@ -582,7 +632,6 @@ def render_web_result(data):
         st.markdown("### 成功の方程式")
         f = data.get('formula', {})
         
-        # ★修正: 青(info)と緑(success)を廃止し、デザイン統一したカスタムカードを使用
         st.markdown(f"""
         <div style="border: 1px solid {COLORS['accent']}; border-radius: 8px; padding: 15px; margin-bottom: 10px; background-color: {COLORS['card']};">
             <p style="color: {COLORS['sub']}; font-size: 0.9rem; margin: 0;">大切にしたいこと</p>
@@ -708,7 +757,7 @@ elif st.session_state.step == 3:
 # STEP 4 (AI Analysis)
 elif st.session_state.step == 4:
     if "analysis_data" not in st.session_state:
-        # ★修正: 待機メッセージ変更
+        # 待機メッセージ変更
         with st.spinner("詳しく分析中です。1分程度お待ちください。"):
             
             success = False
@@ -746,20 +795,21 @@ elif st.session_state.step == 4:
                         "interests": {{"word": "潜在的に惹かれているテーマ(一言)", "detail": "専門家からの解説(40文字以内)"}}
                     }},
                     "roadmap_steps": [
-                        {{"title": "Stepタイトル(短く)", "detail": "理想に近づくための具体的な制作・思考のアドバイス(60文字以内)"}} を3つ
+                        {{"title": "Stepタイトル(短く)", "detail": "理想に近づくための具体的な制作・思考のアドバイス(90文字以内)"}} を3つ
                     ],
                     "artist_archetypes": [
-                        {{"name": "このユーザーが参考にするべき巨匠や現代アーティスト名", "detail": "なぜその作家から学ぶべきかの専門的な理由(60文字以内)"}} を3名
+                        {{"name": "このユーザーが参考にするべき巨匠や現代アーティスト名", "keywords": ["関連キーワード1", "キーワード2", "キーワード3"], "detail": "なぜその作家から学ぶべきかの専門的な理由(120文字以内)"}} を3名
                     ],
                     "final_proposals": [
                         {{"point": "世界観を確立するための提言", "detail": "具体的なディレクション(40文字以内)"}} を5つ
                     ],
                     "alternative_expressions": [
-                        "その人の感性が活きる、現在とは異なる表現手法や媒体(短く)" を3つ
+                        {{"term": "手法名(例: キアロスクーロ)", "detail": "その手法がなぜ合うのかの補足説明(40文字以内)"}} を3つ
                     ],
                     "inspiring_quote": {{
                         "text": "その人の魂を震わせる、偉大な芸術家や哲学者の名言（日本語訳）",
-                        "author": "著者名"
+                        "author": "著者名",
+                        "title": "著者の肩書き(例: フランスの哲学者)"
                     }}
                 }}
                 """
@@ -796,10 +846,10 @@ elif st.session_state.step == 4:
                     "sense_metrics": [{"left": "論理", "right": "直感", "value": 70}] * 8,
                     "formula": {"values": {"word": "システム", "detail": "安全な運用"}, "strengths": {"word": "回復力", "detail": "バックアップ機能"}, "interests": {"word": "安定", "detail": "継続すること"}},
                     "roadmap_steps": [{"title": "Step 1", "detail": "接続を確認する"}, {"title": "Step 2", "detail": "再試行する"}, {"title": "Step 3", "detail": "サポートに連絡する"}],
-                    "artist_archetypes": [{"name": "システム管理者", "detail": "継続性を保証する人"}],
+                    "artist_archetypes": [{"name": "システム管理者", "keywords": ["安定", "維持", "保守"], "detail": "継続性を保証する人"}],
                     "final_proposals": [{"point": "APIキー確認", "detail": "設定を見直してください"}, {"point": "制限確認", "detail": "無料枠を超えている可能性があります"}],
-                    "alternative_expressions": ["手動レビュー", "直接連絡"],
-                    "inspiring_quote": {"text": "創造とは、結びつけることである。", "author": "Thom Yoshida"}
+                    "alternative_expressions": [{"term": "手動レビュー", "detail": "直接連絡"}],
+                    "inspiring_quote": {"text": "創造とは、結びつけることである。", "author": "Thom Yoshida", "title": "Developer"}
                 }
 
             st.session_state.analysis_data = data
