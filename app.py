@@ -10,7 +10,7 @@ from PIL import Image
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.application import MIMEApplication
-# ★追加: 文字化け防止のためのヘッダーモジュール
+# 文字化け防止のためのヘッダーモジュール
 from email.header import Header
 
 # Google系ライブラリ
@@ -239,17 +239,18 @@ def send_email_with_pdf(user_email, pdf_buffer):
     if "GMAIL_ADDRESS" not in st.secrets or "GMAIL_PASSWORD" not in st.secrets:
         return False, "設定エラー: secrets.toml に GMAIL_ADDRESS または GMAIL_PASSWORD がありません。"
         
-    sender_email = st.secrets["GMAIL_ADDRESS"]
-    sender_password = st.secrets["GMAIL_PASSWORD"]
+    # ★修正: Secretsからの取得時に、見えない空白を強制的に削除
+    sender_email = str(st.secrets["GMAIL_ADDRESS"]).strip().replace('\xa0', '').replace('\u3000', ' ')
+    sender_password = str(st.secrets["GMAIL_PASSWORD"]).strip().replace('\xa0', '').replace('\u3000', ' ')
     
-    # ★修正: 入力されたメールアドレスから見えない空白を除去
-    user_email = user_email.strip()
+    # ★修正: ユーザー入力アドレスも再度クリーニング
+    user_email = str(user_email).strip().replace('\xa0', '').replace('\u3000', ' ')
     
     msg = MIMEMultipart()
     msg['From'] = sender_email
     msg['To'] = user_email
     
-    # ★修正: 件名の文字化け・エラー防止
+    # ヘッダーの文字コード指定
     msg['Subject'] = Header("【世界観診断レポート】あなたの診断結果をお届けします", 'utf-8')
     
     body = """世界観診断をご利用いただきありがとうございます。
@@ -259,8 +260,8 @@ def send_email_with_pdf(user_email, pdf_buffer):
 
 Thom Yoshida"""
 
-    # ★修正: 本文中の見えない空白を置換し、utf-8でエンコード
-    body = body.replace('\u00a0', ' ')
+    # 本文のクリーニングとUTF-8指定
+    body = body.replace('\u00a0', ' ').replace('\xa0', ' ')
     msg.attach(MIMEText(body, 'plain', 'utf-8'))
     
     pdf_buffer.seek(0)
@@ -635,10 +636,10 @@ elif st.session_state.step == 2:
     
     col1, col2 = st.columns(2)
     with col1:
-        st.markdown("#### １、今、好きな作品（or ご自身の最高制作作品）3枚")
+        st.markdown("#### １、あなたが今、好きな作品（またご自身の現代での最高制作作品）3枚")
         past_files = st.file_uploader("Origin (Max 3)", type=["jpg", "png"], accept_multiple_files=True, key="past")
     with col2:
-        st.markdown("#### ２、理想の世界観を描いた作品　3枚")
+        st.markdown("#### ２、あなたの理想の世界観を描いた作品　3枚")
         future_files = st.file_uploader("Ideal (Max 3)", type=["jpg", "png"], accept_multiple_files=True, key="future")
         
     if st.button("次へ進む（レポート作成へ）"):
@@ -666,14 +667,14 @@ elif st.session_state.step == 3:
         with st.form("lead_capture"):
             col_f1, col_f2 = st.columns(2)
             with col_f1: user_name = st.text_input("お名前")
-            # ★修正: ここでも空白除去を実行
+            # ★修正: ここでも入力から見えない空白を除去するよう設定
             with col_f2: user_email = st.text_input("メールアドレス")
             submit = st.form_submit_button("診断結果を見る", type="primary")
             if submit:
                 if user_name and user_email:
                     st.session_state.user_name = user_name
-                    # ★修正: 受け取る際にもstrip()で空白除去
-                    st.session_state.user_email = user_email.strip()
+                    # ★修正: メールアドレスの空白クリーニングを適用
+                    st.session_state.user_email = user_email.strip().replace('\xa0', '').replace('\u3000', ' ')
                     save_to_google_sheets(user_name, user_email, st.session_state.specialty, st.session_state.quiz_result)
                     st.session_state.step = 4
                     st.rerun()
