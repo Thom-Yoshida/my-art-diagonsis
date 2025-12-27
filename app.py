@@ -1,3 +1,42 @@
+# --- 接続テストここから ---
+st.write("--- 🔧 システム接続診断 ---")
+
+# 1. Secretsの存在確認
+if "gcp_service_account" in st.secrets:
+    st.success("✅ Secrets設定: OK")
+    
+    # 2. クライアントEmailの確認
+    try:
+        client_email = st.secrets["gcp_service_account"]["client_email"]
+        st.info(f"🤖 ロボットのメアド: {client_email}")
+        st.write("↑ このメアドをスプレッドシートの「共有」に追加しましたか？")
+    except:
+        st.error("❌ Secretsの中に client_email が見つかりません。書き方を確認してください。")
+
+    # 3. 実際に書き込みテスト
+    if st.button("今すぐ接続テストを実行"):
+        try:
+            creds_dict = dict(st.secrets["gcp_service_account"])
+            scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
+            creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+            client = gspread.authorize(creds)
+            
+            # シートを開く
+            sheet = client.open("customer_list").sheet1
+            st.success("✅ スプレッドシート発見！")
+            
+            # 書き込む
+            sheet.append_row(["テスト書き込み", datetime.datetime.now().strftime("%H:%M:%S"), "接続成功"])
+            st.success("✅ 書き込み成功！シートを確認してください。")
+            
+        except Exception as e:
+            st.error(f"❌ 接続エラー発生: {e}")
+            st.write("エラー内容をコピーして教えてください。")
+else:
+    st.error("❌ Secretsに [gcp_service_account] がありません。")
+st.write("-----------------------------")
+# --- 接続テストここまで ---
+
 import streamlit as st
 import os
 import json
