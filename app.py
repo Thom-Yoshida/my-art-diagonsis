@@ -1,4 +1,3 @@
-
 import streamlit as st
 import os
 import json
@@ -31,8 +30,6 @@ from reportlab.lib.units import mm
 from reportlab.lib.colors import HexColor
 from reportlab.lib.utils import ImageReader
 
-
-
 # ---------------------------------------------------------
 # 0. 初期設定 & フォント自動セットアップ
 # ---------------------------------------------------------
@@ -41,7 +38,7 @@ st.set_page_config(page_title="世界観診断 | Visionary Analysis", layout="wi
 # デザイン定義 (COLORS - v5.2 Matte White Tuned)
 COLORS = {
     "bg": "#1E1E1E",        
-    "text": "#F7F7F7",      
+    "text": "#F0F0F0",      
     "accent": "#D6AE60",    
     "sub": "#A0BACC",       
     "forest": "#6FB3B8",    
@@ -115,7 +112,7 @@ st.markdown(f"""
         color: {COLORS["text"]} !important;
         opacity: 0.95;
     }}
-    .stTextInput label {{
+    .stTextInput label, .stSelectbox label {{
         color: {COLORS["text"]} !important;
         font-size: 1.0rem !important;
         font-weight: normal !important;
@@ -156,12 +153,11 @@ st.markdown(f"""
     }}
 
     /* 入力フォーム */
-    .stTextInput > div > div > input {{
+    .stTextInput > div > div > input, .stSelectbox > div > div > div {{
         background-color: {COLORS["input_bg"]} !important;
         color: #FFFFFF !important; 
         border: 1px solid #666 !important;
         font-size: 1.1rem;
-        padding: 10px;
     }}
     
     /* ボタン */
@@ -223,39 +219,41 @@ def resize_image_for_api(image, max_width=1024):
         return image.resize((max_width, height_size), Image.Resampling.LANCZOS)
     return image
 
-# ★修正箇所：エラー詳細を返すように変更
-def save_to_google_sheets(name, email, specialty, diagnosis_type):
+# ★修正: リスト保存項目を追加（年代・地域）
+def save_to_google_sheets(name, age, region, email, specialty, diagnosis_type):
     if "gcp_service_account" not in st.secrets:
         return False, "Secretsにgcp_service_accountの設定がありません"
     try:
         creds_dict = dict(st.secrets["gcp_service_account"])
+        if "type" not in creds_dict:
+             try:
+                 creds_dict = json.loads(st.secrets["gcp_service_account"])
+             except: pass
+
         scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
         creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
         client = gspread.authorize(creds)
+        
         sheet_name = st.secrets.get("SHEET_NAME", "customer_list")
         sheet = client.open(sheet_name).sheet1
         now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        sheet.append_row([now, name, email, specialty, diagnosis_type])
+        # 保存項目: 日時, 名前, 年代, 地域, メール, 専門, 診断結果
+        sheet.append_row([now, name, age, region, email, specialty, diagnosis_type])
         return True, None
     except Exception as e:
-        return False, str(e) # エラー内容を返す
+        return False, str(e)
 
 def send_email_with_pdf(user_email, pdf_buffer):
     if "GMAIL_ADDRESS" not in st.secrets or "GMAIL_PASSWORD" not in st.secrets:
         return False, "設定エラー: secrets.toml に GMAIL_ADDRESS または GMAIL_PASSWORD がありません。"
         
-    # Secretsからの取得時に、見えない空白を強制的に削除
     sender_email = str(st.secrets["GMAIL_ADDRESS"]).strip().replace('\xa0', '').replace('\u3000', ' ')
     sender_password = str(st.secrets["GMAIL_PASSWORD"]).strip().replace('\xa0', '').replace('\u3000', ' ')
-    
-    # ユーザー入力アドレスも再度クリーニング
     user_email = str(user_email).strip().replace('\xa0', '').replace('\u3000', ' ')
     
     msg = MIMEMultipart()
     msg['From'] = sender_email
     msg['To'] = user_email
-    
-    # ヘッダーの文字コード指定
     msg['Subject'] = Header("【世界観診断レポート】あなたの診断結果をお届けします", 'utf-8')
     
     body = """世界観診断をご利用いただきありがとうございます。
@@ -264,8 +262,6 @@ def send_email_with_pdf(user_email, pdf_buffer):
 この分析が、あなたの創作活動のヒントになれば幸いです。
 
 Thom Yoshida"""
-
-    # 本文のクリーニングとUTF-8指定
     body = body.replace('\u00a0', ' ').replace('\xa0', ' ')
     msg.attach(MIMEText(body, 'plain', 'utf-8'))
     
@@ -288,29 +284,40 @@ Thom Yoshida"""
 # 4. PDF生成ロジック
 # ---------------------------------------------------------
 
-def wrap_text_smart(text, max_char_count):
+# ★修正: 助詞での改行を優先するロジックを強化
+def wrap_text_smart(text, max_char_count=15):
     if not text: return []
+    # 助詞・句読点リスト（改行推奨ポイント）
     delimiters = ['、', '。', 'て', 'に', 'を', 'は', 'が', 'と', 'へ', 'で', 'や', 'の', 'も', 'し', 'い', 'か', 'ね', 'よ', '！', '？']
     lines = []
     current_line = ""
+    
     for char in text:
         current_line += char
+        # 目標文字数に近づいたら改行チャンスを伺う
         if len(current_line) >= max_char_count * 0.85:
+            # 助詞・句読点ならそこで改行
             if char in delimiters:
                 lines.append(current_line)
                 current_line = ""
                 continue
+            # 目標文字数を少し超えたら強制改行（ただし言葉の途中でもやむなしだが、なるべく避ける）
             if len(current_line) >= max_char_count + 2:
                 lines.append(current_line)
                 current_line = ""
+    
     if current_line: lines.append(current_line)
     return lines
 
-def draw_wrapped_text(c, text, x, y, font, size, max_width_mm, leading, centered=False):
+def draw_wrapped_text(c, text, x, y, font, size, width_limit_mm, leading, centered=False):
     c.setFont(font, size)
-    char_width_mm = size * 0.352 * 0.95 
-    max_chars = int(max_width_mm / char_width_mm)
-    lines = wrap_text_smart(text, max_chars)
+    # 文字数ベースで改行を計算（フォントサイズ等から逆算せず、文字数指定を優先）
+    # width_limit_mm は無視して、wrap_text_smartのデフォルト(15文字)を使用
+    # もし文字数を可変にしたい場合は wrap_text_smart に引数を渡す必要がありますが、
+    # 今回は要件で「15文字程度」と固定されているため、デフォルト値を使用します。
+    
+    lines = wrap_text_smart(text, max_char_count=15)
+    
     current_y = y
     for line in lines:
         if centered: c.drawCentredString(x, current_y, line)
@@ -430,7 +437,8 @@ def create_pdf(json_data):
         c.drawCentredString(cx, cy_pos + 12*mm, title) 
         c.setFont(FONT_SANS, 24)
         c.setFillColor(HexColor(COLORS['pdf_text']))
-        draw_wrapped_text(c, word, cx, cy_pos - 8*mm, FONT_SANS, 24, r*1.5, 30, centered=True)
+        # 引数 135*mm は無視されますが、draw_wrapped_text内で15文字制限を適用
+        draw_wrapped_text(c, word, cx, cy_pos - 8*mm, FONT_SANS, 24, 135*mm, 30, centered=True)
     
     c.setFont(FONT_SANS, 80)
     c.setFillColor(HexColor(COLORS['accent']))
@@ -455,13 +463,13 @@ def create_pdf(json_data):
     draw_header(c, "04. お手本にしたい人物", 5) 
     archs = json_data.get('artist_archetypes', [])
     y = height - 55*mm
-    TEXT_WIDTH_20 = 115 * mm 
+    # 15文字制限を適用
     for i, a in enumerate(archs[:3]):
         c.setFont(FONT_SERIF, 22)
         c.setFillColor(HexColor(COLORS['forest']))
         c.drawString(MARGIN_X, y, f"◆ {a.get('name')}")
         c.setFillColor(HexColor(COLORS['pdf_text']))
-        draw_wrapped_text(c, a.get('detail', ''), MARGIN_X + 8*mm, y - 12*mm, FONT_SANS, 14, TEXT_WIDTH_20, 20)
+        draw_wrapped_text(c, a.get('detail', ''), MARGIN_X + 8*mm, y - 12*mm, FONT_SANS, 14, 135*mm, 20)
         y -= 48*mm
     c.showPage()
 
@@ -470,21 +478,22 @@ def create_pdf(json_data):
     steps = json_data.get('roadmap_steps', [])
     y = height - 65*mm
     
-    # ★左右分離レイアウト
-    LEFT_WIDTH = 70 * mm  
-    RIGHT_WIDTH = CONTENT_WIDTH - LEFT_WIDTH - 10*mm
-    
+    # ★修正: 左側に番号、右側にタイトルと「その真下」に解説（15文字改行）
     for i, step in enumerate(steps):
+        # 番号
         c.setFont(FONT_SANS, 40)
         c.setFillColor(HexColor(COLORS['accent']))
         c.drawString(MARGIN_X, y - 5*mm, f"0{i+1}")
         
+        # タイトル
+        TITLE_X = MARGIN_X + 25*mm
         c.setFont(FONT_SERIF, 18)
         c.setFillColor(HexColor(COLORS['pdf_text']))
-        c.drawString(MARGIN_X + 25*mm, y, step.get('title', ''))
+        c.drawString(TITLE_X, y, step.get('title', ''))
         
+        # 解説（タイトルの真下に配置、15文字改行）
         c.setFillColor(HexColor(COLORS['pdf_sub']))
-        draw_wrapped_text(c, step.get('detail', ''), MARGIN_X + LEFT_WIDTH, y + 2*mm, FONT_SANS, 12, RIGHT_WIDTH, 18)
+        draw_wrapped_text(c, step.get('detail', ''), TITLE_X, y - 8*mm, FONT_SANS, 12, 135*mm, 18)
         
         y -= 45*mm
     c.showPage()
@@ -503,7 +512,7 @@ def create_pdf(json_data):
         c.setFont(FONT_SANS, 14)
         c.setFillColor(HexColor(COLORS['pdf_text']))
         c.drawString(MARGIN_X, y, f"・{p.get('point')}")
-        draw_wrapped_text(c, p.get('detail', ''), MARGIN_X + 5*mm, y - 8*mm, FONT_SANS, 11, COL_WIDTH, 14)
+        draw_wrapped_text(c, p.get('detail', ''), MARGIN_X + 5*mm, y - 8*mm, FONT_SANS, 11, 135*mm, 14)
         y -= 24*mm
         
     # Right
@@ -516,7 +525,7 @@ def create_pdf(json_data):
     for alt in alts[:3]:
         c.setFont(FONT_SANS, 14)
         c.setFillColor(HexColor(COLORS['pdf_text']))
-        draw_wrapped_text(c, f"◇ {alt}", RIGHT_START_X, y_alt, FONT_SANS, 14, COL_WIDTH, 20)
+        draw_wrapped_text(c, f"◇ {alt}", RIGHT_START_X, y_alt, FONT_SANS, 14, 135*mm, 20)
         y_alt -= 30*mm
     
     c.showPage()
@@ -547,9 +556,8 @@ def create_pdf(json_data):
     q_author = quote_data.get('author', '')
 
     c.setFillColor(TEXT_COLOR_END)
-    # 15文字程度で改行、余白を十分にとる（135mm, 行間42pt, 位置調整）
-    TEXT_WIDTH_FIXED = 135 * mm
-    draw_wrapped_text(c, q_text, width/2, height/2 + 25*mm, FONT_SERIF, 28, TEXT_WIDTH_FIXED, 42, centered=True)
+    # ★修正: 名言を中央配置、15文字改行、余白十分、助詞改行ロジック適用
+    draw_wrapped_text(c, q_text, width/2, height/2 + 25*mm, FONT_SERIF, 28, 135*mm, 42, centered=True)
     c.setFont(FONT_SANS, 18)
     c.setFillColor(ACCENT_COLOR_END)
     c.drawCentredString(width/2, height/2 - 45*mm, f"- {q_author}")
@@ -669,32 +677,42 @@ elif st.session_state.step == 3:
     st.header("03. レポートの受け取り")
     with st.container():
         st.markdown(f"""<div style="background-color: {COLORS['card']}; padding: 30px; border-radius: 10px; border: 1px solid {COLORS['accent']}; text-align: center;"><h3 style="color: {COLORS['accent']};">Analysis Ready</h3><p>診断結果レポートを発行します。</p></div><br>""", unsafe_allow_html=True)
+        # ★修正: 入力フォームを「名前、年代、地域、メール」に変更
         with st.form("lead_capture"):
             col_f1, col_f2 = st.columns(2)
-            with col_f1: user_name = st.text_input("お名前")
-            with col_f2: user_email = st.text_input("メールアドレス")
+            with col_f1: 
+                user_name = st.text_input("お名前")
+                age_group = st.selectbox("年代", ["10代", "20代", "30代", "40代", "50代", "60代以上"])
+            with col_f2: 
+                user_email = st.text_input("メールアドレス")
+                region = st.text_input("お住まいの地域（都道府県）")
+                
             submit = st.form_submit_button("診断結果を見る", type="primary")
+            
             if submit:
-                if user_name and user_email:
+                if user_name and user_email and region:
                     st.session_state.user_name = user_name
                     # メールアドレスのクリーニング
                     st.session_state.user_email = user_email.strip().replace('\xa0', '').replace('\u3000', ' ')
                     
-                    # ★修正: 保存結果とエラーを受け取る
-                    is_saved, save_error = save_to_google_sheets(user_name, user_email, st.session_state.specialty, st.session_state.quiz_result)
+                    # ★修正: 保存処理に年代と地域を追加
+                    is_saved, save_error = save_to_google_sheets(
+                        user_name, age_group, region, st.session_state.user_email, 
+                        st.session_state.specialty, st.session_state.quiz_result
+                    )
                     
                     if not is_saved:
-                        # エラーがあれば画面に表示
                         st.error(f"スプレッドシート保存エラー: {save_error}")
                     
                     st.session_state.step = 4
                     st.rerun()
-                else: st.warning("情報を入力してください。")
+                else: st.warning("全ての項目を入力してください。")
 
 # STEP 4 (AI Analysis)
 elif st.session_state.step == 4:
     if "analysis_data" not in st.session_state:
-        with st.spinner("世界トップレベルのアート専門家が分析しています..."):
+        # ★修正: 待機メッセージを変更
+        with st.spinner("解析中1分お待ちください..."):
             
             success = False
             
@@ -799,7 +817,7 @@ elif st.session_state.step == 4:
         render_web_result(data)
         st.markdown("### レポート完了")
         if st.session_state.get("email_sent_status", False):
-            st.success(f"📩 {st.session_state.user_email} にレポートを送信しました。")
+            st.success(f"📩 {st.session_state.user_email} に「分析結果」を送信しました。")
         else:
             st.warning("⚠️ レポート作成完了（メール送信失敗：設定を確認してください）")
             if "email_error_log" in st.session_state and st.session_state.email_error_log:
