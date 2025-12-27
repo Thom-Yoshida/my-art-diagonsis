@@ -636,10 +636,10 @@ elif st.session_state.step == 2:
     
     col1, col2 = st.columns(2)
     with col1:
-        st.markdown("#### １、あなたが今、好きな作品（またご自身の現代での最高制作作品）3枚")
+        st.markdown("#### １、今、好きな作品（orご自身の最高作品）3枚")
         past_files = st.file_uploader("Origin (Max 3)", type=["jpg", "png"], accept_multiple_files=True, key="past")
     with col2:
-        st.markdown("#### ２、あなたの理想の世界観を描いた作品　3枚")
+        st.markdown("#### ２、理想の世界観を描いた作品　3枚")
         future_files = st.file_uploader("Ideal (Max 3)", type=["jpg", "png"], accept_multiple_files=True, key="future")
         
     if st.button("次へ進む（レポート作成へ）"):
