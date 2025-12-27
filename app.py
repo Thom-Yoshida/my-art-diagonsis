@@ -147,7 +147,7 @@ st.markdown(f"""
         transform: translateX(5px);
     }}
     div[role="radiogroup"] > label p {{
-        color: #FFFFFF !important;
+        color: #F7F7F7 !important;
         font-size: 1.1rem !important;
         font-weight: 400 !important;
         margin: 0 !important;
@@ -156,7 +156,7 @@ st.markdown(f"""
     /* 入力フォーム */
     .stTextInput > div > div > input, .stSelectbox > div > div > div {{
         background-color: {COLORS["input_bg"]} !important;
-        color: #FFFFFF !important; 
+        color: #F7F7F7 !important; 
         border: 1px solid #666 !important;
         font-size: 1.1rem;
     }}
@@ -261,6 +261,7 @@ def save_to_google_sheets(name, age, region, email, specialty, diagnosis_type):
     except Exception as e:
         return False, str(e)
 
+# ★修正: LINE誘導を削除し、シンプルなメール本文に戻す
 def send_email_with_pdf(user_email, pdf_buffer):
     if "GMAIL_ADDRESS" not in st.secrets or "GMAIL_PASSWORD" not in st.secrets:
         return False, "設定エラー: secrets.toml に GMAIL_ADDRESS または GMAIL_PASSWORD がありません。"
@@ -269,25 +270,16 @@ def send_email_with_pdf(user_email, pdf_buffer):
     sender_password = str(st.secrets["GMAIL_PASSWORD"]).strip().replace('\xa0', '').replace('\u3000', ' ')
     user_email = str(user_email).strip().replace('\xa0', '').replace('\u3000', ' ')
     
-    # ▼▼▼ LINEのURL（ここをご自身の公式LINEのURLに書き換えてください） ▼▼▼
-    LINE_URL = "https://line.me/R/ti/p/@your_line_id" 
-    
     msg = MIMEMultipart()
     msg['From'] = sender_email
     msg['To'] = user_email
     msg['Subject'] = Header("【世界観診断レポート】あなたの診断結果をお届けします", 'utf-8')
     
-    body = f"""世界観診断をご利用いただきありがとうございます。
+    # ★修正: シンプルな本文
+    body = """世界観診断をご利用いただきありがとうございます。
 あなたの診断結果レポート（PDF）をお送りします。
 
 添付のPDFを開いて、あなたの創作活動の指針となる「美の設計図」をご確認ください。
-
-【🎁 さらに特別なプレゼント】
-診断結果を受け取ったあなただけに、
-「世界観を収益化する秘密のロードマップ」などの限定情報をLINEで配信しています。
-
-▼ 今すぐ特典を受け取る（公式LINE）
-{LINE_URL}
 
 この分析が、あなたの創作活動のヒントになれば幸いです。
 
@@ -399,7 +391,6 @@ def draw_quote_special(c, text, x, y, font, size, leading):
     c.setFont(font, size)
     # 句読点で分割
     parts = re.split('([。、])', text)
-    # 区切り文字を前の文にくっつける処理
     lines = []
     current = ""
     for p in parts:
@@ -416,7 +407,6 @@ def draw_quote_special(c, text, x, y, font, size, leading):
         if not line.strip(): continue
         c.drawCentredString(x, current_y, line.strip())
         current_y -= leading
-        # 句点の後は少し空ける（段落感）
         if '。' in line:
              current_y -= (leading * 0.5)
 
@@ -491,7 +481,7 @@ def create_pdf(json_data):
     ]
     for cx, cy_pos, title, word in positions:
         c.setStrokeColor(HexColor(COLORS['forest']))
-        c.setFillColor(HexColor('#FFFFFF'))
+        c.setFillColor(HexColor('#F7F7F7'))
         c.setLineWidth(1.5)
         c.circle(cx, cy_pos, r, fill=1, stroke=1)
         c.setFont(FONT_SERIF, 18)
@@ -564,6 +554,7 @@ def create_pdf(json_data):
     draw_header(c, "06. 次なるビジョンと表現", 7)
     COL_WIDTH = (CONTENT_WIDTH - 10*mm) / 2
     
+    # Left
     c.setFont(FONT_SERIF, 20)
     c.setFillColor(HexColor(COLORS['forest']))
     c.drawString(MARGIN_X, height - 45*mm, "Next Vision")
@@ -576,6 +567,7 @@ def create_pdf(json_data):
         draw_wrapped_text(c, p.get('detail', ''), MARGIN_X + 5*mm, y - 8*mm, FONT_SANS, 11, 135*mm, 14)
         y -= 24*mm
         
+    # Right
     RIGHT_START_X = width/2 + 10*mm
     c.setFont(FONT_SERIF, 20)
     c.setFillColor(HexColor(COLORS['forest']))
