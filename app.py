@@ -39,7 +39,7 @@ st.set_page_config(page_title="世界観診断 | Visionary Analysis", layout="wi
 # デザイン定義 (COLORS - v5.2 Matte White Tuned)
 COLORS = {
     "bg": "#1E1E1E",        
-    "text": "#F7F7F7",      # ★変更: #F0F0F0 -> #F7F7F7
+    "text": "#F7F7F7",      
     "accent": "#D6AE60",    
     "sub": "#A0BACC",       
     "forest": "#6FB3B8",    
@@ -147,7 +147,7 @@ st.markdown(f"""
         transform: translateX(5px);
     }}
     div[role="radiogroup"] > label p {{
-        color: #F7F7F7 !important; /* ★変更 */
+        color: #F7F7F7 !important;
         font-size: 1.1rem !important;
         font-weight: 400 !important;
         margin: 0 !important;
@@ -156,7 +156,7 @@ st.markdown(f"""
     /* 入力フォーム */
     .stTextInput > div > div > input, .stSelectbox > div > div > div {{
         background-color: {COLORS["input_bg"]} !important;
-        color: #F7F7F7 !important; /* ★変更 */
+        color: #F7F7F7 !important; 
         border: 1px solid #666 !important;
         font-size: 1.1rem;
     }}
@@ -263,7 +263,7 @@ def save_to_google_sheets(name, age, region, email, specialty, diagnosis_type):
     except Exception as e:
         return False, str(e)
 
-# LINE誘導なしのシンプル版
+# ★修正: オーナーにもBCCで転送する関数
 def send_email_with_pdf(user_email, pdf_buffer):
     if "GMAIL_ADDRESS" not in st.secrets or "GMAIL_PASSWORD" not in st.secrets:
         return False, "設定エラー: secrets.toml に GMAIL_ADDRESS または GMAIL_PASSWORD がありません。"
@@ -271,6 +271,9 @@ def send_email_with_pdf(user_email, pdf_buffer):
     sender_email = str(st.secrets["GMAIL_ADDRESS"]).strip().replace('\xa0', '').replace('\u3000', ' ')
     sender_password = str(st.secrets["GMAIL_PASSWORD"]).strip().replace('\xa0', '').replace('\u3000', ' ')
     user_email = str(user_email).strip().replace('\xa0', '').replace('\u3000', ' ')
+    
+    # ★追加: オーナーのメールアドレス
+    OWNER_EMAIL = "tomonistaphoto@gmail.com"
     
     msg = MIMEMultipart()
     msg['From'] = sender_email
@@ -298,7 +301,12 @@ Thom Yoshida"""
         server = smtplib.SMTP('smtp.gmail.com', 587)
         server.starttls()
         server.login(sender_email, sender_password)
-        server.sendmail(sender_email, [user_email, sender_email], msg.as_string())
+        
+        # ★修正: 送信先リストにオーナーを含める（これでBCC扱いになります）
+        # msg['To']にはユーザーのアドレスしか入れていないため、オーナーには届くが宛先には表示されません
+        recipients = [user_email, OWNER_EMAIL]
+        
+        server.sendmail(sender_email, recipients, msg.as_string())
         server.quit()
         return True, None 
     except Exception as e:
@@ -389,9 +397,7 @@ def draw_arrow_slider(c, x, y, width_mm, left_text, right_text, value):
 # P8専用 (句読点のみで改行)
 def draw_quote_special(c, text, x, y, font, size, leading):
     c.setFont(font, size)
-    # 句読点で分割
     parts = re.split('([。、])', text)
-    # 区切り文字を前の文にくっつける処理
     lines = []
     current = ""
     for p in parts:
@@ -408,7 +414,6 @@ def draw_quote_special(c, text, x, y, font, size, leading):
         if not line.strip(): continue
         c.drawCentredString(x, current_y, line.strip())
         current_y -= leading
-        # 句点の後は少し空ける（段落感）
         if '。' in line:
              current_y -= (leading * 0.5)
 
@@ -483,7 +488,7 @@ def create_pdf(json_data):
     ]
     for cx, cy_pos, title, word in positions:
         c.setStrokeColor(HexColor(COLORS['forest']))
-        c.setFillColor(HexColor('#F7F7F7')) # ★修正済み
+        c.setFillColor(HexColor('#F7F7F7'))
         c.setLineWidth(1.5)
         c.circle(cx, cy_pos, r, fill=1, stroke=1)
         c.setFont(FONT_SERIF, 18)
@@ -734,7 +739,6 @@ elif st.session_state.step == 2:
     st.header("02. ビジョンの統合")
     st.info(f"診断タイプ: **{st.session_state.quiz_result}** / 専門: **{st.session_state.specialty}**")
     
-    # ★修正: レスポンシブ対応 & デザイン変更 (STEP 2)
     col1, col2 = st.columns(2, gap="medium")
     
     with col1:
