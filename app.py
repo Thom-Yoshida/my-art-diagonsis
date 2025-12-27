@@ -10,7 +10,6 @@ from PIL import Image
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.application import MIMEApplication
-# 文字化け防止のためのヘッダーモジュール
 from email.header import Header
 
 # Google系ライブラリ
@@ -221,8 +220,10 @@ def resize_image_for_api(image, max_width=1024):
         return image.resize((max_width, height_size), Image.Resampling.LANCZOS)
     return image
 
+# ★修正箇所：エラー詳細を返すように変更
 def save_to_google_sheets(name, email, specialty, diagnosis_type):
-    if "gcp_service_account" not in st.secrets: return False
+    if "gcp_service_account" not in st.secrets:
+        return False, "Secretsにgcp_service_accountの設定がありません"
     try:
         creds_dict = dict(st.secrets["gcp_service_account"])
         scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
@@ -232,18 +233,19 @@ def save_to_google_sheets(name, email, specialty, diagnosis_type):
         sheet = client.open(sheet_name).sheet1
         now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         sheet.append_row([now, name, email, specialty, diagnosis_type])
-        return True
-    except: return False
+        return True, None
+    except Exception as e:
+        return False, str(e) # エラー内容を返す
 
 def send_email_with_pdf(user_email, pdf_buffer):
     if "GMAIL_ADDRESS" not in st.secrets or "GMAIL_PASSWORD" not in st.secrets:
         return False, "設定エラー: secrets.toml に GMAIL_ADDRESS または GMAIL_PASSWORD がありません。"
         
-    # ★修正: Secretsからの取得時に、見えない空白を強制的に削除
+    # Secretsからの取得時に、見えない空白を強制的に削除
     sender_email = str(st.secrets["GMAIL_ADDRESS"]).strip().replace('\xa0', '').replace('\u3000', ' ')
     sender_password = str(st.secrets["GMAIL_PASSWORD"]).strip().replace('\xa0', '').replace('\u3000', ' ')
     
-    # ★修正: ユーザー入力アドレスも再度クリーニング
+    # ユーザー入力アドレスも再度クリーニング
     user_email = str(user_email).strip().replace('\xa0', '').replace('\u3000', ' ')
     
     msg = MIMEMultipart()
@@ -636,10 +638,10 @@ elif st.session_state.step == 2:
     
     col1, col2 = st.columns(2)
     with col1:
-        st.markdown("#### １、今、好きな作品（orご自身の最高作品）3枚")
+        st.markdown("#### １、あなたが今、好きな作品（またご自身の現代での最高制作作品）3枚")
         past_files = st.file_uploader("Origin (Max 3)", type=["jpg", "png"], accept_multiple_files=True, key="past")
     with col2:
-        st.markdown("#### ２、理想の世界観を描いた作品　3枚")
+        st.markdown("#### ２、あなたの理想の世界観を描いた作品　3枚")
         future_files = st.file_uploader("Ideal (Max 3)", type=["jpg", "png"], accept_multiple_files=True, key="future")
         
     if st.button("次へ進む（レポート作成へ）"):
@@ -667,15 +669,21 @@ elif st.session_state.step == 3:
         with st.form("lead_capture"):
             col_f1, col_f2 = st.columns(2)
             with col_f1: user_name = st.text_input("お名前")
-            # ★修正: ここでも入力から見えない空白を除去するよう設定
             with col_f2: user_email = st.text_input("メールアドレス")
             submit = st.form_submit_button("診断結果を見る", type="primary")
             if submit:
                 if user_name and user_email:
                     st.session_state.user_name = user_name
-                    # ★修正: メールアドレスの空白クリーニングを適用
+                    # メールアドレスのクリーニング
                     st.session_state.user_email = user_email.strip().replace('\xa0', '').replace('\u3000', ' ')
-                    save_to_google_sheets(user_name, user_email, st.session_state.specialty, st.session_state.quiz_result)
+                    
+                    # ★修正: 保存結果とエラーを受け取る
+                    is_saved, save_error = save_to_google_sheets(user_name, user_email, st.session_state.specialty, st.session_state.quiz_result)
+                    
+                    if not is_saved:
+                        # エラーがあれば画面に表示
+                        st.error(f"スプレッドシート保存エラー: {save_error}")
+                    
                     st.session_state.step = 4
                     st.rerun()
                 else: st.warning("情報を入力してください。")
