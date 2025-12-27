@@ -235,7 +235,11 @@ def save_to_google_sheets(name, age, region, email, specialty, diagnosis_type):
         
         sheet_name = st.secrets.get("SHEET_NAME", "customer_list")
         sheet = client.open(sheet_name).sheet1
-        now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        
+        t_delta = datetime.timedelta(hours=9)
+        JST = datetime.timezone(t_delta, 'JST')
+        now = datetime.datetime.now(JST).strftime("%Y-%m-%d %H:%M:%S")
+        
         sheet.append_row([now, name, age, region, email, specialty, diagnosis_type])
         return True, None
     except Exception as e:
@@ -284,6 +288,7 @@ Thom Yoshida"""
 
 def wrap_text_smart(text, max_char_count=15):
     if not text: return []
+    # 助詞・句読点など
     delimiters = ['、', '。', 'て', 'に', 'を', 'は', 'が', 'と', 'へ', 'で', 'や', 'の', 'も', 'し', 'い', 'か', 'ね', 'よ', '！', '？']
     lines = []
     current_line = ""
@@ -343,23 +348,27 @@ def draw_arrow_slider(c, x, y, width_mm, left_text, right_text, value):
     c.setFillColor(HexColor(COLORS['forest']))
     c.circle(dot_x, y, 2.5*mm, fill=1, stroke=1)
 
+# ★修正: 8ページ目専用描画ロジック (句点必須改行 + 助詞優先20文字)
 def draw_quote_special(c, text, x, y, font, size, leading):
     c.setFont(font, size)
-    # 読点で分割して、間に空行を入れる
-    parts = text.split('、')
+    # 句点で分割 (空文字除去)
+    parts = [p + '。' for p in text.split('。') if p.strip()]
+    # 元のテキストに句点がない場合の救済
+    if not parts: parts = [text]
+    elif text.endswith('。') == False:
+        # splitで最後の句点後が空なら無視されるが、そうでない場合は元の文を維持
+        if text.split('。')[-1].strip():
+             parts[-1] = parts[-1].rstrip('。') # 一旦戻す
+
     current_y = y
-    
-    for i, part in enumerate(parts):
-        line_text = part + ("、" if i < len(parts)-1 else "")
-        # 長い場合は通常の改行も適用
-        sub_lines = wrap_text_smart(line_text, max_char_count=15)
+    for part in parts:
+        # 各パートを20文字・助詞優先で折り返し
+        sub_lines = wrap_text_smart(part, max_char_count=20)
         for line in sub_lines:
             c.drawCentredString(x, current_y, line)
             current_y -= leading
-        
-        # 読点区切りの後は1行空ける（ただし最後以外）
-        if i < len(parts)-1:
-            current_y -= leading # 空行
+        # 句点の後は少し空ける（段落感）
+        current_y -= (leading * 0.5)
 
 def create_pdf(json_data):
     buffer = io.BytesIO()
@@ -470,49 +479,45 @@ def create_pdf(json_data):
         c.setFillColor(HexColor(COLORS['forest']))
         c.drawString(MARGIN_X, y, f"◆ {a.get('name')}")
         
-        # キーワード3つを表示
         kws = a.get('keywords', [])
         kw_text = " / ".join(kws[:3])
         c.setFont(FONT_SANS, 12)
         c.setFillColor(HexColor(COLORS['accent']))
         c.drawString(MARGIN_X + 5*mm, y - 8*mm, f"[{kw_text}]")
 
-        # 説明文（ボリューム増）
         c.setFillColor(HexColor(COLORS['pdf_text']))
         draw_wrapped_text(c, a.get('detail', ''), MARGIN_X + 5*mm, y - 16*mm, FONT_SANS, 11, 150*mm, 15, char_limit=35)
-        y -= 48*mm # 間隔調整
+        y -= 48*mm
     c.showPage()
 
-    # P6: ROADMAP (改行30文字、ボリューム3割増)
+    # P6: ROADMAP (解説文2倍、30文字改行、間隔拡大)
     draw_header(c, "05. 未来への道のり", 6)
     steps = json_data.get('roadmap_steps', [])
     y = height - 65*mm
     
     for i, step in enumerate(steps):
-        # 番号
         c.setFont(FONT_SANS, 40)
         c.setFillColor(HexColor(COLORS['accent']))
         c.drawString(MARGIN_X, y - 5*mm, f"0{i+1}")
         
-        # タイトル
         TITLE_X = MARGIN_X + 25*mm
         c.setFont(FONT_SERIF, 18)
         c.setFillColor(HexColor(COLORS['pdf_text']))
         c.drawString(TITLE_X, y, step.get('title', ''))
         
-        # 解説（30文字改行）
         c.setFillColor(HexColor(COLORS['pdf_sub']))
-        # char_limit=30 に変更
+        # 解説文2倍に対応するためchar_limit=30, 行数増えるので間隔も要調整
         draw_wrapped_text(c, step.get('detail', ''), TITLE_X, y - 8*mm, FONT_SANS, 11, 160*mm, 16, char_limit=30)
         
-        y -= 45*mm
+        # 間隔を45mmから55mmに拡大
+        y -= 55*mm
     c.showPage()
 
-    # P7: VISION & ALTERNATIVES (用語の補足追加)
+    # P7: VISION & ALTERNATIVES (解説3倍、15文字改行、間隔拡大)
     draw_header(c, "06. 次なるビジョンと表現", 7)
     COL_WIDTH = (CONTENT_WIDTH - 10*mm) / 2
     
-    # Left: Vision
+    # Left
     c.setFont(FONT_SERIF, 20)
     c.setFillColor(HexColor(COLORS['forest']))
     c.drawString(MARGIN_X, height - 45*mm, "Next Vision")
@@ -525,7 +530,7 @@ def create_pdf(json_data):
         draw_wrapped_text(c, p.get('detail', ''), MARGIN_X + 5*mm, y - 8*mm, FONT_SANS, 11, 135*mm, 14)
         y -= 24*mm
         
-    # Right: Other Expressions
+    # Right
     RIGHT_START_X = width/2 + 10*mm
     c.setFont(FONT_SERIF, 20)
     c.setFillColor(HexColor(COLORS['forest']))
@@ -534,9 +539,7 @@ def create_pdf(json_data):
     alts = json_data.get('alternative_expressions', [])
     y_alt = height - 60*mm
     
-    # JSON構造変更に伴いループ処理修正
     for alt in alts[:3]:
-        # alt は辞書型 {"term": "...", "detail": "..."} を想定
         term = alt.get('term', '') if isinstance(alt, dict) else str(alt)
         detail = alt.get('detail', '') if isinstance(alt, dict) else ''
 
@@ -544,17 +547,18 @@ def create_pdf(json_data):
         c.setFillColor(HexColor(COLORS['pdf_text']))
         c.drawString(RIGHT_START_X, y_alt, f"◇ {term}")
         
-        # 補足説明を描画
         if detail:
             c.setFont(FONT_SANS, 10)
             c.setFillColor(HexColor(COLORS['pdf_sub']))
-            draw_wrapped_text(c, detail, RIGHT_START_X + 5*mm, y_alt - 6*mm, FONT_SANS, 10, 135*mm, 12, char_limit=18)
+            # 解説3倍（120文字）に対応、15文字改行
+            draw_wrapped_text(c, detail, RIGHT_START_X + 5*mm, y_alt - 6*mm, FONT_SANS, 10, 135*mm, 12, char_limit=15)
             
-        y_alt -= 30*mm
+        # 間隔を30mmから50mmに拡大（文章量対応）
+        y_alt -= 50*mm
     
     c.showPage()
 
-    # P8: MESSAGE (読点改行＋1行空き、肩書き)
+    # P8: MESSAGE (句点改行ロジック、肩書き)
     image_url = "https://images.unsplash.com/photo-1495312040802-a929cd14a6ab?q=80&w=2940&auto=format&fit=crop"
     try:
         response = requests.get(image_url, stream=True, timeout=10)
@@ -578,15 +582,14 @@ def create_pdf(json_data):
     quote_data = json_data.get('inspiring_quote', {})
     q_text = quote_data.get('text', '')
     q_author = quote_data.get('author', '')
-    q_title = quote_data.get('title', '') # 肩書き
+    q_title = quote_data.get('title', '')
 
     c.setFillColor(TEXT_COLOR_END)
-    # 特殊描画関数を使用（読点で改行＋空行）
+    # 新ロジックで描画
     draw_quote_special(c, q_text, width/2, height/2 + 25*mm, FONT_SERIF, 24, 32)
     
     c.setFont(FONT_SANS, 16)
     c.setFillColor(ACCENT_COLOR_END)
-    # 著者名＋肩書き
     author_str = f"- {q_author}"
     if q_title:
         author_str += f" ({q_title})"
@@ -695,10 +698,10 @@ elif st.session_state.step == 2:
     
     col1, col2 = st.columns(2)
     with col1:
-        st.markdown("#### １、あなたが今、好きな作品（またご自身の現代での最高制作作品）3枚")
+        st.markdown("#### １、今、好きな作品（またご自身の最高作品）3枚")
         past_files = st.file_uploader("Origin (Max 3)", type=["jpg", "png"], accept_multiple_files=True, key="past")
     with col2:
-        st.markdown("#### ２、あなたの理想の世界観を描いた作品　3枚")
+        st.markdown("#### ２、理想の世界観の作品　3枚")
         future_files = st.file_uploader("Ideal (Max 3)", type=["jpg", "png"], accept_multiple_files=True, key="future")
         
     if st.button("次へ進む（レポート作成へ）"):
@@ -795,7 +798,7 @@ elif st.session_state.step == 4:
                         "interests": {{"word": "潜在的に惹かれているテーマ(一言)", "detail": "専門家からの解説(40文字以内)"}}
                     }},
                     "roadmap_steps": [
-                        {{"title": "Stepタイトル(短く)", "detail": "理想に近づくための具体的な制作・思考のアドバイス(90文字以内)"}} を3つ
+                        {{"title": "Stepタイトル(短く)", "detail": "理想に近づくための具体的な制作・思考のアドバイス(180文字以内)"}} を3つ
                     ],
                     "artist_archetypes": [
                         {{"name": "このユーザーが参考にするべき巨匠や現代アーティスト名", "keywords": ["関連キーワード1", "キーワード2", "キーワード3"], "detail": "なぜその作家から学ぶべきかの専門的な理由(120文字以内)"}} を3名
@@ -804,7 +807,7 @@ elif st.session_state.step == 4:
                         {{"point": "世界観を確立するための提言", "detail": "具体的なディレクション(40文字以内)"}} を5つ
                     ],
                     "alternative_expressions": [
-                        {{"term": "手法名(例: キアロスクーロ)", "detail": "その手法がなぜ合うのかの補足説明(40文字以内)"}} を3つ
+                        {{"term": "手法名(例: キアロスクーロ)", "detail": "その手法がなぜ合うのかの補足説明(120文字以内)"}} を3つ
                     ],
                     "inspiring_quote": {{
                         "text": "その人の魂を震わせる、偉大な芸術家や哲学者の名言（日本語訳）",
