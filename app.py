@@ -172,19 +172,19 @@ st.markdown(f"""
     }}
 
     /* ファイルアップローダーをコンパクトにする */
-    [data-testid='stFileUploader'] {
+    [data-testid='stFileUploader'] {{
         width: 100%;
-    }
-    [data-testid='stFileUploader'] section {
+    }}
+    [data-testid='stFileUploader'] section {{
         padding: 10px;
         min-height: 0px;
-    }
-    [data-testid='stFileUploader'] div[class*="drop-container"] {
+    }}
+    [data-testid='stFileUploader'] div[class*="drop-container"] {{
         padding: 10px; 
-    }
-    [data-testid='stFileUploader'] small {
+    }}
+    [data-testid='stFileUploader'] small {{
         display: none; 
-    }
+    }}
 </style>
 """, unsafe_allow_html=True)
 
@@ -260,6 +260,7 @@ def save_to_google_sheets(name, age, region, email, specialty, diagnosis_type):
     except Exception as e:
         return False, str(e)
 
+# ★修正: LINE誘導付きのメール送信関数
 def send_email_with_pdf(user_email, pdf_buffer):
     if "GMAIL_ADDRESS" not in st.secrets or "GMAIL_PASSWORD" not in st.secrets:
         return False, "設定エラー: secrets.toml に GMAIL_ADDRESS または GMAIL_PASSWORD がありません。"
@@ -276,6 +277,7 @@ def send_email_with_pdf(user_email, pdf_buffer):
     msg['To'] = user_email
     msg['Subject'] = Header("【世界観診断レポート】あなたの診断結果をお届けします", 'utf-8')
     
+    # ★修正: メール本文にLINE誘導を追加
     body = f"""世界観診断をご利用いただきありがとうございます。
 あなたの診断結果レポート（PDF）をお送りします。
 
@@ -603,7 +605,7 @@ def create_pdf(json_data):
     
     c.showPage()
 
-    # P8: MESSAGE (句読点のみで改行)
+    # P8: MESSAGE
     image_url = "https://images.unsplash.com/photo-1495312040802-a929cd14a6ab?q=80&w=2940&auto=format&fit=crop"
     try:
         response = requests.get(image_url, stream=True, timeout=10)
@@ -630,7 +632,6 @@ def create_pdf(json_data):
     q_title = quote_data.get('title', '')
 
     c.setFillColor(TEXT_COLOR_END)
-    # 句読点のみで改行ロジック使用
     draw_quote_special(c, q_text, width/2, height/2 + 25*mm, FONT_SERIF, 24, 32)
     
     c.setFont(FONT_SANS, 16)
@@ -909,7 +910,6 @@ elif st.session_state.step == 4:
             st.session_state.email_error_log = error_msg 
             st.rerun()
     else:
-        # 1. 簡易結果は画面で見せる
         data = st.session_state.analysis_data
         render_web_result(data)
         
