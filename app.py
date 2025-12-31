@@ -6,7 +6,6 @@ import datetime
 import smtplib
 import requests
 import time
-import re
 from PIL import Image
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -34,12 +33,12 @@ from reportlab.lib.utils import ImageReader
 # ---------------------------------------------------------
 # 0. 初期設定 & フォント自動セットアップ
 # ---------------------------------------------------------
-st.set_page_config(page_title="Visionary Blueprint | 世界観の設計図", layout="wide") 
+st.set_page_config(page_title="世界観診断 | Visionary Analysis", layout="wide") 
 
 # デザイン定義 (COLORS - v5.2 Matte White Tuned)
 COLORS = {
     "bg": "#1E1E1E",        
-    "text": "#F7F7F7",      
+    "text": "#F0F0F0",      
     "accent": "#D6AE60",    
     "sub": "#A0BACC",       
     "forest": "#6FB3B8",    
@@ -147,7 +146,7 @@ st.markdown(f"""
         transform: translateX(5px);
     }}
     div[role="radiogroup"] > label p {{
-        color: #F7F7F7 !important;
+        color: #FFFFFF !important;
         font-size: 1.1rem !important;
         font-weight: 400 !important;
         margin: 0 !important;
@@ -156,7 +155,7 @@ st.markdown(f"""
     /* 入力フォーム */
     .stTextInput > div > div > input, .stSelectbox > div > div > div {{
         background-color: {COLORS["input_bg"]} !important;
-        color: #F7F7F7 !important; 
+        color: #FFFFFF !important; 
         border: 1px solid #666 !important;
         font-size: 1.1rem;
     }}
@@ -170,23 +169,6 @@ st.markdown(f"""
         padding: 12px 30px;
         border-radius: 6px;
         font-size: 1.1rem;
-    }}
-
-    /* ファイルアップローダーをコンパクトにする */
-    [data-testid='stFileUploader'] {{
-        width: 100%;
-    }}
-    [data-testid='stFileUploader'] section {{
-        padding: 10px;
-        min-height: 0px;
-        background-color: {COLORS['card']}; /* 背景色をカード色に */
-        border: 1px dashed {COLORS['accent']}; /* 枠線をアクセントカラーに */
-    }}
-    [data-testid='stFileUploader'] div[class*="drop-container"] {{
-        padding: 10px; 
-    }}
-    [data-testid='stFileUploader'] small {{
-        display: none; 
     }}
 </style>
 """, unsafe_allow_html=True)
@@ -253,17 +235,12 @@ def save_to_google_sheets(name, age, region, email, specialty, diagnosis_type):
         
         sheet_name = st.secrets.get("SHEET_NAME", "customer_list")
         sheet = client.open(sheet_name).sheet1
-        
-        t_delta = datetime.timedelta(hours=9)
-        JST = datetime.timezone(t_delta, 'JST')
-        now = datetime.datetime.now(JST).strftime("%Y-%m-%d %H:%M:%S")
-        
+        now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         sheet.append_row([now, name, age, region, email, specialty, diagnosis_type])
         return True, None
     except Exception as e:
         return False, str(e)
 
-# オーナーBCC転送付きメール送信
 def send_email_with_pdf(user_email, pdf_buffer):
     if "GMAIL_ADDRESS" not in st.secrets or "GMAIL_PASSWORD" not in st.secrets:
         return False, "設定エラー: secrets.toml に GMAIL_ADDRESS または GMAIL_PASSWORD がありません。"
@@ -271,8 +248,6 @@ def send_email_with_pdf(user_email, pdf_buffer):
     sender_email = str(st.secrets["GMAIL_ADDRESS"]).strip().replace('\xa0', '').replace('\u3000', ' ')
     sender_password = str(st.secrets["GMAIL_PASSWORD"]).strip().replace('\xa0', '').replace('\u3000', ' ')
     user_email = str(user_email).strip().replace('\xa0', '').replace('\u3000', ' ')
-    
-    OWNER_EMAIL = "tomonistaphoto@gmail.com"
     
     msg = MIMEMultipart()
     msg['From'] = sender_email
@@ -282,12 +257,9 @@ def send_email_with_pdf(user_email, pdf_buffer):
     body = """世界観診断をご利用いただきありがとうございます。
 あなたの診断結果レポート（PDF）をお送りします。
 
-添付のPDFを開いて、あなたの創作活動の指針となる「美の設計図」をご確認ください。
-
 この分析が、あなたの創作活動のヒントになれば幸いです。
 
 Thom Yoshida"""
-
     body = body.replace('\u00a0', ' ').replace('\xa0', ' ')
     msg.attach(MIMEText(body, 'plain', 'utf-8'))
     
@@ -300,9 +272,7 @@ Thom Yoshida"""
         server = smtplib.SMTP('smtp.gmail.com', 587)
         server.starttls()
         server.login(sender_email, sender_password)
-        
-        recipients = [user_email, OWNER_EMAIL]
-        server.sendmail(sender_email, recipients, msg.as_string())
+        server.sendmail(sender_email, [user_email, sender_email], msg.as_string())
         server.quit()
         return True, None 
     except Exception as e:
@@ -312,45 +282,27 @@ Thom Yoshida"""
 # 4. PDF生成ロジック
 # ---------------------------------------------------------
 
-# ★修正: 汎用改行ロジック (句点必須 + 助詞 + 文字数)
 def wrap_text_smart(text, max_char_count=15):
     if not text: return []
-    
-    # まず句点（。）で分割して強制改行
-    raw_lines = []
-    for t in text.split('。'):
-        if t.strip(): # 空行以外
-            raw_lines.append(t + '。')
-    if not raw_lines: raw_lines = [text] # 句点がない場合
-    elif text.endswith('。') == False: # 末尾に句点がない場合の処理
-        raw_lines[-1] = raw_lines[-1].rstrip('。')
+    delimiters = ['、', '。', 'て', 'に', 'を', 'は', 'が', 'と', 'へ', 'で', 'や', 'の', 'も', 'し', 'い', 'か', 'ね', 'よ', '！', '？']
+    lines = []
+    current_line = ""
+    for char in text:
+        current_line += char
+        if len(current_line) >= max_char_count * 0.85:
+            if char in delimiters:
+                lines.append(current_line)
+                current_line = ""
+                continue
+            if len(current_line) >= max_char_count + 2:
+                lines.append(current_line)
+                current_line = ""
+    if current_line: lines.append(current_line)
+    return lines
 
-    # 次に、各行に対して助詞・文字数での改行処理を適用
-    final_lines = []
-    delimiters = ['、', 'て', 'に', 'を', 'は', 'が', 'と', 'へ', 'で', 'や', 'の', 'も', 'し', 'い', 'か', 'ね', 'よ', '！', '？']
-    
-    for line in raw_lines:
-        current_subline = ""
-        for char in line:
-            current_subline += char
-            if len(current_subline) >= max_char_count * 0.85:
-                # 助詞・句読点など
-                if char in delimiters:
-                    final_lines.append(current_subline)
-                    current_subline = ""
-                    continue
-                # 文字数オーバー
-                if len(current_subline) >= max_char_count + 2:
-                    final_lines.append(current_subline)
-                    current_subline = ""
-        if current_subline:
-            final_lines.append(current_subline)
-            
-    return final_lines
-
-def draw_wrapped_text(c, text, x, y, font, size, width_limit_mm, leading, centered=False, char_limit=15):
+def draw_wrapped_text(c, text, x, y, font, size, width_limit_mm, leading, centered=False):
     c.setFont(font, size)
-    lines = wrap_text_smart(text, max_char_count=char_limit)
+    lines = wrap_text_smart(text, max_char_count=15)
     current_y = y
     for line in lines:
         if centered: c.drawCentredString(x, current_y, line)
@@ -391,30 +343,7 @@ def draw_arrow_slider(c, x, y, width_mm, left_text, right_text, value):
     c.setFillColor(HexColor(COLORS['forest']))
     c.circle(dot_x, y, 2.5*mm, fill=1, stroke=1)
 
-# P8専用 (句読点のみで改行)
-def draw_quote_special(c, text, x, y, font, size, leading):
-    c.setFont(font, size)
-    parts = re.split('([。、])', text)
-    lines = []
-    current = ""
-    for p in parts:
-        if p in ['。', '、']:
-            current += p
-            lines.append(current)
-            current = ""
-        else:
-            current += p
-    if current: lines.append(current)
-
-    current_y = y
-    for line in lines:
-        if not line.strip(): continue
-        c.drawCentredString(x, current_y, line.strip())
-        current_y -= leading
-        if '。' in line:
-             current_y -= (leading * 0.5)
-
-def create_pdf(json_data):
+def create_pdf(json_data, user_name="Guest"):
     buffer = io.BytesIO()
     c = canvas.Canvas(buffer, pagesize=landscape(A4))
     width, height = landscape(A4)
@@ -435,24 +364,19 @@ def create_pdf(json_data):
         c.rect(0, 0, width, height, fill=1, stroke=0)
         TEXT_COLOR = HexColor(COLORS['pdf_text'])
     c.setFillColor(TEXT_COLOR)
+    
+    # キャッチコピー
     c.setFont(FONT_SERIF, 52)
+    c.drawCentredString(width/2, height/2 + 10*mm, json_data.get('catchphrase', 'Visionary Report'))
     
-    # ★修正: P1タイトルの改行対応 (10文字、句読点優先)
-    draw_wrapped_text(
-        c,
-        json_data.get('catchphrase', 'Visionary Report'),
-        width/2,
-        height/2 + 40*mm,
-        FONT_SERIF,
-        52,
-        0,
-        60,
-        centered=True,
-        char_limit=10
-    )
+    # ユーザー名（追加箇所）
+    c.setFont(FONT_SERIF, 24)
+    c.drawCentredString(width/2, height/2 - 8*mm, f"{user_name} 様")
     
+    # サブタイトル
     c.setFont(FONT_SANS, 18)
     c.drawCentredString(width/2, height/2 - 25*mm, "WORLDVIEW ANALYSIS REPORT")
+    
     c.setFont(FONT_SERIF, 12)
     c.drawCentredString(width/2, 20*mm, f"Designed by ThomYoshida AI | {datetime.datetime.now().strftime('%Y.%m.%d')}")
     c.showPage()
@@ -499,7 +423,7 @@ def create_pdf(json_data):
     ]
     for cx, cy_pos, title, word in positions:
         c.setStrokeColor(HexColor(COLORS['forest']))
-        c.setFillColor(HexColor('#F7F7F7'))
+        c.setFillColor(HexColor('#FFFFFF'))
         c.setLineWidth(1.5)
         c.circle(cx, cy_pos, r, fill=1, stroke=1)
         c.setFont(FONT_SERIF, 18)
@@ -533,18 +457,11 @@ def create_pdf(json_data):
     archs = json_data.get('artist_archetypes', [])
     y = height - 55*mm
     for i, a in enumerate(archs[:3]):
-        c.setFont(FONT_SERIF, 20)
+        c.setFont(FONT_SERIF, 22)
         c.setFillColor(HexColor(COLORS['forest']))
         c.drawString(MARGIN_X, y, f"◆ {a.get('name')}")
-        
-        kws = a.get('keywords', [])
-        kw_text = " / ".join(kws[:3])
-        c.setFont(FONT_SANS, 12)
-        c.setFillColor(HexColor(COLORS['accent']))
-        c.drawString(MARGIN_X + 5*mm, y - 8*mm, f"[{kw_text}]")
-
         c.setFillColor(HexColor(COLORS['pdf_text']))
-        draw_wrapped_text(c, a.get('detail', ''), MARGIN_X + 5*mm, y - 16*mm, FONT_SANS, 11, 150*mm, 15, char_limit=35)
+        draw_wrapped_text(c, a.get('detail', ''), MARGIN_X + 8*mm, y - 12*mm, FONT_SANS, 14, 135*mm, 20)
         y -= 48*mm
     c.showPage()
 
@@ -554,18 +471,22 @@ def create_pdf(json_data):
     y = height - 65*mm
     
     for i, step in enumerate(steps):
+        # 番号
         c.setFont(FONT_SANS, 40)
         c.setFillColor(HexColor(COLORS['accent']))
         c.drawString(MARGIN_X, y - 5*mm, f"0{i+1}")
         
+        # タイトル
         TITLE_X = MARGIN_X + 25*mm
         c.setFont(FONT_SERIF, 18)
         c.setFillColor(HexColor(COLORS['pdf_text']))
         c.drawString(TITLE_X, y, step.get('title', ''))
         
+        # 解説（タイトルの真下に配置、15文字改行）
         c.setFillColor(HexColor(COLORS['pdf_sub']))
-        draw_wrapped_text(c, step.get('detail', ''), TITLE_X, y - 8*mm, FONT_SANS, 11, 160*mm, 16, char_limit=30)
-        y -= 55*mm
+        draw_wrapped_text(c, step.get('detail', ''), TITLE_X, y - 8*mm, FONT_SANS, 12, 135*mm, 18)
+        
+        y -= 45*mm
     c.showPage()
 
     # P7: VISION & ALTERNATIVES
@@ -586,28 +507,17 @@ def create_pdf(json_data):
         y -= 24*mm
         
     # Right
-    RIGHT_START_X = width/2 + 10*mm
+    RIGHT_START_X = width/2 + 10*mm # Center + 10mm
     c.setFont(FONT_SERIF, 20)
     c.setFillColor(HexColor(COLORS['forest']))
     c.drawString(RIGHT_START_X, height - 45*mm, "Other Expressions")
-    
     alts = json_data.get('alternative_expressions', [])
     y_alt = height - 60*mm
-    
     for alt in alts[:3]:
-        term = alt.get('term', '') if isinstance(alt, dict) else str(alt)
-        detail = alt.get('detail', '') if isinstance(alt, dict) else ''
-
         c.setFont(FONT_SANS, 14)
         c.setFillColor(HexColor(COLORS['pdf_text']))
-        c.drawString(RIGHT_START_X, y_alt, f"◇ {term}")
-        
-        if detail:
-            c.setFont(FONT_SANS, 10)
-            c.setFillColor(HexColor(COLORS['pdf_sub']))
-            draw_wrapped_text(c, detail, RIGHT_START_X + 5*mm, y_alt - 6*mm, FONT_SANS, 10, 135*mm, 12, char_limit=15)
-            
-        y_alt -= 50*mm
+        draw_wrapped_text(c, f"◇ {alt}", RIGHT_START_X, y_alt, FONT_SANS, 14, 135*mm, 20)
+        y_alt -= 30*mm
     
     c.showPage()
 
@@ -635,19 +545,13 @@ def create_pdf(json_data):
     quote_data = json_data.get('inspiring_quote', {})
     q_text = quote_data.get('text', '')
     q_author = quote_data.get('author', '')
-    q_title = quote_data.get('title', '')
 
     c.setFillColor(TEXT_COLOR_END)
-    draw_quote_special(c, q_text, width/2, height/2 + 25*mm, FONT_SERIF, 24, 32)
-    
-    c.setFont(FONT_SANS, 16)
+    # 名言を中央配置、15文字改行、余白十分
+    draw_wrapped_text(c, q_text, width/2, height/2 + 25*mm, FONT_SERIF, 28, 135*mm, 42, centered=True)
+    c.setFont(FONT_SANS, 18)
     c.setFillColor(ACCENT_COLOR_END)
-    author_str = f"- {q_author}"
-    if q_title:
-        author_str += f" ({q_title})"
-        
-    c.drawCentredString(width/2, height/2 - 55*mm, author_str)
-    
+    c.drawCentredString(width/2, height/2 - 45*mm, f"- {q_author}")
     c.setFont(FONT_SANS, 12)
     c.setFillColor(TEXT_COLOR_END)
     c.drawRightString(width - MARGIN_X, 15*mm, "8 / 8")
@@ -686,23 +590,9 @@ def render_web_result(data):
     with col2:
         st.markdown("### 成功の方程式")
         f = data.get('formula', {})
-        
-        st.markdown(f"""
-        <div style="border: 1px solid {COLORS['accent']}; border-radius: 8px; padding: 15px; margin-bottom: 10px; background-color: {COLORS['card']};">
-            <p style="color: {COLORS['sub']}; font-size: 0.9rem; margin: 0;">大切にしたいこと</p>
-            <p style="color: {COLORS['text']}; font-size: 1.2rem; font-weight: bold; margin: 5px 0 0 0;">{f.get('values', {}).get('word')}</p>
-        </div>
-        
-        <div style="border: 1px solid {COLORS['accent']}; border-radius: 8px; padding: 15px; margin-bottom: 10px; background-color: {COLORS['card']};">
-            <p style="color: {COLORS['sub']}; font-size: 0.9rem; margin: 0;">得意なこと</p>
-            <p style="color: {COLORS['text']}; font-size: 1.2rem; font-weight: bold; margin: 5px 0 0 0;">{f.get('strengths', {}).get('word')}</p>
-        </div>
-        
-        <div style="border: 1px solid {COLORS['accent']}; border-radius: 8px; padding: 15px; margin-bottom: 10px; background-color: {COLORS['card']};">
-            <p style="color: {COLORS['sub']}; font-size: 0.9rem; margin: 0;">好きなこと</p>
-            <p style="color: {COLORS['text']}; font-size: 1.2rem; font-weight: bold; margin: 5px 0 0 0;">{f.get('interests', {}).get('word')}</p>
-        </div>
-        """, unsafe_allow_html=True)
+        st.info(f"**大切にしたいこと**\n\n{f.get('values', {}).get('word')}")
+        st.warning(f"**得意なこと**\n\n{f.get('strengths', {}).get('word')}")
+        st.success(f"**好きなこと**\n\n{f.get('interests', {}).get('word')}")
 
 if 'step' not in st.session_state: st.session_state.step = 1
 if 'quiz_result' not in st.session_state: st.session_state.quiz_result = None
@@ -712,16 +602,8 @@ if 'uploaded_images' not in st.session_state: st.session_state.uploaded_images =
 if st.session_state.step == 1:
     try: st.image("cover.jpg", use_container_width=True)
     except: pass
-    
-    st.markdown(f"""
-        <h1 style='text-align: center; font-family: "Hiragino Mincho ProN", serif; color: {COLORS['text']}; font-size: 3.5rem; margin-bottom: 0;'>
-            Visionary Blueprint
-        </h1>
-        <h3 style='text-align: center; font-family: "Hiragino Mincho ProN", serif; color: {COLORS['accent']}; font-size: 1.5rem; margin-top: 0; letter-spacing: 0.2em;'>
-            - 世界観の設計図 -
-        </h3>
-    """, unsafe_allow_html=True)
-    st.caption("あなたの感性と才能を言語化する、クリエイティブ分析ツール")
+    st.title("世界観診断 | Visionary Analysis")
+    st.caption("あなたの感性と才能を言語化する、クリエイティブ診断ツール")
     
     st.markdown("##### 00. 得意＆好きな表現")
     specialty = st.text_input("例：写真、映像、絵画、身体表現、造形、デザイン、演技、など")
@@ -753,33 +635,18 @@ if st.session_state.step == 1:
 
 # STEP 2
 elif st.session_state.step == 2:
-    try: st.image("02.jpg", use_container_width=True)
-    except: pass
     st.header("02. ビジョンの統合")
     st.info(f"診断タイプ: **{st.session_state.quiz_result}** / 専門: **{st.session_state.specialty}**")
     
-    col1, col2 = st.columns(2, gap="medium")
-    
+    col1, col2 = st.columns(2)
     with col1:
-        st.markdown(f"""
-        <div style="padding: 10px; border: 1px solid {COLORS['accent']}; border-radius: 5px; margin-bottom: 10px;">
-            <strong style="color: {COLORS['accent']};">1. 原点・現在 (Origin)</strong><br>
-            <span style="color: #F7F7F7;">今、好きな作品（または自身の最高傑作）3枚</span>
-        </div>
-        """, unsafe_allow_html=True)
-        past_files = st.file_uploader("Origin Upload", type=["jpg", "png"], accept_multiple_files=True, key="past", label_visibility="collapsed")
-    
+        st.markdown("#### １、あなたが今、好きな作品（またご自身の現代での最高制作作品）3枚")
+        past_files = st.file_uploader("Origin (Max 3)", type=["jpg", "png"], accept_multiple_files=True, key="past")
     with col2:
-        st.markdown(f"""
-        <div style="padding: 10px; border: 1px solid {COLORS['forest']}; border-radius: 5px; margin-bottom: 10px;">
-            <strong style="color: {COLORS['forest']};">2. 未来・理想 (Ideal)</strong><br>
-            <span style="color: #F7F7F7;">理想の世界観の作品 3枚</span>
-        </div>
-        """, unsafe_allow_html=True)
-        future_files = st.file_uploader("Ideal Upload", type=["jpg", "png"], accept_multiple_files=True, key="future", label_visibility="collapsed")
+        st.markdown("#### ２、あなたの理想の世界観を描いた作品　3枚")
+        future_files = st.file_uploader("Ideal (Max 3)", type=["jpg", "png"], accept_multiple_files=True, key="future")
         
-    st.write("")
-    if st.button("次へ進む（レポート作成へ）", use_container_width=True):
+    if st.button("次へ進む（レポート作成へ）"):
         if not past_files:
             st.error("分析のために、少なくとも1枚の作品画像をアップロードしてください。")
         else:
@@ -801,6 +668,7 @@ elif st.session_state.step == 3:
     st.header("03. レポートの受け取り")
     with st.container():
         st.markdown(f"""<div style="background-color: {COLORS['card']}; padding: 30px; border-radius: 10px; border: 1px solid {COLORS['accent']}; text-align: center;"><h3 style="color: {COLORS['accent']};">Analysis Ready</h3><p>診断結果レポートを発行します。</p></div><br>""", unsafe_allow_html=True)
+        # 入力フォーム変更
         with st.form("lead_capture"):
             col_f1, col_f2 = st.columns(2)
             with col_f1: 
@@ -815,8 +683,10 @@ elif st.session_state.step == 3:
             if submit:
                 if user_name and user_email and region:
                     st.session_state.user_name = user_name
+                    # メールアドレスのクリーニング
                     st.session_state.user_email = user_email.strip().replace('\xa0', '').replace('\u3000', ' ')
                     
+                    # 保存処理
                     is_saved, save_error = save_to_google_sheets(
                         user_name, age_group, region, st.session_state.user_email, 
                         st.session_state.specialty, st.session_state.quiz_result
@@ -832,7 +702,8 @@ elif st.session_state.step == 3:
 # STEP 4 (AI Analysis)
 elif st.session_state.step == 4:
     if "analysis_data" not in st.session_state:
-        with st.spinner("詳しく分析中です。1分程度お待ちください。"):
+        # 待機メッセージ変更
+        with st.spinner("解析中1分お待ちください..."):
             
             success = False
             
@@ -840,11 +711,6 @@ elif st.session_state.step == 4:
                 prompt_text = f"""
                 あなたは世界最高峰のアート専門家・批評家であり、トップアートディレクターです。
                 ユーザーがアップロードした画像と診断情報を元に、その人のアーティストとしての可能性や世界観を深く分析してください。
-                
-                【最重要事項】
-                ユーザーの「得意な表現」は **「{st.session_state.specialty}」** です。
-                **全ての分析結果（特にロールモデル、ビジョン、表現手法）は、必ずこの「{st.session_state.specialty}」の文脈に沿ったものにしてください。**
-                （例：写真なら写真家を、映像なら映像作家や監督を、デザインならデザイナーをロールモデルとして提案する等）
                 
                 【役割設定】
                 ・MoMAのキュレーターのような美術史的知識と、トップクリエイターの審美眼を併せ持ってください。
@@ -874,21 +740,20 @@ elif st.session_state.step == 4:
                         "interests": {{"word": "潜在的に惹かれているテーマ(一言)", "detail": "専門家からの解説(40文字以内)"}}
                     }},
                     "roadmap_steps": [
-                        {{"title": "Stepタイトル(短く)", "detail": "理想に近づくための具体的な制作・思考のアドバイス(180文字以内)"}} を3つ
+                        {{"title": "Stepタイトル(短く)", "detail": "理想に近づくための具体的な制作・思考のアドバイス(60文字以内)"}} を3つ
                     ],
                     "artist_archetypes": [
-                        {{"name": "{st.session_state.specialty}分野における巨匠や現代アーティスト名", "keywords": ["関連キーワード1", "キーワード2", "キーワード3"], "detail": "なぜその作家から学ぶべきかの専門的な理由(120文字以内)"}} を3名
+                        {{"name": "このユーザーが参考にするべき巨匠や現代アーティスト名", "detail": "なぜその作家から学ぶべきかの専門的な理由(60文字以内)"}} を3名
                     ],
                     "final_proposals": [
                         {{"point": "世界観を確立するための提言", "detail": "具体的なディレクション(40文字以内)"}} を5つ
                     ],
                     "alternative_expressions": [
-                        {{"term": "手法名(例: キアロスクーロ)", "detail": "その手法がなぜ合うのかの補足説明(120文字以内)"}} を3つ
+                        "その人の感性が活きる、現在とは異なる表現手法や媒体(短く)" を3つ
                     ],
                     "inspiring_quote": {{
                         "text": "その人の魂を震わせる、偉大な芸術家や哲学者の名言（日本語訳）",
-                        "author": "著者名",
-                        "title": "著者の肩書き(例: フランスの哲学者)"
+                        "author": "著者名"
                     }}
                 }}
                 """
@@ -925,27 +790,32 @@ elif st.session_state.step == 4:
                     "sense_metrics": [{"left": "論理", "right": "直感", "value": 70}] * 8,
                     "formula": {"values": {"word": "システム", "detail": "安全な運用"}, "strengths": {"word": "回復力", "detail": "バックアップ機能"}, "interests": {"word": "安定", "detail": "継続すること"}},
                     "roadmap_steps": [{"title": "Step 1", "detail": "接続を確認する"}, {"title": "Step 2", "detail": "再試行する"}, {"title": "Step 3", "detail": "サポートに連絡する"}],
-                    "artist_archetypes": [{"name": "システム管理者", "keywords": ["安定", "維持", "保守"], "detail": "継続性を保証する人"}],
+                    "artist_archetypes": [{"name": "システム管理者", "detail": "継続性を保証する人"}],
                     "final_proposals": [{"point": "APIキー確認", "detail": "設定を見直してください"}, {"point": "制限確認", "detail": "無料枠を超えている可能性があります"}],
-                    "alternative_expressions": [{"term": "手動レビュー", "detail": "直接連絡"}],
-                    "inspiring_quote": {"text": "創造とは、結びつけることである。", "author": "Thom Yoshida", "title": "Developer"}
+                    "alternative_expressions": ["手動レビュー", "直接連絡"],
+                    "inspiring_quote": {"text": "創造とは、結びつけることである。", "author": "Thom Yoshida"}
                 }
 
             st.session_state.analysis_data = data
-            pdf_buffer = create_pdf(data)
+            
+            # create_pdfにユーザー名を渡すよう変更
+            pdf_buffer = create_pdf(data, st.session_state.get("user_name", "Guest"))
             
             is_sent, error_msg = send_email_with_pdf(st.session_state.user_email, pdf_buffer)
             st.session_state.email_sent_status = is_sent
             st.session_state.email_error_log = error_msg 
             st.rerun()
     else:
+        # 1. 簡易結果は画面で見せる
         data = st.session_state.analysis_data
         render_web_result(data)
         
         st.markdown("---")
         st.markdown("### 📩 詳細レポートを送信しました")
         
+        # 2. メールの送信結果によって表示を変える
         if st.session_state.get("email_sent_status", False):
+            # 成功時：ダウンロードボタンを消し、メール確認を促すメッセージのみにする
             st.success(f"""
             **{st.session_state.user_name} 様の診断レポート（PDF）を、以下のメールアドレス宛に送信いたしました。**
             
@@ -956,14 +826,18 @@ elif st.session_state.step == 4:
             st.info("このレポートは、あなたの今後の創作活動の指針となる「美の設計図」です。大切に保存してください。")
             
         else:
+            # 失敗時：エラーを表示し、緊急避難的にダウンロードボタンを出す
             st.error("⚠️ メール送信に失敗しました。")
             if "email_error_log" in st.session_state and st.session_state.email_error_log:
                 st.error(f"【エラー原因】: {st.session_state.email_error_log}")
             
             st.warning("メールが送れませんでしたので、こちらから直接ダウンロードしてください。")
-            pdf_buffer = create_pdf(data)
+            
+            # create_pdfにユーザー名を渡すよう変更
+            pdf_buffer = create_pdf(data, st.session_state.get("user_name", "Guest"))
             st.download_button("📥 診断レポートをダウンロード", pdf_buffer, "Visionary_Report.pdf", "application/pdf")
 
+        # 3. リセットボタン
         st.markdown("<br><br>", unsafe_allow_html=True)
         if st.button("トップに戻る"):
             st.session_state.clear()
