@@ -33,7 +33,8 @@ from reportlab.lib.utils import ImageReader
 # ---------------------------------------------------------
 # 0. 初期設定 & フォント自動セットアップ
 # ---------------------------------------------------------
-st.set_page_config(page_title="世界観診断 | Visionary Analysis", layout="wide")
+# 【スマホ対応】layoutを "centered" に変更（縦スクロールで見やすく）
+st.set_page_config(page_title="世界観診断 | Visionary Analysis", layout="centered")
 
 # デザイン定義 (COLORS - v5.2 Matte White Tuned)
 COLORS = {
@@ -71,24 +72,23 @@ FONT_SERIF, FONT_SANS = setup_japanese_font()
 if "GEMINI_API_KEY" in st.secrets:
     genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 
-# パスワード認証
-def check_password():
-    if "password_correct" not in st.session_state: st.session_state.password_correct = False
-    if "APP_PASSWORD" not in st.secrets: return True
-    if st.session_state.password_correct: return True
-    st.markdown("### 🔒 Restricted Access")
-    password_input = st.text_input("パスコードを入力してください", type="password")
-    if password_input:
-        if password_input == st.secrets["APP_PASSWORD"]:
-            st.session_state.password_correct = True
-            st.rerun()
-        else: st.error("パスコードが違います")
-    st.stop()
-
-check_password()
+# 【スマホ対応】一般公開用にパスワード制限を無効化（コメントアウト）
+# def check_password():
+#     if "password_correct" not in st.session_state: st.session_state.password_correct = False
+#     if "APP_PASSWORD" not in st.secrets: return True
+#     if st.session_state.password_correct: return True
+#     st.markdown("### 🔒 Restricted Access")
+#     password_input = st.text_input("パスコードを入力してください", type="password")
+#     if password_input:
+#         if password_input == st.secrets["APP_PASSWORD"]:
+#             st.session_state.password_correct = True
+#             st.rerun()
+#         else: st.error("パスコードが違います")
+#     st.stop()
+# check_password()
 
 # ---------------------------------------------------------
-# 1. デザインCSS
+# 1. デザインCSS（スマホ最適化版）
 # ---------------------------------------------------------
 st.markdown(f"""
 <style>
@@ -101,53 +101,40 @@ st.markdown(f"""
     }}
     .stApp {{ background-color: {COLORS["bg"]}; }}
     
-    /* 見出し設定 (h1-h5) */
+    /* 見出し設定 */
     h1, h2, h3, h4, h5 {{
         font-family: "Hiragino Mincho ProN", serif !important;
         color: {COLORS["text"]} !important;
         letter-spacing: 0.05em;
     }}
 
-    .stMarkdown p {{
+    /* テキストカラー調整 */
+    .stMarkdown p, .stTextInput label, .stSelectbox label {{
         color: {COLORS["text"]} !important;
         opacity: 0.95;
     }}
-    .stTextInput label, .stSelectbox label {{
-        color: {COLORS["text"]} !important;
-        font-size: 1.0rem !important;
-        font-weight: normal !important;
-        opacity: 0.95;
-    }}
-    .stTextInput div[data-testid="stMarkdownContainer"] p {{
-         color: {COLORS["text"]} !important;
-    }}
-
-    /* 設問エリア */
+    
+    /* 選択肢カードのデザイン */
     .stRadio label p {{
-        font-size: 1.3rem !important;
+        font-size: 1.2rem !important;
         font-weight: 600 !important;
         color: {COLORS["accent"]} !important;
-        margin-bottom: 10px;
+        margin-bottom: 8px;
     }}
-
-    /* 選択肢カード */
     div[role="radiogroup"] > label {{
         background-color: {COLORS["card"]};
         padding: 15px 20px;
         border-radius: 10px;
         margin-bottom: 12px;
         border: 1px solid #555;
-        transition: all 0.3s ease;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        transition: all 0.2s ease;
     }}
-    div[role="radiogroup"] > label:hover {{
-        border-color: {COLORS["accent"]};
+    div[role="radiogroup"] > label:active {{
         background-color: {COLORS["card_hover"]};
-        transform: translateX(5px);
+        border-color: {COLORS["accent"]};
     }}
     div[role="radiogroup"] > label p {{
         color: #FFFFFF !important;
-        font-size: 1.1rem !important;
         font-weight: 400 !important;
         margin: 0 !important;
     }}
@@ -157,7 +144,6 @@ st.markdown(f"""
         background-color: {COLORS["input_bg"]} !important;
         color: #FFFFFF !important; 
         border: 1px solid #666 !important;
-        font-size: 1.1rem;
     }}
     
     /* ボタン */
@@ -169,6 +155,20 @@ st.markdown(f"""
         padding: 12px 30px;
         border-radius: 6px;
         font-size: 1.1rem;
+        width: 100%; /* スマホで押しやすく全幅に */
+    }}
+
+    /* === スマホ用メディアクエリ（画面が狭い時の調整） === */
+    @media (max-width: 640px) {{
+        html, body, [class*="css"] {{
+            font-size: 16px !important; /* 文字を少し小さくして収める */
+        }}
+        h1 {{
+            font-size: 1.8rem !important;
+        }}
+        div[role="radiogroup"] > label {{
+            padding: 12px 15px !important; /* 余白を詰める */
+        }}
     }}
 </style>
 """, unsafe_allow_html=True)
@@ -619,7 +619,7 @@ if st.session_state.step == 1:
     st.title("世界観診断 | Visionary Analysis")
     st.caption("あなたの感性と才能を言語化する、クリエイティブ診断ツール")
     
-    # === 修正箇所：視認性を高めたカスタムデザイン枠 ===
+    # === スマホ対策：視認性アップ＆事前案内枠 ===
     st.markdown(f"""
     <div style="
         background-color: {COLORS['card']};
@@ -676,6 +676,9 @@ elif st.session_state.step == 2:
     st.header("02. ビジョンの統合")
     st.info(f"診断タイプ: **{st.session_state.quiz_result}** / 専門: **{st.session_state.specialty}**")
     
+    # === スマホ対策：iPhoneユーザーへの注意書き追加 ===
+    st.warning("⚠️ iPhoneの方へ：『Live Photos』や『HEIC形式』はエラーになる場合があります。設定で『互換性優先（JPG）』にするか、スクリーンショットをアップしてください。")
+
     col1, col2 = st.columns(2)
     with col1:
         st.markdown("#### １、あなたが今、好きな作品（またご自身の現代での最高制作作品）3枚")
@@ -759,7 +762,7 @@ elif st.session_state.step == 4:
                 【分析対象の画像について】
                 前半の画像群は「ユーザーが今好きな作品、または自身の制作作品（原点・現在）」です。
                 後半の画像群（もしあれば）は「ユーザーが目指したい理想の世界観（未来・理想）」です。
-                この2つのギャップや共通点から、その人が進むべきクリエイティブな道筋を導き出してください。
+                この2つのギャップや共通点から、その人が進むべきクリエイティブな方向性を導き出してください。
 
                 【ユーザー情報】
                 - 得意な表現: {st.session_state.specialty}
