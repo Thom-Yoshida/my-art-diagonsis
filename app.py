@@ -33,7 +33,7 @@ from reportlab.lib.utils import ImageReader
 # ---------------------------------------------------------
 # 0. 初期設定 & フォント自動セットアップ
 # ---------------------------------------------------------
-st.set_page_config(page_title="世界観診断 | Visionary Analysis", layout="wide") 
+st.set_page_config(page_title="世界観診断 | Visionary Analysis", layout="wide")
 
 # デザイン定義 (COLORS - v5.2 Matte White Tuned)
 COLORS = {
@@ -252,6 +252,9 @@ def send_email_with_pdf(user_email, pdf_buffer):
     msg = MIMEMultipart()
     msg['From'] = sender_email
     msg['To'] = user_email
+    msg['Subject'] = Header("【世界観診断レポート】あなたの診断結果をお届けします", 'utf-8')
+    
+    # === 修正済みメール本文 ===
     body = f"""{st.session_state.get('user_name', 'クリエイター')} 様
 
 世界観 研究所のThom Yoshidaです。
@@ -271,14 +274,8 @@ https://www.street-academy.com/subscription/services/3794?conversion_name=direct
 あなたの「好き」が、世界を照らすことを願っています。
 
 Thom Yoshida"""
-    # === 修正ここまで ===
-
-    body =body.replace('\u00a0', ' ').replace('\xa0', ' ')をご利用いただきありがとうございます。
-あなたの診断結果レポート（PDF）をお送りします。
-
-この分析が、あなたの創作活動のヒントになれば幸いです。
-
-Thom Yoshida"""
+    # === 本文終了 ===
+    
     body = body.replace('\u00a0', ' ').replace('\xa0', ' ')
     msg.attach(MIMEText(body, 'plain', 'utf-8'))
     
@@ -727,16 +724,16 @@ elif st.session_state.step == 4:
             success = False
             
             if "GEMINI_API_KEY" in st.secrets:
+                # === 修正済みプロンプト ===
                 prompt_text = f"""
-                あなたは世界最高峰のアート専門家・批評家であり、トップアートディレクターです。
+                你是世界最高峰のアート専門家・批評家であり、トップアートディレクターです。
                 ユーザーがアップロードした画像と診断情報を元に、その人のアーティストとしての可能性や世界観を深く分析してください。
                 
                 【役割設定】
                 ・MoMAのキュレーターのような美術史的知識と、トップクリエイターの審美眼を併せ持ってください。
                 ・表面的な感想ではなく、色彩、構図、光、質感から読み取れる「作家の魂」や「潜在的な美意識」を言語化してください。
                 ・【重要】AI特有の「完璧でツルッとした言葉」は不要です。人間味のある、少し「憂い」や「厳しさ」を含んだ、体温を感じる文体にしてください。
-                ・あえて「不足している要素（ノイズ、余白、物語性など）」も指摘し、共感を持って成長の余白を示唆してください。
-
+                ・あえて「不足している要素（ノイズ、余白、物語性など）」も指摘し、成長の余白を示唆してください。
 
                 【分析対象の画像について】
                 前半の画像群は「ユーザーが今好きな作品、または自身の制作作品（原点・現在）」です。
