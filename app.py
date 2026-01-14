@@ -72,7 +72,7 @@ FONT_SERIF, FONT_SANS = setup_japanese_font()
 if "GEMINI_API_KEY" in st.secrets:
     genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 
-# 【スマホ対応】一般公開用にパスワード制限を無効化（コメントアウト）
+# パスワード認証（無効化中）
 # def check_password():
 #     if "password_correct" not in st.session_state: st.session_state.password_correct = False
 #     if "APP_PASSWORD" not in st.secrets: return True
@@ -236,7 +236,10 @@ def save_to_google_sheets(name, age, region, email, specialty, diagnosis_type):
         sheet_name = st.secrets.get("SHEET_NAME", "customer_list")
         sheet = client.open(sheet_name).sheet1
         now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        sheet.append_row([now, name, age, region, email, specialty, diagnosis_type])
+        
+        # 【修正箇所】末尾に「True」を追加。これで自動的にチェックボックスがONになります。
+        sheet.append_row([now, name, age, region, email, specialty, diagnosis_type, True])
+        
         return True, None
     except Exception as e:
         return False, str(e)
@@ -762,7 +765,7 @@ elif st.session_state.step == 4:
                 【分析対象の画像について】
                 前半の画像群は「ユーザーが今好きな作品、または自身の制作作品（原点・現在）」です。
                 後半の画像群（もしあれば）は「ユーザーが目指したい理想の世界観（未来・理想）」です。
-                この2つのギャップや共通点から、その人が進むべきクリエイティブな方向性を導き出してください。
+                この2つのギャップや共通点から、その人が進むべきクリエイティブな道筋を導き出してください。
 
                 【ユーザー情報】
                 - 得意な表現: {st.session_state.specialty}
