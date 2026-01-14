@@ -605,8 +605,8 @@ if st.session_state.step == 1:
     st.title("世界観診断 | Visionary Analysis")
     st.caption("あなたの感性と才能を言語化する、クリエイティブ診断ツール")
     
-    st.markdown("##### 00. 得意＆好きな表現")
-    specialty = st.text_input("例：写真、映像、絵画、身体表現、造形、デザイン、演技、など")
+    st.markdown("##### 00. 得意＆好きな表現（※１つに絞ると精度が上がります）")
+    specialty = st.text_input("例：写真、映像、絵画、身体表現（ダンス）、造形、デザイン、演技、など視覚的にわかるもの")
     
     st.markdown("##### 01. 感性チェック")
     st.write("直感で回答してください。あなたの創作の源泉を探ります。")
