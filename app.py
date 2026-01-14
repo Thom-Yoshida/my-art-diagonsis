@@ -33,7 +33,6 @@ from reportlab.lib.utils import ImageReader
 # ---------------------------------------------------------
 # 0. 初期設定 & フォント自動セットアップ
 # ---------------------------------------------------------
-# 【スマホ対応】layoutを "centered" に変更（縦スクロールで見やすく）
 st.set_page_config(page_title="世界観診断 | Visionary Analysis", layout="centered")
 
 # デザイン定義 (COLORS - v5.2 Matte White Tuned)
@@ -71,21 +70,6 @@ FONT_SERIF, FONT_SANS = setup_japanese_font()
 # APIキー設定
 if "GEMINI_API_KEY" in st.secrets:
     genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-
-# パスワード認証（無効化中）
-# def check_password():
-#     if "password_correct" not in st.session_state: st.session_state.password_correct = False
-#     if "APP_PASSWORD" not in st.secrets: return True
-#     if st.session_state.password_correct: return True
-#     st.markdown("### 🔒 Restricted Access")
-#     password_input = st.text_input("パスコードを入力してください", type="password")
-#     if password_input:
-#         if password_input == st.secrets["APP_PASSWORD"]:
-#             st.session_state.password_correct = True
-#             st.rerun()
-#         else: st.error("パスコードが違います")
-#     st.stop()
-# check_password()
 
 # ---------------------------------------------------------
 # 1. デザインCSS（スマホ最適化版）
@@ -235,9 +219,14 @@ def save_to_google_sheets(name, age, region, email, specialty, diagnosis_type):
         
         sheet_name = st.secrets.get("SHEET_NAME", "customer_list")
         sheet = client.open(sheet_name).sheet1
-        now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         
-        # 【修正箇所】末尾に「True」を追加。これで自動的にチェックボックスがONになります。
+        # 【修正】日本時間 (JST) を設定
+        # サーバー時間はUTCなので、+9時間してJSTにする
+        delta = datetime.timedelta(hours=9)
+        jst = datetime.timezone(delta, 'JST')
+        now = datetime.datetime.now(jst).strftime("%Y-%m-%d %H:%M:%S")
+        
+        # 末尾に「True」を追加（配信許可ON）
         sheet.append_row([now, name, age, region, email, specialty, diagnosis_type, True])
         
         return True, None
