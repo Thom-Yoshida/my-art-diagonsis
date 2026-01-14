@@ -254,7 +254,6 @@ def send_email_with_pdf(user_email, pdf_buffer):
     msg['To'] = user_email
     msg['Subject'] = Header("【世界観診断レポート】あなたの診断結果をお届けします", 'utf-8')
     
-    # === 修正済みメール本文 ===
     body = f"""{st.session_state.get('user_name', 'クリエイター')} 様
 
 世界観 研究所のThom Yoshidaです。
@@ -274,7 +273,6 @@ https://www.street-academy.com/subscription/services/3794?conversion_name=direct
 あなたの「好き」が、世界を照らすことを願っています。
 
 Thom Yoshida"""
-    # === 本文終了 ===
     
     body = body.replace('\u00a0', ' ').replace('\xa0', ' ')
     msg.attach(MIMEText(body, 'plain', 'utf-8'))
@@ -621,6 +619,16 @@ if st.session_state.step == 1:
     st.title("世界観診断 | Visionary Analysis")
     st.caption("あなたの感性と才能を言語化する、クリエイティブ診断ツール")
     
+    # === 追加箇所：事前準備アナウンス ===
+    st.info("""
+    **【事前にご用意いただくもの】**
+    診断の後半で、画像分析を行います。以下の画像をお手元にご準備の上、スタートしてください。
+    
+    1. **現在地（原点）**: あなたの代表作、または今好きな写真（3枚）
+    2. **理想（未来）**: これから目指したい世界観の画像（3枚）
+    """)
+    # ==================================
+    
     st.markdown("##### 00. 得意＆好きな表現（※１つに絞ると精度が上がります）")
     specialty = st.text_input("例：写真、映像、絵画、身体表現（ダンス）、造形、デザイン、演技、など視覚的にわかるもの")
     
@@ -724,9 +732,8 @@ elif st.session_state.step == 4:
             success = False
             
             if "GEMINI_API_KEY" in st.secrets:
-                # === 修正済みプロンプト ===
                 prompt_text = f"""
-                你是世界最高峰のアート専門家・批評家であり、トップアートディレクターです。
+                あなたは世界最高峰のアート専門家・批評家であり、トップアートディレクターです。
                 ユーザーがアップロードした画像と診断情報を元に、その人のアーティストとしての可能性や世界観を深く分析してください。
                 
                 【役割設定】
