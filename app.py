@@ -651,4 +651,233 @@ if st.session_state.step == 1:
     with st.form(key='quiz_form'):
         answers = []
         for i, item in enumerate(QUIZ_DATA):
-            ans = st.radio(
+            ans = st.radio(item["q"], item["opts"], key=f"q{i}", horizontal=True, index=None)
+            answers.append((ans, item["type_a"]))
+        st.write("---")
+        submit_button = st.form_submit_button(label="次へ進む")
+    if submit_button:
+        if not specialty: st.warning("得意な表現を入力してください。")
+        elif any(a[0] is None for a in answers): st.error("すべての質問に回答してください。")
+        else:
+            st.session_state.specialty = specialty
+            score_a = 0
+            for ans, type_a_val in answers:
+                if ans == type_a_val: score_a += 1
+            percent = int((score_a / 30) * 100)
+            if score_a >= 20: st.session_state.quiz_result = f"直感・情熱型 (情熱度: {percent}%)"
+            elif score_a >= 16: st.session_state.quiz_result = f"バランス型・直感寄り (情熱度: {percent}%)"
+            elif score_a >= 11: st.session_state.quiz_result = f"バランス型・論理寄り (情熱度: {percent}%)"
+            else: st.session_state.quiz_result = f"論理・構築型 (情熱度: {percent}%)"
+            st.session_state.step = 2
+            st.rerun()
+
+# STEP 2
+elif st.session_state.step == 2:
+    st.header("02. ビジョンの統合")
+    st.info(f"診断タイプ: **{st.session_state.quiz_result}** / 専門: **{st.session_state.specialty}**")
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        st.markdown("#### １、あなたが今、好きな作品（またご自身の現代での最高制作作品）3枚")
+        past_files = st.file_uploader("Origin (Max 3)", type=["jpg", "png"], accept_multiple_files=True, key="past")
+    with col2:
+        st.markdown("#### ２、あなたの理想の世界観を描いた作品　3枚")
+        future_files = st.file_uploader("Ideal (Max 3)", type=["jpg", "png"], accept_multiple_files=True, key="future")
+        
+    if st.button("次へ進む（レポート作成へ）"):
+        if not past_files:
+            st.error("分析のために、少なくとも1枚の作品画像をアップロードしてください。")
+        else:
+            st.session_state.uploaded_images = []
+            for f in past_files:
+                img = Image.open(f)
+                resized_img = resize_image_for_api(img)
+                st.session_state.uploaded_images.append(resized_img)
+            if future_files:
+                for f in future_files:
+                    img = Image.open(f)
+                    resized_img = resize_image_for_api(img)
+                    st.session_state.uploaded_images.append(resized_img)
+            st.session_state.step = 3
+            st.rerun()
+
+# STEP 3
+elif st.session_state.step == 3:
+    st.header("03. レポートの受け取り")
+    with st.container():
+        st.markdown(f"""<div style="background-color: {COLORS['card']}; padding: 30px; border-radius: 10px; border: 1px solid {COLORS['accent']}; text-align: center;"><h3 style="color: {COLORS['accent']};">Analysis Ready</h3><p>診断結果レポートを発行します。</p></div><br>""", unsafe_allow_html=True)
+        # 入力フォーム変更
+        with st.form("lead_capture"):
+            col_f1, col_f2 = st.columns(2)
+            with col_f1: 
+                user_name = st.text_input("お名前")
+                age_group = st.selectbox("年代", ["10代", "20代", "30代", "40代", "50代", "60代以上"])
+            with col_f2: 
+                user_email = st.text_input("メールアドレス")
+                region = st.text_input("お住まいの地域（都道府県）")
+                
+            submit = st.form_submit_button("診断結果を見る", type="primary")
+            
+            if submit:
+                if user_name and user_email and region:
+                    st.session_state.user_name = user_name
+                    # メールアドレスのクリーニング
+                    st.session_state.user_email = user_email.strip().replace('\xa0', '').replace('\u3000', ' ')
+                    
+                    # 保存処理
+                    is_saved, save_error = save_to_google_sheets(
+                        user_name, age_group, region, st.session_state.user_email, 
+                        st.session_state.specialty, st.session_state.quiz_result
+                    )
+                    
+                    if not is_saved:
+                        st.error(f"スプレッドシート保存エラー: {save_error}")
+                    
+                    st.session_state.step = 4
+                    st.rerun()
+                else: st.warning("全ての項目を入力してください。")
+
+# STEP 4 (AI Analysis)
+elif st.session_state.step == 4:
+    if "analysis_data" not in st.session_state:
+        # 待機メッセージ変更
+        with st.spinner("解析中1分お待ちください..."):
+            
+            success = False
+            
+            if "GEMINI_API_KEY" in st.secrets:
+                prompt_text = f"""
+                あなたは世界最高峰のアート専門家・批評家であり、トップアートディレクターです。
+                ユーザーがアップロードした画像と診断情報を元に、その人のアーティストとしての可能性や世界観を深く分析してください。
+                
+                【役割設定】
+                ・MoMAのキュレーターのような美術史的知識と、トップクリエイターの審美眼を併せ持ってください。
+                ・表面的な感想ではなく、色彩、構図、光、質感から読み取れる「作家の魂」や「潜在的な美意識」を言語化してください。
+                ・【重要】AI特有の「完璧でツルッとした言葉」は不要です。人間味のある、少し「憂い」や「厳しさ」を含んだ、体温を感じる文体にしてください。
+                ・あえて「不足している要素（ノイズ、余白、物語性など）」も指摘し、成長の余白を示唆してください。
+
+                【分析対象の画像について】
+                前半の画像群は「ユーザーが今好きな作品、または自身の制作作品（原点・現在）」です。
+                後半の画像群（もしあれば）は「ユーザーが目指したい理想の世界観（未来・理想）」です。
+                この2つのギャップや共通点から、その人が進むべきクリエイティブな道筋を導き出してください。
+
+                【ユーザー情報】
+                - 得意な表現: {st.session_state.specialty}
+                - 診断タイプ: {st.session_state.quiz_result}
+                
+                【必須出力JSON構造】
+                {{
+                    "catchphrase": "その人の世界観を一言で表す美しいキャッチコピー(15文字以内)",
+                    "twelve_past_keywords": ["現在の作品から読み取れる美意識や要素を表す単語12個（日本語）"],
+                    "twelve_future_keywords": ["理想の作品から導き出される、目指すべき未来のキーワード12個（日本語）"],
+                    "sense_metrics": [
+                        {{"left": "対立軸左(例:静寂)", "right": "対立軸右(例:躍動)", "value": 0〜100の数値}} を8個。その人の感性のバランスを分析して。
+                    ],
+                    "formula": {{
+                        "values": {{"word": "創作において最も大切にすべき価値観(一言)", "detail": "専門家からの解説(40文字以内)"}},
+                        "strengths": {{"word": "画像から見出される決定的な強み(一言)", "detail": "専門家からの解説(40文字以内)"}},
+                        "interests": {{"word": "潜在的に惹かれているテーマ(一言)", "detail": "専門家からの解説(40文字以内)"}}
+                    }},
+                    "roadmap_steps": [
+                        {{"title": "Stepタイトル(短く)", "detail": "理想に近づくための具体的な制作・思考のアドバイス(60文字以内)"}} を3つ
+                    ],
+                    "artist_archetypes": [
+                        {{"name": "このユーザーが参考にするべき巨匠や現代アーティスト名", "detail": "なぜその作家から学ぶべきかの専門的な理由(60文字以内)"}} を3名
+                    ],
+                    "final_proposals": [
+                        {{"point": "世界観を確立するための提言", "detail": "具体的なディレクション(40文字以内)"}} を5つ
+                    ],
+                    "alternative_expressions": [
+                        "その人の感性が活きる、現在とは異なる表現手法や媒体(短く)" を3つ
+                    ],
+                    "inspiring_quote": {{
+                        "text": "その人の魂を震わせる、偉大な芸術家や哲学者の名言（日本語訳）",
+                        "author": "著者名"
+                    }}
+                }}
+                """
+                
+                try:
+                    target_model = None
+                    available = []
+                    try:
+                        for m in genai.list_models():
+                            if 'generateContent' in m.supported_generation_methods:
+                                available.append(m.name)
+                    except: pass
+
+                    if available:
+                        for m in available:
+                            if '1.5' in m and 'flash' in m: target_model = m; break
+                        if not target_model: target_model = available[0]
+                    
+                    if target_model:
+                        model = genai.GenerativeModel(target_model)
+                        contents_vision = [prompt_text] + st.session_state.uploaded_images
+                        response = model.generate_content(contents_vision, generation_config={"response_mime_type": "application/json"})
+                        data = json.loads(response.text)
+                        success = True
+                except Exception as e:
+                    print(f"AI Error: {e}")
+
+            if not success:
+                st.warning("⚠️ アクセス集中により、デモモードでレポートを作成しました。")
+                data = {
+                    "catchphrase": "Visionary Mode", 
+                    "twelve_past_keywords": ["原点", "情熱", "模倣", "過去", "自我", "混沌", "迷い", "塵", "影", "壁", "限界", "静寂"],
+                    "twelve_future_keywords": ["ビジョン", "核心", "独創", "未来", "貢献", "鮮明", "光", "星", "流れ", "空", "翼", "自由"],
+                    "sense_metrics": [{"left": "論理", "right": "直感", "value": 70}] * 8,
+                    "formula": {"values": {"word": "システム", "detail": "安全な運用"}, "strengths": {"word": "回復力", "detail": "バックアップ機能"}, "interests": {"word": "安定", "detail": "継続すること"}},
+                    "roadmap_steps": [{"title": "Step 1", "detail": "接続を確認する"}, {"title": "Step 2", "detail": "再試行する"}, {"title": "Step 3", "detail": "サポートに連絡する"}],
+                    "artist_archetypes": [{"name": "システム管理者", "detail": "継続性を保証する人"}],
+                    "final_proposals": [{"point": "APIキー確認", "detail": "設定を見直してください"}, {"point": "制限確認", "detail": "無料枠を超えている可能性があります"}],
+                    "alternative_expressions": ["手動レビュー", "直接連絡"],
+                    "inspiring_quote": {"text": "創造とは、結びつけることである。", "author": "Thom Yoshida"}
+                }
+
+            st.session_state.analysis_data = data
+            
+            # create_pdfにユーザー名を渡すよう変更
+            pdf_buffer = create_pdf(data, st.session_state.get("user_name", "Guest"))
+            
+            is_sent, error_msg = send_email_with_pdf(st.session_state.user_email, pdf_buffer)
+            st.session_state.email_sent_status = is_sent
+            st.session_state.email_error_log = error_msg 
+            st.rerun()
+    else:
+        # 1. 簡易結果は画面で見せる
+        data = st.session_state.analysis_data
+        render_web_result(data)
+        
+        st.markdown("---")
+        st.markdown("### 📩 詳細レポートを送信しました")
+        
+        # 2. メールの送信結果によって表示を変える
+        if st.session_state.get("email_sent_status", False):
+            # 成功時：ダウンロードボタンを消し、メール確認を促すメッセージのみにする
+            st.success(f"""
+            **{st.session_state.user_name} 様の診断レポート（PDF）を、以下のメールアドレス宛に送信いたしました。**
+            
+            📧 送信先: **{st.session_state.user_email}**
+            
+            ※ 数分以内に届かない場合は、**迷惑メールフォルダ**もご確認ください。
+            """)
+            st.info("このレポートは、あなたの今後の創作活動の指針となる「美の設計図」です。大切に保存してください。")
+            
+        else:
+            # 失敗時：エラーを表示し、緊急避難的にダウンロードボタンを出す
+            st.error("⚠️ メール送信に失敗しました。")
+            if "email_error_log" in st.session_state and st.session_state.email_error_log:
+                st.error(f"【エラー原因】: {st.session_state.email_error_log}")
+            
+            st.warning("メールが送れませんでしたので、こちらから直接ダウンロードしてください。")
+            
+            # create_pdfにユーザー名を渡すよう変更
+            pdf_buffer = create_pdf(data, st.session_state.get("user_name", "Guest"))
+            st.download_button("📥 診断レポートをダウンロード", pdf_buffer, "Visionary_Report.pdf", "application/pdf")
+
+        # 3. リセットボタン
+        st.markdown("<br><br>", unsafe_allow_html=True)
+        if st.button("トップに戻る"):
+            st.session_state.clear()
+            st.rerun()
