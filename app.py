@@ -252,11 +252,6 @@ def send_email_with_pdf(user_email, pdf_buffer):
     msg = MIMEMultipart()
     msg['From'] = sender_email
     msg['To'] = user_email
-    msg['Subject'] = Header("【世界観診断レポート】あなたの診断結果をお届けします", 'utf-8')
-    
-    msg['Subject'] = Header("【世界観診断レポート】あなたの診断結果をお届けします", 'utf-8')
-    
-    # === 修正ここから ===
     body = f"""{st.session_state.get('user_name', 'クリエイター')} 様
 
 世界観 研究所のThom Yoshidaです。
@@ -267,7 +262,7 @@ AIと私の視点で分析した「美の設計図（PDF）」を添付いたし
 
 もし、レポートにある「理想の世界観」を
 最短で、かつ論理的に実装したいなら、
-私が直接指導する以下の講座が「処方箋」になります。
+私が直接指導する以下のサロンがお役に立つかもしれません。
 
 ▼ 招待制・世界観 研究所 オンラインサロン【 II. Atelier（アトリエ）】
 https://www.street-academy.com/subscription/services/3794?conversion_name=direct_message&tracking_code=d09de3445c9cd6725ecac969e0f06d76
@@ -278,7 +273,7 @@ https://www.street-academy.com/subscription/services/3794?conversion_name=direct
 Thom Yoshida"""
     # === 修正ここまで ===
 
-    body = body.replace('\u00a0', ' ').replace('\xa0', ' ')をご利用いただきありがとうございます。
+    body =body.replace('\u00a0', ' ').replace('\xa0', ' ')をご利用いただきありがとうございます。
 あなたの診断結果レポート（PDF）をお送りします。
 
 この分析が、あなたの創作活動のヒントになれば幸いです。
