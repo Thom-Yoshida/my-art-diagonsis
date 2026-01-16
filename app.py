@@ -218,27 +218,27 @@ def save_to_google_sheets(name, age, region, email, specialty, diagnosis_type):
         client = gspread.authorize(creds)
         
         sheet_name = st.secrets.get("SHEET_NAME", "customer_list")
-        sheet = client.open(sheet_name).sheet1
         
-        # 【修正】日本時間 (JST) を設定
-        # サーバー時間はUTCなので、+9時間してJSTにする
+        # 【重要】シート1ではなく、「customer_list」という名前のシートを指名して開く
+        sheet = client.open(sheet_name).worksheet("customer_list")
+        
+        # 日本時間 (JST) 設定
         delta = datetime.timedelta(hours=9)
         jst = datetime.timezone(delta, 'JST')
-        now = datetime.datetime.now(jst).strftime("%Y-%m-%d %H:%M:%S")
+        now = datetime.datetime.now(jst).strftime("%Y/%m/%d") # スプレッドシートの日付形式に合わせる
         
-        # 配送ロボット(GAS)の列構成に合わせてデータを配置
-        # A:日付, B:名前, C:年代, D:地域, E:Email, F:専門, G:空, H:空, I:タイプ, J:ステータス
+        # 【最重要】画像の列構成（A列〜J列）に順番を合わせる
         row_data = [
-            now,            # A列: 登録日
-            name,           # B列: 名前
-            age,            # C列: 年代 (メモ用)
-            region,         # D列: 地域 (メモ用)
-            email,          # E列: Email (★重要: ロボットが読む)
-            specialty,      # F列: 専門 (メモ用)
-            "",             # G列: (空欄)
-            "",             # H列: (空欄)
-            diagnosis_type, # I列: タイプ (★重要: ロボットが読む)
-            "配信中"         # J列: ステータス (★重要: これがないと動かない)
+            now,             # A列: Date (登録日)
+            name,            # B列: Name (名前)
+            age,             # C列: 年代 (30代など)
+            region,          # D列: 地域 (東京都など)
+            email,           # E列: Email (★ロボット送信先)
+            specialty,       # F列: 専門性
+            diagnosis_type,  # G列: パターン (診断結果)
+            "TRUE",          # H列: 配信チェック (管理用フラグ)
+            "5_Visionary",   # I列: 配信セグメント (★Content_DBの「ターゲット」と一致させる文字列)
+            "配信中"          # J列: ステータス (★ここが「配信中」でないとロボットは動きません)
         ]
         
         sheet.append_row(row_data)
