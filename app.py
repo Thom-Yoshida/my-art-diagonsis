@@ -226,8 +226,22 @@ def save_to_google_sheets(name, age, region, email, specialty, diagnosis_type):
         jst = datetime.timezone(delta, 'JST')
         now = datetime.datetime.now(jst).strftime("%Y-%m-%d %H:%M:%S")
         
-        # 末尾に「True」を追加（配信許可ON）
-        sheet.append_row([now, name, age, region, email, specialty, diagnosis_type, True])
+        # 配送ロボット(GAS)の列構成に合わせてデータを配置
+        # A:日付, B:名前, C:年代, D:地域, E:Email, F:専門, G:空, H:空, I:タイプ, J:ステータス
+        row_data = [
+            now,            # A列: 登録日
+            name,           # B列: 名前
+            age,            # C列: 年代 (メモ用)
+            region,         # D列: 地域 (メモ用)
+            email,          # E列: Email (★重要: ロボットが読む)
+            specialty,      # F列: 専門 (メモ用)
+            "",             # G列: (空欄)
+            "",             # H列: (空欄)
+            diagnosis_type, # I列: タイプ (★重要: ロボットが読む)
+            "配信中"         # J列: ステータス (★重要: これがないと動かない)
+        ]
+        
+        sheet.append_row(row_data)
         
         return True, None
     except Exception as e:
