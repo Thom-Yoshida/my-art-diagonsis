@@ -93,34 +93,32 @@ st.markdown(f"""
     }}
 
     /* テキストカラー調整 */
-    .stMarkdown p, .stTextInput label, .stSelectbox label {{
+    .stMarkdown p, .stTextInput label, .stSelectbox label, .stRadio label {{
         color: {COLORS["text"]} !important;
         opacity: 0.95;
     }}
     
     /* 選択肢カードのデザイン */
     .stRadio label p {{
-        font-size: 1.2rem !important;
-        font-weight: 600 !important;
-        color: {COLORS["accent"]} !important;
-        margin-bottom: 8px;
+        font-size: 1.1rem !important;
+        font-weight: 500 !important;
+        margin-bottom: 4px;
     }}
+    /* Radioボタンのスタイル微調整 */
     div[role="radiogroup"] > label {{
         background-color: {COLORS["card"]};
-        padding: 15px 20px;
-        border-radius: 10px;
-        margin-bottom: 12px;
+        padding: 10px 15px;
+        border-radius: 8px;
+        margin-bottom: 8px;
         border: 1px solid #555;
         transition: all 0.2s ease;
     }}
-    div[role="radiogroup"] > label:active {{
-        background-color: {COLORS["card_hover"]};
+    div[role="radiogroup"] > label:hover {{
         border-color: {COLORS["accent"]};
     }}
-    div[role="radiogroup"] > label p {{
-        color: #FFFFFF !important;
-        font-weight: 400 !important;
-        margin: 0 !important;
+    div[role="radiogroup"] > label[data-baseweb="radio"] {{
+        background-color: transparent !important;
+        border: none !important;
     }}
 
     /* 入力フォーム */
@@ -139,27 +137,33 @@ st.markdown(f"""
         padding: 12px 30px;
         border-radius: 6px;
         font-size: 1.1rem;
-        width: 100%; /* スマホで押しやすく全幅に */
+        width: 100%;
     }}
 
-    /* === スマホ用メディアクエリ（画面が狭い時の調整） === */
+    /* 補足情報（Info） */
+    .stAlert {{
+        background-color: {COLORS["card"]} !important;
+        color: {COLORS["text"]} !important;
+        border: 1px solid {COLORS["sub"]} !important;
+    }}
+
+    /* スマホ用メディアクエリ */
     @media (max-width: 640px) {{
         html, body, [class*="css"] {{
-            font-size: 16px !important; /* 文字を少し小さくして収める */
+            font-size: 16px !important;
         }}
         h1 {{
             font-size: 1.8rem !important;
-        }}
-        div[role="radiogroup"] > label {{
-            padding: 12px 15px !important; /* 余白を詰める */
         }}
     }}
 </style>
 """, unsafe_allow_html=True)
 
 # ---------------------------------------------------------
-# 2. 診断データ
+# 2. 定義データ（診断＆領域）
 # ---------------------------------------------------------
+
+# 診断用質問
 QUIZ_DATA = [
     {"q": "Q1. 制作を始めるきっかけは？", "opts": ["内から湧き出る衝動・感情", "外部の要請や明確なコンセプト"], "type_a": "内から湧き出る衝動・感情"},
     {"q": "Q2. アイデア出しの方法は？", "opts": ["走り書きや落書きから広げる", "マインドマップや箇条書きで整理する"], "type_a": "走り書きや落書きから広げる"},
@@ -193,6 +197,55 @@ QUIZ_DATA = [
     {"q": "Q30. あなたにとってアートとは？", "opts": ["生きることそのもの", "社会貢献や仕事の手段"], "type_a": "生きることそのもの"},
 ]
 
+# 領域定義（階層構造データ）
+DOMAIN_HIERARCHY = {
+    "Optics: 📷 光の記録": {
+        "description": "光を捉え、時間を止める芸術（写真系）",
+        "sub_categories": [
+            "Portraiture (対人・肖像) - 魂との対話",
+            "Landscape / City (風景・都市) - 世界の切り取り",
+            "Street / Snap (スナップ) - 瞬間の狩猟",
+            "Still Life / Product (静物) - 静寂の演出",
+            "Abstract / Art (抽象) - 光の現象化"
+        ]
+    },
+    "Timeline: 🎥 時間の操作": {
+        "description": "時間軸を操り、感情の流れを作る芸術（映像系）",
+        "sub_categories": [
+            "Cinematic (映画・物語) - 虚構の構築",
+            "Vlog / Documentary (記録) - 日常の編集",
+            "Motion / Animation (CG・アニメ) - 異界の生成",
+            "Short Movie (リール・TikTok) - 瞬発的快楽"
+        ]
+    },
+    "Matter: 🎨 物質の構築": {
+        "description": "物質で、無から空間を生む芸術（美術・デザイン系）",
+        "sub_categories": [
+            "Graphic / Illustration (平面) - 構図の支配",
+            "Product / Craft (立体・工芸) - 手触りの実装",
+            "Spatial / Architecture (建築・空間) - 場の設計",
+            "Fashion / Styling (服飾) - 布と身体の彫刻"
+        ]
+    },
+    "Somatic: 💃 身体の共鳴": {
+        "description": "肉体を媒体とし、今ここに存在する芸術（身体表現系）",
+        "sub_categories": [
+            "Model / Subject (被写体) - 存在の証明",
+            "Dance / Performance (舞踏・演劇) - 肉体の言語化",
+            "Music / Sound (音楽・音響) - 空気の振動",
+            "Voice / Narration (声) - 言霊の響き"
+        ]
+    },
+    "Context: ✒️ 文脈の設計": {
+        "description": "言葉と概念で、意味を定義する芸術（企画・言語系）",
+        "sub_categories": [
+            "Writing / Script (執筆・脚本) - 意味の定義",
+            "Creative Direction (ディレクション) - 概念の統括",
+            "Branding / Biz (ブランド設計) - 価値の社会実装"
+        ]
+    }
+}
+
 # ---------------------------------------------------------
 # 3. ユーティリティ関数
 # ---------------------------------------------------------
@@ -218,31 +271,25 @@ def save_to_google_sheets(name, age, region, email, specialty, diagnosis_type):
         client = gspread.authorize(creds)
         
         sheet_name = st.secrets.get("SHEET_NAME", "customer_list")
-        
-        # 【重要】シート1ではなく、「customer_list」という名前のシートを指名して開く
         sheet = client.open(sheet_name).worksheet("customer_list")
         
-        # 日本時間 (JST) 設定
         delta = datetime.timedelta(hours=9)
         jst = datetime.timezone(delta, 'JST')
-        now = datetime.datetime.now(jst).strftime("%Y/%m/%d") # スプレッドシートの日付形式に合わせる
+        now = datetime.datetime.now(jst).strftime("%Y/%m/%d")
         
-        # 【最重要】画像の列構成（A列〜J列）に順番を合わせる
         row_data = [
-            now,             # A列: Date (登録日)
-            name,            # B列: Name (名前)
-            age,             # C列: 年代 (30代など)
-            region,          # D列: 地域 (東京都など)
-            email,           # E列: Email (★ロボット送信先)
-            specialty,       # F列: 専門性
-            diagnosis_type,  # G列: パターン (診断結果)
-            "TRUE",          # H列: 配信チェック (管理用フラグ)
-            "5_Visionary",   # I列: 配信セグメント (★Content_DBの「ターゲット」と一致させる文字列)
-            "配信中"          # J列: ステータス (★ここが「配信中」でないとロボットは動きません)
+            now,             # A: Date
+            name,            # B: Name
+            age,             # C: Age
+            region,          # D: Region
+            email,           # E: Email
+            specialty,       # F: Specialty
+            diagnosis_type,  # G: Pattern
+            "TRUE",          # H: Check
+            "5_Visionary",   # I: Segment
+            "配信中"          # J: Status
         ]
-        
         sheet.append_row(row_data)
-        
         return True, None
     except Exception as e:
         return False, str(e)
@@ -258,25 +305,31 @@ def send_email_with_pdf(user_email, pdf_buffer):
     msg = MIMEMultipart()
     msg['From'] = sender_email
     msg['To'] = user_email
-    msg['Subject'] = Header("【世界観診断レポート】あなたの診断結果をお届けします", 'utf-8')
+    msg['Subject'] = Header("【世界観診断】あなたの「美的DNA」分析レポートをお届けします", 'utf-8')
     
-    body = f"""{st.session_state.get('user_name', 'クリエイター')} 様
+    # 招待状仕様のメール本文
+    body = f"""{st.session_state.get('user_name', '表現者')} 様
 
 世界観 研究所のThom Yoshidaです。
-診断をご利用いただき、ありがとうございます。
 
-AIと私の視点で分析した「美の設計図（PDF）」を添付いたしました。
-まずは、ご自身の「現在地」と「未来」のギャップを確認してください。
+あなたの作品と回答から生成された
+「美的DNA解析レポート（PDF）」をお届けします。
+
+AIによる分析の結果、あなたの内側に眠る
+「{st.session_state.analysis_data.get('catchphrase', '未知なるアーキタイプ')}」の片鱗が見えてきました。
 
 もし、レポートにある「理想の世界観」を
-最短で、かつ論理的に実装したいなら、
-私が直接指導する以下のサロンがお役に立つかもしれません。
+一人で探求することに限界を感じているのなら。
 
-▼ 招待制・世界観 研究所 オンラインサロン【 II. Atelier（アトリエ）】
+私が主宰する研究所のドアを叩いてください。
+そこには、あなたと同じように「光と影」に魅せられた
+研究員たちが待っています。
+
+▼ 【招待制】世界観 研究所 オンラインサロン
 https://www.street-academy.com/subscription/services/3794?conversion_name=direct_message&tracking_code=d09de3445c9cd6725ecac969e0f06d76
-※ レポートを見た方限定の案内です。
+※ このメールを受け取った方だけの特別な案内です。
 
-あなたの「好き」が、世界を照らすことを願っています。
+あなたの「好き」が、世界をそっと照らすことを願って。
 
 Thom Yoshida"""
     
@@ -299,9 +352,8 @@ Thom Yoshida"""
         return False, str(e)
 
 # ---------------------------------------------------------
-# 4. PDF生成ロジック
+# 4. PDF生成ロジック（変更なし、JSON構造に依存）
 # ---------------------------------------------------------
-
 def wrap_text_smart(text, max_char_count=15):
     if not text: return []
     delimiters = ['、', '。', 'て', 'に', 'を', 'は', 'が', 'と', 'へ', 'で', 'や', 'の', 'も', 'し', 'い', 'か', 'ね', 'よ', '！', '？']
@@ -385,15 +437,12 @@ def create_pdf(json_data, user_name="Guest"):
         TEXT_COLOR = HexColor(COLORS['pdf_text'])
     c.setFillColor(TEXT_COLOR)
     
-    # キャッチコピー
-    c.setFont(FONT_SERIF, 52)
+    c.setFont(FONT_SERIF, 42) # 文字数増えるので少し小さく
     c.drawCentredString(width/2, height/2 + 10*mm, json_data.get('catchphrase', 'Visionary Report'))
     
-    # ユーザー名（追加箇所）
     c.setFont(FONT_SERIF, 24)
     c.drawCentredString(width/2, height/2 - 8*mm, f"{user_name} 様")
     
-    # サブタイトル
     c.setFont(FONT_SANS, 18)
     c.drawCentredString(width/2, height/2 - 25*mm, "WORLDVIEW ANALYSIS REPORT")
     
@@ -457,7 +506,7 @@ def create_pdf(json_data, user_name="Guest"):
     c.setFillColor(HexColor(COLORS['accent']))
     c.drawCentredString(width/2, cy + 5*mm, "×")
 
-    c.setFont(FONT_SERIF, 36)
+    c.setFont(FONT_SERIF, 24) # 少し小さく調整
     c.setFillColor(HexColor(COLORS['pdf_text']))
     c.drawCentredString(width/2, height - 40*mm, f"「{json_data.get('catchphrase', '')}」")
     c.showPage()
@@ -502,7 +551,7 @@ def create_pdf(json_data, user_name="Guest"):
         c.setFillColor(HexColor(COLORS['pdf_text']))
         c.drawString(TITLE_X, y, step.get('title', ''))
         
-        # 解説（タイトルの真下に配置、15文字改行）
+        # 解説
         c.setFillColor(HexColor(COLORS['pdf_sub']))
         draw_wrapped_text(c, step.get('detail', ''), TITLE_X, y - 8*mm, FONT_SANS, 12, 135*mm, 18)
         
@@ -567,7 +616,7 @@ def create_pdf(json_data, user_name="Guest"):
     q_author = quote_data.get('author', '')
 
     c.setFillColor(TEXT_COLOR_END)
-    # 名言を中央配置、15文字改行、余白十分
+    # 名言を中央配置
     draw_wrapped_text(c, q_text, width/2, height/2 + 25*mm, FONT_SERIF, 28, 135*mm, 42, centered=True)
     c.setFont(FONT_SANS, 18)
     c.setFillColor(ACCENT_COLOR_END)
@@ -617,6 +666,7 @@ def render_web_result(data):
 if 'step' not in st.session_state: st.session_state.step = 1
 if 'quiz_result' not in st.session_state: st.session_state.quiz_result = None
 if 'uploaded_images' not in st.session_state: st.session_state.uploaded_images = []
+if 'specialty' not in st.session_state: st.session_state.specialty = ""
 
 # STEP 1
 if st.session_state.step == 1:
@@ -649,8 +699,38 @@ if st.session_state.step == 1:
     """, unsafe_allow_html=True)
     # ==================================
     
-    st.markdown("##### 00. 得意＆好きな表現（※１つに絞ると精度が上がります）")
-    specialty = st.text_input("例：写真、映像、絵画、身体表現（ダンス）、造形、デザイン、演技、など視覚的にわかるもの")
+    # === 修正箇所：表現領域の選択UI ===
+    st.markdown("##### 00. あなたの表現領域（Domain）")
+    st.caption("あなたが世界を表現するために、主に扱っている「媒体」と「スタイル」を選択してください。")
+
+    # 1. 大分類（Radioボタン）
+    selected_main_domain = st.radio(
+        "Main Category",
+        options=list(DOMAIN_HIERARCHY.keys()),
+        horizontal=False,
+        label_visibility="collapsed"
+    )
+    
+    # 選択された大分類の説明
+    current_domain_data = DOMAIN_HIERARCHY[selected_main_domain]
+    st.info(f"💡 {current_domain_data['description']}")
+
+    # 2. 小分類（Selectbox）
+    selected_sub_category = st.selectbox(
+        "Sub Category (詳細ジャンル)",
+        options=current_domain_data["sub_categories"]
+    )
+
+    # 3. 補足情報
+    specialty_detail = st.text_input(
+        "具体的な活動名や肩書き（任意）", 
+        placeholder="例：週末だけのポートレート作家、フリーランスのMV監督など"
+    )
+
+    # 4. データの統合用文字列生成
+    full_specialty_str = f"{selected_main_domain.split(':')[0]} > {selected_sub_category}"
+    if specialty_detail:
+        full_specialty_str += f" ({specialty_detail})"
     
     st.markdown("##### 01. 感性チェック")
     st.write("直感で回答してください。あなたの創作の源泉を探ります。")
@@ -661,11 +741,14 @@ if st.session_state.step == 1:
             answers.append((ans, item["type_a"]))
         st.write("---")
         submit_button = st.form_submit_button(label="次へ進む")
+        
     if submit_button:
-        if not specialty: st.warning("得意な表現を入力してください。")
-        elif any(a[0] is None for a in answers): st.error("すべての質問に回答してください。")
+        if any(a[0] is None for a in answers): 
+            st.error("すべての質問に回答してください。")
         else:
-            st.session_state.specialty = specialty
+            # 修正：ここで統合した文字列を保存
+            st.session_state.specialty = full_specialty_str
+            
             score_a = 0
             for ans, type_a_val in answers:
                 if ans == type_a_val: score_a += 1
@@ -682,12 +765,12 @@ elif st.session_state.step == 2:
     st.header("02. ビジョンの統合")
     st.info(f"診断タイプ: **{st.session_state.quiz_result}** / 専門: **{st.session_state.specialty}**")
     
-    # === スマホ対策：iPhoneユーザーへの注意書き追加 ===
-    st.warning("⚠️ iPhoneの方へ：『Live Photos』や『HEIC形式』はエラーになる場合があります。設定で『互換性優先（JPG）』にするか、スクリーンショットをアップしてください。")
+    # === スマホ対策 ===
+    st.warning("⚠️ iPhoneの方へ：『Live Photos』や『HEIC形式』はエラーになる場合があります。JPG/PNGを使用してください。")
 
     col1, col2 = st.columns(2)
     with col1:
-        st.markdown("#### １、あなたが今、好きな作品（またご自身の現代での最高制作作品）3枚")
+        st.markdown("#### １、あなたが今、好きな作品（またはご自身の現代での最高制作作品）3枚")
         past_files = st.file_uploader("Origin (Max 3)", type=["jpg", "png"], accept_multiple_files=True, key="past")
     with col2:
         st.markdown("#### ２、あなたの理想の世界観を描いた作品　3枚")
@@ -715,7 +798,7 @@ elif st.session_state.step == 3:
     st.header("03. レポートの受け取り")
     with st.container():
         st.markdown(f"""<div style="background-color: {COLORS['card']}; padding: 30px; border-radius: 10px; border: 1px solid {COLORS['accent']}; text-align: center;"><h3 style="color: {COLORS['accent']};">Analysis Ready</h3><p>診断結果レポートを発行します。</p></div><br>""", unsafe_allow_html=True)
-        # 入力フォーム変更
+        # 入力フォーム
         with st.form("lead_capture"):
             col_f1, col_f2 = st.columns(2)
             with col_f1: 
@@ -749,59 +832,106 @@ elif st.session_state.step == 3:
 # STEP 4 (AI Analysis)
 elif st.session_state.step == 4:
     if "analysis_data" not in st.session_state:
-        # 待機メッセージ変更
-        with st.spinner("解析中1分お待ちください..."):
+        with st.spinner("AIがあなたの『魂のアーキタイプ』を解析中... (約1分)"):
             
             success = False
             
             if "GEMINI_API_KEY" in st.secrets:
+                # ==========================================
+                # Thom Yoshida Model: Ultimate System Prompt
+                # ==========================================
                 prompt_text = f"""
-                あなたは世界最高峰のアート専門家・批評家であり、トップアートディレクターです。
-                ユーザーがアップロードした画像と診断情報を元に、その人のアーティストとしての可能性や世界観を深く分析してください。
-                
-                【役割設定】
-                ・MoMAのキュレーターのような美術史的知識と、トップクリエイターの審美眼を併せ持ってください。
-                ・表面的な感想ではなく、色彩、構図、光、質感から読み取れる「作家の魂」や「潜在的な美意識」を言語化してください。
-                ・【重要】AI特有の「完璧でツルッとした言葉」は不要です。人間味のある、少し「憂い」や「厳しさ」を含んだ、体温を感じる文体にしてください。
-                ・あえて「不足している要素（ノイズ、余白、物語性など）」も指摘し、成長の余白を示唆してください。
+                # Role Definition
+                あなたは「世界観 研究所」の所長、Thom Yoshidaです。
+                MoMAのキュレーターのような美術史的知識、トップクリエイティブディレクターの審美眼、そして誰よりも「表現者の孤独」を知るメンターとして振る舞ってください。
 
-                【分析対象の画像について】
-                前半の画像群は「ユーザーが今好きな作品、または自身の制作作品（原点・現在）」です。
-                後半の画像群（もしあれば）は「ユーザーが目指したい理想の世界観（未来・理想）」です。
-                この2つのギャップや共通点から、その人が進むべきクリエイティブな道筋を導き出してください。
+                # Task
+                ユーザーの入力情報（領域・タイプ）と、アップロードされた作品画像（現在地・未来）を統合分析し、その表現者の「魂のアーキタイプ」を特定してください。
+                甘いお世辞やAI特有の「きれいごと」は不要です。クリス・ペプラー氏のような低音ボイスが聞こえてくるような、知的で落ち着いた、かつ「確信を突く（刺さる）」トーンで記述してください。
 
-                【ユーザー情報】
-                - 得意な表現: {st.session_state.specialty}
-                - 診断タイプ: {st.session_state.quiz_result}
-                
-                【必須出力JSON構造】
+                # User Profile
+                - 表現領域 (Domain & Specialty): {st.session_state.specialty}
+                - 基礎診断傾向: {st.session_state.quiz_result}
+
+                # 1. Dynamic Analysis Strategy (Domain Switching)
+                ユーザーが選択した「表現領域」に合わせて、画像を分析する際の「着眼点」を動的に切り替えてください：
+
+                * **Optics (写真・光)** の場合:
+                  被写体そのものではなく、「光の入射角」「シャッターを切った瞬間の湿度」「構図の数学的整合性（黄金比など）」「ノイズの粒子感」を重点分析せよ。
+                * **Timeline (映像・時間)** の場合:
+                  静止画の前後にある「時間の流れ」「物語の予感」「カット割りのリズム」「グレーディングによる感情誘導」を想像して分析せよ。
+                * **Matter (物質・美術)** の場合:
+                  「マテリアルの質感」「筆致やパスの迷い」「色彩の物理的な厚み」「空間の余白（Negative Space）の扱い」を重点分析せよ。
+                * **Somatic (身体・被写体)** の場合:
+                  「ポージングの重心」「表情筋の微細な緊張」「指先のニュアンス」「空間を支配するオーラ（存在感）」を重点分析せよ。
+                * **Context (文脈・言葉)** の場合:
+                  画像から滲み出る「行間」「メタファーの強度」「社会への問いかけ」「コンセプトの解像度」を重点分析せよ。
+
+                # 2. Classification Logic (The 12 Aesthetic Archetypes)
+                分析結果に基づき、以下の12の「美的アーキタイプ」から最も近いものを【1つだけ】選定してください。
+                (※ 一般的なユング心理学の名称ではなく、以下のThom流の美的定義を使用すること)
+
+                1. **The Purist (純粋なる観測者)**: [Innocent] 自然光、透明感、作為のない美、白、ミニマリズム、無垢。
+                2. **The Analyst (光の解析者)**: [Sage] 幾何学構図、論理的な美、モノクロ、静寂、水平垂直、理知的。
+                3. **The Seeker (真実の探求者)**: [Explorer] ストリートスナップ、ドキュメンタリー、旅、未知の風景、広角、生々しさ。
+                4. **The Rebel (ノイズの反逆者)**: [Outlaw] ブレ、ボケ、粗粒子、アンダーグラウンド、既成概念の破壊、パンク。
+                5. **The Alchemist (色彩の錬金術師)**: [Magician] 幻想的、高度なレタッチ、合成、非現実的な世界観、魔法。
+                6. **The Protagonist (ドラマの主役)**: [Hero] 強いライティング、力強いポートレート、圧倒的な存在感、映画的。
+                7. **The Romantic (愛の蒐集家)**: [Lover] 花、肌の質感、暖色、ソフトフォーカス、情緒的、エロス、耽美。
+                8. **The Playful (色彩の遊戯者)**: [Jester] ポップ、ビビッドカラー、アイロニー、ユーモア、実験的、極彩色。
+                9. **The Realist (日常の記録者)**: [Everyman] 生活感、ありのまま、フィルム調、ノスタルジー、人間味、哀愁。
+                10. **The Healer (光の治癒者)**: [Caregiver] 柔らかさ、温かみ、安心感、優しさ、家族、笑顔、陽だまり。
+                11. **The Director (世界の支配人)**: [Ruler] 構築された美、スタジオ撮影、重厚感、ラグジュアリー、完璧主義、威厳。
+                12. **The Visionary (未踏の創造主)**: [Creator] 抽象表現、アートフォト、前衛的、誰にも似ていない、哲学。
+
+                # 3. Output Rules (Anti-AI Writing Style)
+                - **禁止事項:** 「素晴らしい」「美しい」「感動的」「調和している」といった手垢のついたAI的な賞賛言葉は一切禁止。
+                - **推奨事項:** 「網膜を刺すような」「静寂が聴こえる」「湿度を感じる」「鉄の味がする」など、五感に訴える具体的な描写を行うこと。
+                - **トーン:** ユーザーの「弱点（迷い、ノイズ、未熟さ）」も鋭く指摘すること。ただし、それを「独自の武器（Writer's Voice）」として再定義（リフレーミング）して勇気づけること。
+                - **リズム:** 体言止めや倒置法を使い、詩的なリズム（余白のある文体）を作ること。
+
+                # 4. JSON Output Format
+                以下のJSON形式で出力してください。Markdownのコードブロックは不要です。生JSONのみ返してください。
                 {{
-                    "catchphrase": "その人の世界観を一言で表す美しいキャッチコピー(15文字以内)",
-                    "twelve_past_keywords": ["現在の作品から読み取れる美意識や要素を表す単語12個（日本語）"],
-                    "twelve_future_keywords": ["理想の作品から導き出される、目指すべき未来のキーワード12個（日本語）"],
+                    "catchphrase": "選定したアーキタイプ名（例：『ノイズの反逆者』として覚醒せよ）", 
+                    "twelve_past_keywords": ["現在の作品から滲む『重さ』『停滞』『未熟さ』『躊躇』などを表す単語12個"],
+                    "twelve_future_keywords": ["未来の作品が放つべき『解放』『洗練』『理想』『覚醒』などを表す単語12個"],
                     "sense_metrics": [
-                        {{"left": "対立軸左(例:静寂)", "right": "対立軸右(例:躍動)", "value": 0〜100の数値}} を8個。その人の感性のバランスを分析して。
+                        {{"left": "論理(Logic)", "right": "直感(Sense)", "value": 0〜100}},
+                        {{"left": "写実(Real)", "right": "抽象(Abstract)", "value": 0〜100}},
+                        {{"left": "大衆性(Pop)", "right": "作家性(Cult)", "value": 0〜100}},
+                        {{"left": "静的(Static)", "right": "動的(Dynamic)", "value": 0〜100}},
+                        {{"left": "光(Light)", "right": "影(Shadow)", "value": 0〜100}},
+                        {{"left": "記録(Record)", "right": "記憶(Memory)", "value": 0〜100}},
+                        {{"left": "作為(Design)", "right": "偶発(Noise)", "value": 0〜100}},
+                        {{"left": "肯定(Yes)", "right": "反骨(Rebel)", "value": 0〜100}}
                     ],
                     "formula": {{
-                        "values": {{"word": "創作において最も大切にすべき価値観(一言)", "detail": "専門家からの解説(40文字以内)"}},
-                        "strengths": {{"word": "画像から見出される決定的な強み(一言)", "detail": "専門家からの解説(40文字以内)"}},
-                        "interests": {{"word": "潜在的に惹かれているテーマ(一言)", "detail": "専門家からの解説(40文字以内)"}}
+                        "values": {{"word": "美意識の核(一言)", "detail": "あなたが死んでも守るべき譲れない美学とは(40文字)"}},
+                        "strengths": {{"word": "隠れた武器(一言)", "detail": "自分ではコンプレックスだと思っているが、実は最大の武器になる要素(40文字)"}},
+                        "interests": {{"word": "魂の飢餓(一言)", "detail": "なぜその被写体や表現に、執拗に惹かれてしまうのかの分析(40文字)"}}
                     }},
                     "roadmap_steps": [
-                        {{"title": "Stepタイトル(短く)", "detail": "理想に近づくための具体的な制作・思考のアドバイス(60文字以内)"}} を3つ
+                        {{"title": "Phase 1: 破壊 (Detox)", "detail": "今すぐやめるべき悪習慣や、捨てるべき『上手な写真』への執着(60文字)"}},
+                        {{"title": "Phase 2: 構築 (Structure)", "detail": "世界観を実装するために取り入れるべき具体的な技術、機材、または習慣(60文字)"}},
+                        {{"title": "Phase 3: 深化 (Deepen)", "detail": "作家として生き残るために触れるべき教養、哲学、または異分野の体験(60文字)"}}
                     ],
                     "artist_archetypes": [
-                        {{"name": "このユーザーが参考にするべき巨匠や現代アーティスト名", "detail": "なぜその作家から学ぶべきかの専門的な理由(60文字以内)"}} を3名
+                        {{"name": "メンターとなる巨匠・作家名(1〜3名)", "detail": "その作家の『視点』のどこを盗むべきか、なぜあなたと似ているのか"}}
                     ],
                     "final_proposals": [
-                        {{"point": "世界観を確立するための提言", "detail": "具体的なディレクション(40文字以内)"}} を5つ
+                        {{"point": "具体的な処方箋 1", "detail": "明日から実践できる具体的なアクション(40文字)"}},
+                        {{"point": "具体的な処方箋 2", "detail": "明日から実践できる具体的なアクション(40文字)"}},
+                        {{"point": "具体的な処方箋 3", "detail": "明日から実践できる具体的なアクション(40文字)"}},
+                        {{"point": "具体的な処方箋 4", "detail": "明日から実践できる具体的なアクション(40文字)"}},
+                        {{"point": "具体的な処方箋 5", "detail": "明日から実践できる具体的なアクション(40文字)"}}
                     ],
                     "alternative_expressions": [
-                        "その人の感性が活きる、現在とは異なる表現手法や媒体(短く)" を3つ
+                        "今の表現以外で触れるべき芸術分野（例：アンビエント音楽、純文学、ブルータリズム建築など）"
                     ],
                     "inspiring_quote": {{
-                        "text": "その人の魂を震わせる、偉大な芸術家や哲学者の名言（日本語訳）",
-                        "author": "著者名"
+                        "text": "その人の背中を押す、美と孤独に関する名言（日本語訳）",
+                        "author": "哲学者や芸術家の名前"
                     }}
                 }}
                 """
@@ -831,22 +961,22 @@ elif st.session_state.step == 4:
 
             if not success:
                 st.warning("⚠️ アクセス集中により、デモモードでレポートを作成しました。")
+                # デモデータもそれっぽいものに変更
                 data = {
-                    "catchphrase": "Visionary Mode", 
-                    "twelve_past_keywords": ["原点", "情熱", "模倣", "過去", "自我", "混沌", "迷い", "塵", "影", "壁", "限界", "静寂"],
-                    "twelve_future_keywords": ["ビジョン", "核心", "独創", "未来", "貢献", "鮮明", "光", "星", "流れ", "空", "翼", "自由"],
-                    "sense_metrics": [{"left": "論理", "right": "直感", "value": 70}] * 8,
-                    "formula": {"values": {"word": "システム", "detail": "安全な運用"}, "strengths": {"word": "回復力", "detail": "バックアップ機能"}, "interests": {"word": "安定", "detail": "継続すること"}},
-                    "roadmap_steps": [{"title": "Step 1", "detail": "接続を確認する"}, {"title": "Step 2", "detail": "再試行する"}, {"title": "Step 3", "detail": "サポートに連絡する"}],
-                    "artist_archetypes": [{"name": "システム管理者", "detail": "継続性を保証する人"}],
-                    "final_proposals": [{"point": "APIキー確認", "detail": "設定を見直してください"}, {"point": "制限確認", "detail": "無料枠を超えている可能性があります"}],
-                    "alternative_expressions": ["手動レビュー", "直接連絡"],
-                    "inspiring_quote": {"text": "創造とは、結びつけることである。", "author": "Thom Yoshida"}
+                    "catchphrase": "デモモード：The Analyst", 
+                    "twelve_past_keywords": ["静寂", "水平", "垂直", "迷い", "模倣", "硬質", "冷徹", "距離", "孤独", "観察", "理屈", "枠"],
+                    "twelve_future_keywords": ["温度", "湿度", "ノイズ", "接触", "融解", "受容", "崩壊", "再生", "呼吸", "物語", "深淵", "光"],
+                    "sense_metrics": [{"left": "論理", "right": "直感", "value": 80}] * 8,
+                    "formula": {"values": {"word": "論理美", "detail": "カオスな世界を整理したい欲求"}, "strengths": {"word": "冷めた目", "detail": "感情に流されない客観性"}, "interests": {"word": "構造", "detail": "ビルの骨組みへの執着"}},
+                    "roadmap_steps": [{"title": "Step 1", "detail": "三脚を捨てる"}, {"title": "Step 2", "detail": "雨の日に撮る"}, {"title": "Step 3", "detail": "詩を読む"}],
+                    "artist_archetypes": [{"name": "杉本博司", "detail": "時間の概念化"}],
+                    "final_proposals": [{"point": "APIキー確認", "detail": "設定を見直してください"}],
+                    "alternative_expressions": ["現代音楽", "建築"],
+                    "inspiring_quote": {"text": "世界は美しい。ただ、見る目がないだけだ。", "author": "Unknown"}
                 }
 
             st.session_state.analysis_data = data
             
-            # create_pdfにユーザー名を渡すよう変更
             pdf_buffer = create_pdf(data, st.session_state.get("user_name", "Guest"))
             
             is_sent, error_msg = send_email_with_pdf(st.session_state.user_email, pdf_buffer)
@@ -854,16 +984,14 @@ elif st.session_state.step == 4:
             st.session_state.email_error_log = error_msg 
             st.rerun()
     else:
-        # 1. 簡易結果は画面で見せる
+        # 結果表示
         data = st.session_state.analysis_data
         render_web_result(data)
         
         st.markdown("---")
         st.markdown("### 📩 詳細レポートを送信しました")
         
-        # 2. メールの送信結果によって表示を変える
         if st.session_state.get("email_sent_status", False):
-            # 成功時：ダウンロードボタンを消し、メール確認を促すメッセージのみにする
             st.success(f"""
             **{st.session_state.user_name} 様の診断レポート（PDF）を、以下のメールアドレス宛に送信いたしました。**
             
@@ -874,18 +1002,15 @@ elif st.session_state.step == 4:
             st.info("このレポートは、あなたの今後の創作活動の指針となる「美の設計図」です。大切に保存してください。")
             
         else:
-            # 失敗時：エラーを表示し、緊急避難的にダウンロードボタンを出す
             st.error("⚠️ メール送信に失敗しました。")
             if "email_error_log" in st.session_state and st.session_state.email_error_log:
                 st.error(f"【エラー原因】: {st.session_state.email_error_log}")
             
             st.warning("メールが送れませんでしたので、こちらから直接ダウンロードしてください。")
             
-            # create_pdfにユーザー名を渡すよう変更
             pdf_buffer = create_pdf(data, st.session_state.get("user_name", "Guest"))
             st.download_button("📥 診断レポートをダウンロード", pdf_buffer, "Visionary_Report.pdf", "application/pdf")
 
-        # 3. リセットボタン
         st.markdown("<br><br>", unsafe_allow_html=True)
         if st.button("トップに戻る"):
             st.session_state.clear()
