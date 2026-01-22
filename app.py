@@ -182,7 +182,8 @@ st.markdown(f"""
     }}
 
     /* --- 浮き上がるボタン（Floating CTA） --- */
-    .floating-cta {
+    /* ここを修正：波括弧を二重 {{ }} にしました */
+    .floating-cta {{
         position: fixed;
         bottom: 30px;
         right: 30px;
@@ -200,13 +201,13 @@ st.markdown(f"""
         align-items: center;
         gap: 10px;
         border: 1px solid rgba(255,255,255,0.2);
-    }
+    }}
     
-    .floating-cta:hover {
+    .floating-cta:hover {{
         transform: translateY(-5px) scale(1.05);
         box-shadow: 0 15px 35px rgba(214, 174, 96, 0.6);
         color: #000 !important;
-    }
+    }}
 
     /* スマホ用メディアクエリ */
     @media (max-width: 640px) {{
