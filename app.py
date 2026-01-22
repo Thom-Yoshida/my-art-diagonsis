@@ -289,7 +289,7 @@ DOMAIN_HIERARCHY = {
     }
 }
 
-# 診断用質問 (30問)
+# 診断用質問
 QUIZ_DATA = [
     {"q": "Q1. 制作を始めるきっかけは？", "opts": ["内から湧き出る衝動・感情", "外部の要請や明確なコンセプト"], "type_a": "内から湧き出る衝動・感情"},
     {"q": "Q2. アイデア出しの方法は？", "opts": ["走り書きや落書きから広げる", "マインドマップや箇条書きで整理する"], "type_a": "走り書きや落書きから広げる"},
@@ -515,15 +515,33 @@ def create_pdf(json_data, user_name="Guest"):
         TEXT_COLOR = HexColor(COLORS['pdf_text'])
     c.setFillColor(TEXT_COLOR)
     
+    # キャッチコピーの15文字改行・中央揃え処理
+    catchphrase_text = json_data.get('catchphrase', 'Visionary Report')
     c.setFont(FONT_SERIF, 42)
-    c.drawCentredString(width/2, height/2 + 10*mm, json_data.get('catchphrase', 'Visionary Report'))
+    
+    # 15文字で分割
+    title_lines = wrap_text_smart(catchphrase_text, max_char_count=15)
+    
+    # 行送り（Leading）の設定
+    leading = 20 * mm 
+    
+    # ブロック全体の高さを計算して、垂直方向の中心を調整
+    total_height = (len(title_lines) - 1) * leading
+    # 基準点（画面中央より少し上）から、ブロックの半分を上にずらして書き始める
+    start_y = (height / 2) + 10*mm + (total_height / 2) 
+    
+    current_y = start_y
+    for line in title_lines:
+        c.drawCentredString(width/2, current_y, line)
+        current_y -= leading
     
     c.setFont(FONT_SERIF, 24)
-    c.drawCentredString(width/2, height/2 - 8*mm, f"{user_name} 様")
+    c.drawCentredString(width/2, height/2 - 15*mm - (total_height/2), f"{user_name} 様")
     
     c.setFont(FONT_SANS, 18)
-    c.drawCentredString(width/2, height/2 - 25*mm, "WORLDVIEW ANALYSIS REPORT")
+    c.drawCentredString(width/2, height/2 - 32*mm - (total_height/2), "WORLDVIEW ANALYSIS REPORT")
     
+    # === Footer Update: AI -> Laboratory ===
     c.setFont(FONT_SERIF, 12)
     c.drawCentredString(width/2, 20*mm, f"Designed by ThomYoshida Laboratory | {datetime.datetime.now().strftime('%Y.%m.%d')}")
     c.showPage()
@@ -586,7 +604,14 @@ def create_pdf(json_data, user_name="Guest"):
 
     c.setFont(FONT_SERIF, 24)
     c.setFillColor(HexColor(COLORS['pdf_text']))
-    c.drawCentredString(width/2, height - 40*mm, f"「{json_data.get('catchphrase', '')}」")
+    
+    # P3の下部のキャッチフレーズも同様に処理
+    title_lines_p3 = wrap_text_smart(catchphrase_text, max_char_count=18) # ここは少し長めでOK
+    current_y_p3 = height - 40*mm
+    for line in title_lines_p3:
+        c.drawCentredString(width/2, current_y_p3, f"「{line}」")
+        current_y_p3 -= 12*mm
+        
     c.showPage()
 
     # P4: SENSE BALANCE
@@ -650,6 +675,7 @@ def create_pdf(json_data, user_name="Guest"):
         c.setFont(FONT_SANS, 14)
         c.setFillColor(HexColor(COLORS['pdf_text']))
         c.drawString(MARGIN_X, y, f"・{p.get('point')}")
+        # === 修正：具体的な〜を削除し、25文字改行に ===
         draw_wrapped_text(c, p.get('detail', ''), MARGIN_X + 5*mm, y - 8*mm, FONT_SANS, 11, 135*mm, 14)
         y -= 24*mm
         
@@ -822,7 +848,7 @@ if st.session_state.step == 1:
         
         # === 自由回答3問の追加 ===
         st.markdown("<br><h5>02. あなたのエッセンス（自由回答）</h5>", unsafe_allow_html=True)
-        st.caption("AIによる分析精度を高めるための、重要な3つの質問です。")
+        st.caption("独自の分析精度を高めるための、重要な3つの質問です。")
         free_q1 = st.text_input("Q31. 好きな映画を１つだけ挙げるなら？")
         free_q2 = st.text_input("Q32. 好きな色は？")
         free_q3 = st.text_input("Q33. 最後の晩餐に何を食べる？")
