@@ -289,7 +289,7 @@ DOMAIN_HIERARCHY = {
     }
 }
 
-# 診断用質問
+# 診断用質問 (30問)
 QUIZ_DATA = [
     {"q": "Q1. 制作を始めるきっかけは？", "opts": ["内から湧き出る衝動・感情", "外部の要請や明確なコンセプト"], "type_a": "内から湧き出る衝動・感情"},
     {"q": "Q2. アイデア出しの方法は？", "opts": ["走り書きや落書きから広げる", "マインドマップや箇条書きで整理する"], "type_a": "走り書きや落書きから広げる"},
@@ -384,7 +384,7 @@ def send_email_with_pdf(user_email, pdf_buffer):
     msg['To'] = user_email
     msg['Subject'] = Header("【世界観診断】あなたの「美的DNA」分析レポートをお届けします", 'utf-8')
     
-    # === 招待状仕様のステップメール（ここが重要なマーケティング導線） ===
+    # === 招待状仕様のステップメール ===
     body = f"""{st.session_state.get('user_name', '表現者')} 様
 
 世界観 研究所のThom Yoshidaです。
@@ -451,10 +451,8 @@ def wrap_text_smart(text, max_char_count=15):
 
 def draw_wrapped_text(c, text, x, y, font, size, width_limit_mm, leading, centered=False):
     c.setFont(font, size)
-    # --- P7 Proposals 25文字改行に変更 ---
     limit = 25 if width_limit_mm == 135 else 15
     lines = wrap_text_smart(text, max_char_count=limit)
-    # ------------------------------------
     current_y = y
     for line in lines:
         if centered: c.drawCentredString(x, current_y, line)
@@ -526,7 +524,6 @@ def create_pdf(json_data, user_name="Guest"):
     c.setFont(FONT_SANS, 18)
     c.drawCentredString(width/2, height/2 - 25*mm, "WORLDVIEW ANALYSIS REPORT")
     
-    # === Footer Update: AI -> Laboratory ===
     c.setFont(FONT_SERIF, 12)
     c.drawCentredString(width/2, 20*mm, f"Designed by ThomYoshida Laboratory | {datetime.datetime.now().strftime('%Y.%m.%d')}")
     c.showPage()
@@ -653,7 +650,6 @@ def create_pdf(json_data, user_name="Guest"):
         c.setFont(FONT_SANS, 14)
         c.setFillColor(HexColor(COLORS['pdf_text']))
         c.drawString(MARGIN_X, y, f"・{p.get('point')}")
-        # === 修正：具体的な〜を削除し、25文字改行に ===
         draw_wrapped_text(c, p.get('detail', ''), MARGIN_X + 5*mm, y - 8*mm, FONT_SANS, 11, 135*mm, 14)
         y -= 24*mm
         
@@ -749,6 +745,7 @@ if 'step' not in st.session_state: st.session_state.step = 1
 if 'quiz_result' not in st.session_state: st.session_state.quiz_result = None
 if 'uploaded_images' not in st.session_state: st.session_state.uploaded_images = []
 if 'specialty' not in st.session_state: st.session_state.specialty = ""
+if 'free_answers' not in st.session_state: st.session_state.free_answers = {}
 
 # STEP 1
 if st.session_state.step == 1:
@@ -822,14 +819,30 @@ if st.session_state.step == 1:
         for i, item in enumerate(QUIZ_DATA):
             ans = st.radio(item["q"], item["opts"], key=f"q{i}", horizontal=False, index=None)
             answers.append((ans, item["type_a"]))
+        
+        # === 自由回答3問の追加 ===
+        st.markdown("<br><h5>02. あなたのエッセンス（自由回答）</h5>", unsafe_allow_html=True)
+        st.caption("AIによる分析精度を高めるための、重要な3つの質問です。")
+        free_q1 = st.text_input("Q31. 好きな映画を１つだけ挙げるなら？")
+        free_q2 = st.text_input("Q32. 好きな色は？")
+        free_q3 = st.text_input("Q33. 最後の晩餐に何を食べる？")
+
         st.write("---")
         submit_button = st.form_submit_button(label="次へ進む")
         
     if submit_button:
         if any(a[0] is None for a in answers): 
             st.error("すべての質問に回答してください。")
+        elif not free_q1 or not free_q2 or not free_q3:
+            st.error("自由回答の3問もすべて入力してください。")
         else:
             st.session_state.specialty = full_specialty_str
+            # 自由回答の保存
+            st.session_state.free_answers = {
+                "movie": free_q1,
+                "color": free_q2,
+                "food": free_q3
+            }
             
             score_a = 0
             for ans, type_a_val in answers:
@@ -928,12 +941,16 @@ elif st.session_state.step == 4:
                 MoMAのキュレーターのような美術史的知識、トップクリエイティブディレクターの審美眼、そして誰よりも「表現者の孤独」を知るメンターとして振る舞ってください。
 
                 # Task
-                ユーザーの入力情報（領域・タイプ）と、アップロードされた作品画像（現在地・未来）を統合分析し、その表現者の「魂のアーキタイプ」を特定してください。
+                ユーザーの入力情報（領域・タイプ・自由記述）と、アップロードされた作品画像（現在地・未来）を統合分析し、その表現者の「魂のアーキタイプ」を特定してください。
                 甘いお世辞や表面的な「きれいごと」は不要です。クリス・ペプラー氏のような低音ボイスが聞こえてくるような、知的で落ち着いた、かつ「確信を突く（刺さる）」トーンで記述してください。
 
                 # User Profile
                 - 表現領域 (Domain & Specialty): {st.session_state.specialty}
                 - 基礎診断傾向: {st.session_state.quiz_result}
+                - **魂のエッセンス (Free Answers):**
+                    - 好きな映画: {st.session_state.free_answers.get('movie')} (※これを視覚的ムードやストーリーテリングの参考にせよ)
+                    - 好きな色: {st.session_state.free_answers.get('color')} (※これをキーカラーやトーン分析に反映せよ)
+                    - 最後の晩餐: {st.session_state.free_answers.get('food')} (※ここから個人の「幸福の定義」や「執着の対象」を読み取り、アーキタイプ選定の決定打とせよ)
 
                 # 1. Dynamic Analysis Strategy (Domain Switching)
                 ユーザーが選択した以下の「表現領域」に合わせて、分析の着眼点を切り替えてください。
@@ -987,8 +1004,8 @@ elif st.session_state.step == 4:
                 以下のJSON形式で出力してください。Markdownのコードブロックは不要です。生JSONのみ返してください。
                 {{
                     "catchphrase": "選定したアーキタイプ名（例：『ノイズの反逆者』として覚醒せよ）", 
-                    "twelve_past_keywords": ["現在の作品から滲む『重さ』や『停滞』を表す単語12個。※重要：必ず「一語（単語）」のみで出力すること。例：「混沌とした世界」は不可。「混沌」とする。"],
-                    "twelve_future_keywords": ["未来の作品が放つべき『解放』や『洗練』を表す単語12個。※重要：必ず「一語（単語）」のみで出力すること。"],
+                    "twelve_past_keywords": ["現在の作品から滲む『重さ』『停滞』『未熟さ』『躊躇』などを表す単語12個。※重要：必ず「一語（単語）」のみで出力すること。例：「混沌とした世界」は不可。「混沌」とする。"],
+                    "twelve_future_keywords": ["未来の作品が放つべき『解放』『洗練』『理想』『覚醒』などを表す単語12個。※重要：必ず「一語（単語）」のみで出力すること。"],
                     "sense_metrics": [
                         {{"left": "論理(Logic)", "right": "直感(Sense)", "value": 0〜100}},
                         {{"left": "写実(Real)", "right": "抽象(Abstract)", "value": 0〜100}},
