@@ -720,6 +720,7 @@ if st.session_state.step == 1:
     st.caption("あなたの感性と才能を言語化する、クリエイティブ診断ツール")
     
     # === スマホ対策：視認性アップ＆事前案内枠 ===
+    # ★修正箇所：AIという言葉を排除し、スクショOKを明記★
     st.markdown(f"""
     <div style="
         background-color: {COLORS['card']};
@@ -733,12 +734,16 @@ if st.session_state.step == 1:
             📝 事前にご用意いただくもの
         </h4>
         <p style="font-size: 1rem; line-height: 1.6;">
-            診断の後半で、AIによる画像解析を行います。以下の画像をお手元にご準備の上、スタートしてください。
+            診断の後半で、あなたの視覚表現から「美的DNA」を抽出・分析します。<br>
+            以下の画像をお手元にご準備の上、スタートしてください。
         </p>
         <ul style="margin-bottom: 0;">
-            <li><b>現在地（原点）</b>: あなたの代表作、または今好きな写真（1〜3枚）</li>
+            <li><b>現在地（原点）</b>: あなたの代表作、仕事の成果物、または今好きな画像（1〜3枚）</li>
             <li><b>理想（未来）</b>: これから目指したい世界観の画像（1〜3枚）</li>
         </ul>
+        <p style="font-size: 0.9rem; color: {COLORS['sub']}; margin-top: 10px;">
+            ※ 写真作品に限らず、図面、コード、画面デザインなどの<b>スクリーンショット</b>でも解析可能です。
+        </p>
     </div>
     """, unsafe_allow_html=True)
     
@@ -870,7 +875,8 @@ elif st.session_state.step == 3:
 # STEP 4 (AI Analysis)
 elif st.session_state.step == 4:
     if "analysis_data" not in st.session_state:
-        with st.spinner("AIがあなたの『魂のアーキタイプ』を解析中... (約1分)"):
+        # ★修正：ここでもAIという言葉を隠す★
+        with st.spinner("あなたの視覚情報を解析し、『美的DNA』を抽出中... (約1分)"):
             
             success = False
             
