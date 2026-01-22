@@ -47,7 +47,9 @@ COLORS = {
     "input_bg": "#404040",  
     "pdf_bg": "#FAFAF8",    
     "pdf_text": "#2C2C2C",
-    "pdf_sub": "#555555"
+    "pdf_sub": "#555555",
+    "button_active": "#D6AE60", # 選択時の強調色
+    "button_text_active": "#1E1E1E" # 選択時のテキスト色
 }
 
 # 日本語フォント設定
@@ -72,7 +74,7 @@ if "GEMINI_API_KEY" in st.secrets:
     genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 
 # ---------------------------------------------------------
-# 1. デザインCSS（スマホ最適化版）
+# 1. デザインCSS（視認性強化版）
 # ---------------------------------------------------------
 st.markdown(f"""
 <style>
@@ -98,27 +100,65 @@ st.markdown(f"""
         opacity: 0.95;
     }}
     
-    /* 選択肢カードのデザイン */
-    .stRadio label p {{
-        font-size: 1.1rem !important;
-        font-weight: 500 !important;
-        margin-bottom: 4px;
+    /* --- 重要な変更：ラジオボタンを「パネルボタン化」するCSS --- */
+    
+    /* ラジオボタンのコンテナ（選択肢全体） */
+    div[role="radiogroup"] {{
+        background-color: transparent;
+        border: none;
     }}
-    /* Radioボタンのスタイル微調整 */
+
+    /* 各選択肢（ラベル）をカード型にする */
     div[role="radiogroup"] > label {{
-        background-color: {COLORS["card"]};
-        padding: 10px 15px;
-        border-radius: 8px;
-        margin-bottom: 8px;
-        border: 1px solid #555;
-        transition: all 0.2s ease;
+        background-color: {COLORS["card"]} !important;
+        padding: 15px 20px !important;
+        border-radius: 8px !important;
+        margin-bottom: 10px !important;
+        border: 1px solid #555 !important;
+        transition: all 0.2s ease !important;
+        cursor: pointer !important;
+        display: flex !important;
+        align-items: center !important;
+        width: 100% !important;
     }}
+
+    /* ホバー時の挙動 */
     div[role="radiogroup"] > label:hover {{
-        border-color: {COLORS["accent"]};
+        background-color: {COLORS["card_hover"]} !important;
+        border-color: {COLORS["accent"]} !important;
+        transform: translateY(-2px);
     }}
+
+    /* 選択中の状態（チェックが入った時）を強調 */
     div[role="radiogroup"] > label[data-baseweb="radio"] {{
-        background-color: transparent !important;
-        border: none !important;
+        background-color: {COLORS["button_active"]} !important;
+        border-color: {COLORS["button_active"]} !important;
+    }}
+    
+    /* ラジオボタンの「丸ポチ」を少し大きく、目立たなくして全体を押させる */
+    div[role="radiogroup"] label div[data-testid="stMarkdownContainer"] p {{
+        font-size: 1.1rem !important;
+        font-weight: 600 !important;
+        margin: 0 !important;
+        padding-left: 5px;
+    }}
+
+    /* --- Domain選択エリアの特別装飾 --- */
+    .domain-box {{
+        background-color: {COLORS["card"]};
+        border: 1px solid {COLORS["forest"]};
+        border-radius: 12px;
+        padding: 25px;
+        margin-bottom: 30px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+    }}
+    .domain-title {{
+        color: {COLORS["forest"]};
+        font-size: 1.3rem;
+        font-weight: bold;
+        margin-bottom: 10px;
+        border-bottom: 1px solid #555;
+        padding-bottom: 10px;
     }}
 
     /* 入力フォーム */
@@ -128,16 +168,22 @@ st.markdown(f"""
         border: 1px solid #666 !important;
     }}
     
-    /* ボタン */
+    /* 次へボタン */
     div.stButton > button {{
         background-color: {COLORS["sub"]};
         color: #1A1A1A;
         font-weight: bold;
         border: none;
-        padding: 12px 30px;
-        border-radius: 6px;
-        font-size: 1.1rem;
+        padding: 15px 30px;
+        border-radius: 8px;
+        font-size: 1.2rem;
         width: 100%;
+        margin-top: 20px;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+    }}
+    div.stButton > button:hover {{
+        background-color: #FFFFFF;
+        box-shadow: 0 6px 14px rgba(0,0,0,0.7);
     }}
 
     /* 補足情報（Info） */
@@ -154,6 +200,9 @@ st.markdown(f"""
         }}
         h1 {{
             font-size: 1.8rem !important;
+        }}
+        div[role="radiogroup"] > label {{
+            padding: 12px 15px !important;
         }}
     }}
 </style>
@@ -307,7 +356,6 @@ def send_email_with_pdf(user_email, pdf_buffer):
     msg['To'] = user_email
     msg['Subject'] = Header("【世界観診断】あなたの「美的DNA」分析レポートをお届けします", 'utf-8')
     
-    # 招待状仕様のメール本文
     body = f"""{st.session_state.get('user_name', '表現者')} 様
 
 世界観 研究所のThom Yoshidaです。
@@ -352,7 +400,7 @@ Thom Yoshida"""
         return False, str(e)
 
 # ---------------------------------------------------------
-# 4. PDF生成ロジック（変更なし、JSON構造に依存）
+# 4. PDF生成ロジック
 # ---------------------------------------------------------
 def wrap_text_smart(text, max_char_count=15):
     if not text: return []
@@ -437,7 +485,7 @@ def create_pdf(json_data, user_name="Guest"):
         TEXT_COLOR = HexColor(COLORS['pdf_text'])
     c.setFillColor(TEXT_COLOR)
     
-    c.setFont(FONT_SERIF, 42) # 文字数増えるので少し小さく
+    c.setFont(FONT_SERIF, 42)
     c.drawCentredString(width/2, height/2 + 10*mm, json_data.get('catchphrase', 'Visionary Report'))
     
     c.setFont(FONT_SERIF, 24)
@@ -506,7 +554,7 @@ def create_pdf(json_data, user_name="Guest"):
     c.setFillColor(HexColor(COLORS['accent']))
     c.drawCentredString(width/2, cy + 5*mm, "×")
 
-    c.setFont(FONT_SERIF, 24) # 少し小さく調整
+    c.setFont(FONT_SERIF, 24)
     c.setFillColor(HexColor(COLORS['pdf_text']))
     c.drawCentredString(width/2, height - 40*mm, f"「{json_data.get('catchphrase', '')}」")
     c.showPage()
@@ -697,10 +745,9 @@ if st.session_state.step == 1:
         </ul>
     </div>
     """, unsafe_allow_html=True)
-    # ==================================
     
-    # === 修正箇所：表現領域の選択UI ===
-    st.markdown("##### 00. あなたの表現領域（Domain）")
+    # === 修正箇所：表現領域の選択UIをカード化して視認性アップ ===
+    st.markdown(f"""<div class="domain-box"><div class="domain-title">00. あなたの表現領域 (Domain)</div>""", unsafe_allow_html=True)
     st.caption("あなたが世界を表現するために、主に扱っている「媒体」と「スタイル」を選択してください。")
 
     # 1. 大分類（Radioボタン）
@@ -726,18 +773,21 @@ if st.session_state.step == 1:
         "具体的な活動名や肩書き（任意）", 
         placeholder="例：週末だけのポートレート作家、フリーランスのMV監督など"
     )
+    st.markdown("</div>", unsafe_allow_html=True) # domain-box closing
 
     # 4. データの統合用文字列生成
     full_specialty_str = f"{selected_main_domain.split(':')[0]} > {selected_sub_category}"
     if specialty_detail:
         full_specialty_str += f" ({specialty_detail})"
     
+    # === 感性チェック ===
     st.markdown("##### 01. 感性チェック")
     st.write("直感で回答してください。あなたの創作の源泉を探ります。")
     with st.form(key='quiz_form'):
         answers = []
         for i, item in enumerate(QUIZ_DATA):
-            ans = st.radio(item["q"], item["opts"], key=f"q{i}", horizontal=True, index=None)
+            # CSSでボタン化されたRadioを使用
+            ans = st.radio(item["q"], item["opts"], key=f"q{i}", horizontal=False, index=None)
             answers.append((ans, item["type_a"]))
         st.write("---")
         submit_button = st.form_submit_button(label="次へ進む")
@@ -961,7 +1011,6 @@ elif st.session_state.step == 4:
 
             if not success:
                 st.warning("⚠️ アクセス集中により、デモモードでレポートを作成しました。")
-                # デモデータもそれっぽいものに変更
                 data = {
                     "catchphrase": "デモモード：The Analyst", 
                     "twelve_past_keywords": ["静寂", "水平", "垂直", "迷い", "模倣", "硬質", "冷徹", "距離", "孤独", "観察", "理屈", "枠"],
