@@ -48,8 +48,8 @@ COLORS = {
     "pdf_bg": "#FAFAF8",    
     "pdf_text": "#2C2C2C",
     "pdf_sub": "#555555",
-    "button_active": "#D6AE60", # 選択時の強調色
-    "button_text_active": "#1E1E1E" # 選択時のテキスト色
+    "button_active": "#D6AE60", 
+    "button_text_active": "#1E1E1E" 
 }
 
 # 日本語フォント設定
@@ -100,15 +100,11 @@ st.markdown(f"""
         opacity: 0.95;
     }}
     
-    /* --- 重要な変更：ラジオボタンを「パネルボタン化」するCSS --- */
-    
-    /* ラジオボタンのコンテナ（選択肢全体） */
+    /* ラジオボタンのパネル化CSS */
     div[role="radiogroup"] {{
         background-color: transparent;
         border: none;
     }}
-
-    /* 各選択肢（ラベル）をカード型にする */
     div[role="radiogroup"] > label {{
         background-color: {COLORS["card"]} !important;
         padding: 15px 20px !important;
@@ -121,21 +117,20 @@ st.markdown(f"""
         align-items: center !important;
         width: 100% !important;
     }}
-
-    /* ホバー時の挙動 */
     div[role="radiogroup"] > label:hover {{
         background-color: {COLORS["card_hover"]} !important;
         border-color: {COLORS["accent"]} !important;
         transform: translateY(-2px);
     }}
-
-    /* 選択中の状態（チェックが入った時）を強調 */
     div[role="radiogroup"] > label[data-baseweb="radio"] {{
         background-color: {COLORS["button_active"]} !important;
         border-color: {COLORS["button_active"]} !important;
     }}
-    
-    /* ラジオボタンの「丸ポチ」を少し大きく、目立たなくして全体を押させる */
+    /* 選択された時のテキスト色調整（視認性確保） */
+    div[role="radiogroup"] > label[data-baseweb="radio"] div[data-testid="stMarkdownContainer"] p {{
+        color: {COLORS["button_text_active"]} !important;
+    }}
+
     div[role="radiogroup"] label div[data-testid="stMarkdownContainer"] p {{
         font-size: 1.1rem !important;
         font-weight: 600 !important;
@@ -143,7 +138,7 @@ st.markdown(f"""
         padding-left: 5px;
     }}
 
-    /* --- Domain選択エリアの特別装飾 --- */
+    /* Domain選択エリアの装飾 */
     .domain-box {{
         background-color: {COLORS["card"]};
         border: 1px solid {COLORS["forest"]};
@@ -168,7 +163,7 @@ st.markdown(f"""
         border: 1px solid #666 !important;
     }}
     
-    /* 次へボタン */
+    /* ボタン */
     div.stButton > button {{
         background-color: {COLORS["sub"]};
         color: #1A1A1A;
@@ -184,13 +179,6 @@ st.markdown(f"""
     div.stButton > button:hover {{
         background-color: #FFFFFF;
         box-shadow: 0 6px 14px rgba(0,0,0,0.7);
-    }}
-
-    /* 補足情報（Info） */
-    .stAlert {{
-        background-color: {COLORS["card"]} !important;
-        color: {COLORS["text"]} !important;
-        border: 1px solid {COLORS["sub"]} !important;
     }}
 
     /* スマホ用メディアクエリ */
@@ -209,8 +197,64 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 # ---------------------------------------------------------
-# 2. 定義データ（診断＆領域）
+# 2. 定義データ
 # ---------------------------------------------------------
+
+# 領域定義（階層構造データ） ※全方位クリエイター対応版
+DOMAIN_HIERARCHY = {
+    "📸 写真・カメラ (Optics)": {
+        "description": "レンズ越しに「光」と「一瞬」を切り取る表現",
+        "sub_categories": [
+            "人物を撮る (ポートレート・宣材)",
+            "服・ブランドを撮る (ファッション・ルックブック)",
+            "景色・街を撮る (風景・スナップ・建築写真)",
+            "モノ・商品を撮る (物撮り・テーブルフォト)",
+            "作品として撮る (アート・抽象写真)",
+            "日常を残す (家族・子供・ウェディング)"
+        ]
+    },
+    "🎥 映像・動画 (Timeline)": {
+        "description": "時間の流れを編集し、「物語」を紡ぐ表現",
+        "sub_categories": [
+            "音楽を描く (MV・ミュージックビデオ)",
+            "映画・ドラマを作る (シネマティック・自主制作)",
+            "日常・記録を残す (Vlog・ドキュメンタリー)",
+            "異世界を作る (CG・アニメーション・モーショングラフィックス)",
+            "短く伝える (リール・TikTok・広告動画)",
+            "演出・構成をする (映像監督・演出家)"
+        ]
+    },
+    "🎨 絵・デザイン・食・住 (Matter)": {
+        "description": "色や素材を使って、無から「空間」や「体験」を生み出す表現",
+        "sub_categories": [
+            "体験・画面を作る (Webデザイン・UI/UX・LP)",
+            "装い・身体装飾 (衣装・ヘアメイク・ネイル・ボディペイント)",
+            "平面のデザイン (グラフィック・ロゴ・広告)",
+            "素材・立体 (プロダクト・工芸・テキスタイル)",
+            "空間のデザイン (建築・インテリア・舞台美術)",
+            "食・香りの表現 (料理人・パティシエ・バリスタ・調香師)" 
+        ]
+    },
+    "💃 身体・演技・音 (Somatic)": {
+        "description": "自分自身の「身体」や「声」を媒体とする表現",
+        "sub_categories": [
+            "役を演じる (俳優・役者・キャスト)",
+            "被写体になる (モデル・インフルエンサー)",
+            "身体で表現する (ダンス・舞踏・パフォーマー)",
+            "音・声を奏でる (音楽家・DJ・声優・ナレーター)"
+        ]
+    },
+    "✒️ 言葉・論理・ビジネス (Context)": {
+        "description": "言葉・論理・概念で、「意味」や「仕組み」を定義する表現",
+        "sub_categories": [
+            "仕組みを構築する (SE・エンジニア・研究者・医師)", 
+            "全体を導く (ディレクション・経営者・起業家)", 
+            "文章を書く (執筆・脚本・コピーライティング)",
+            "価値を作る (ブランディング・事業開発)",
+            "世界観を広める (広報・SNS運用・マーケティング)"
+        ]
+    }
+}
 
 # 診断用質問
 QUIZ_DATA = [
@@ -245,55 +289,6 @@ QUIZ_DATA = [
     {"q": "Q29. 完璧主義についてどう思う？", "opts": ["完成しなくても魂がこもっていればいい", "細部まで完璧でないと気が済まない"], "type_a": "完成しなくても魂がこもっていればいい"},
     {"q": "Q30. あなたにとってアートとは？", "opts": ["生きることそのもの", "社会貢献や仕事の手段"], "type_a": "生きることそのもの"},
 ]
-
-# 領域定義（階層構造データ）
-DOMAIN_HIERARCHY = {
-    "Optics: 📷 光の記録": {
-        "description": "光を捉え、時間を止める芸術（写真系）",
-        "sub_categories": [
-            "Portraiture (対人・肖像) - 魂との対話",
-            "Landscape / City (風景・都市) - 世界の切り取り",
-            "Street / Snap (スナップ) - 瞬間の狩猟",
-            "Still Life / Product (静物) - 静寂の演出",
-            "Abstract / Art (抽象) - 光の現象化"
-        ]
-    },
-    "Timeline: 🎥 時間の操作": {
-        "description": "時間軸を操り、感情の流れを作る芸術（映像系）",
-        "sub_categories": [
-            "Cinematic (映画・物語) - 虚構の構築",
-            "Vlog / Documentary (記録) - 日常の編集",
-            "Motion / Animation (CG・アニメ) - 異界の生成",
-            "Short Movie (リール・TikTok) - 瞬発的快楽"
-        ]
-    },
-    "Matter: 🎨 物質の構築": {
-        "description": "物質で、無から空間を生む芸術（美術・デザイン系）",
-        "sub_categories": [
-            "Graphic / Illustration (平面) - 構図の支配",
-            "Product / Craft (立体・工芸) - 手触りの実装",
-            "Spatial / Architecture (建築・空間) - 場の設計",
-            "Fashion / Styling (服飾) - 布と身体の彫刻"
-        ]
-    },
-    "Somatic: 💃 身体の共鳴": {
-        "description": "肉体を媒体とし、今ここに存在する芸術（身体表現系）",
-        "sub_categories": [
-            "Model / Subject (被写体) - 存在の証明",
-            "Dance / Performance (舞踏・演劇) - 肉体の言語化",
-            "Music / Sound (音楽・音響) - 空気の振動",
-            "Voice / Narration (声) - 言霊の響き"
-        ]
-    },
-    "Context: ✒️ 文脈の設計": {
-        "description": "言葉と概念で、意味を定義する芸術（企画・言語系）",
-        "sub_categories": [
-            "Writing / Script (執筆・脚本) - 意味の定義",
-            "Creative Direction (ディレクション) - 概念の統括",
-            "Branding / Biz (ブランド設計) - 価値の社会実装"
-        ]
-    }
-}
 
 # ---------------------------------------------------------
 # 3. ユーティリティ関数
@@ -356,6 +351,7 @@ def send_email_with_pdf(user_email, pdf_buffer):
     msg['To'] = user_email
     msg['Subject'] = Header("【世界観診断】あなたの「美的DNA」分析レポートをお届けします", 'utf-8')
     
+    # === 招待状仕様のステップメール（ここが重要なマーケティング導線） ===
     body = f"""{st.session_state.get('user_name', '表現者')} 様
 
 世界観 研究所のThom Yoshidaです。
@@ -746,11 +742,10 @@ if st.session_state.step == 1:
     </div>
     """, unsafe_allow_html=True)
     
-    # === 修正箇所：表現領域の選択UIをカード化して視認性アップ ===
+    # === 表現領域の選択UI（カード型） ===
     st.markdown(f"""<div class="domain-box"><div class="domain-title">00. あなたの表現領域 (Domain)</div>""", unsafe_allow_html=True)
     st.caption("あなたが世界を表現するために、主に扱っている「媒体」と「スタイル」を選択してください。")
 
-    # 1. 大分類（Radioボタン）
     selected_main_domain = st.radio(
         "Main Category",
         options=list(DOMAIN_HIERARCHY.keys()),
@@ -758,35 +753,30 @@ if st.session_state.step == 1:
         label_visibility="collapsed"
     )
     
-    # 選択された大分類の説明
     current_domain_data = DOMAIN_HIERARCHY[selected_main_domain]
     st.info(f"💡 {current_domain_data['description']}")
 
-    # 2. 小分類（Selectbox）
     selected_sub_category = st.selectbox(
         "Sub Category (詳細ジャンル)",
         options=current_domain_data["sub_categories"]
     )
 
-    # 3. 補足情報
     specialty_detail = st.text_input(
         "具体的な活動名や肩書き（任意）", 
-        placeholder="例：週末だけのポートレート作家、フリーランスのMV監督など"
+        placeholder="例：フリーランスのMV監督、週末だけのパティシエなど"
     )
     st.markdown("</div>", unsafe_allow_html=True) # domain-box closing
 
-    # 4. データの統合用文字列生成
-    full_specialty_str = f"{selected_main_domain.split(':')[0]} > {selected_sub_category}"
+    full_specialty_str = f"{selected_main_domain.split('(')[-1].strip(')')} > {selected_sub_category}"
     if specialty_detail:
         full_specialty_str += f" ({specialty_detail})"
     
-    # === 感性チェック ===
+    # === 感性チェック（パネルボタン化） ===
     st.markdown("##### 01. 感性チェック")
     st.write("直感で回答してください。あなたの創作の源泉を探ります。")
     with st.form(key='quiz_form'):
         answers = []
         for i, item in enumerate(QUIZ_DATA):
-            # CSSでボタン化されたRadioを使用
             ans = st.radio(item["q"], item["opts"], key=f"q{i}", horizontal=False, index=None)
             answers.append((ans, item["type_a"]))
         st.write("---")
@@ -796,7 +786,6 @@ if st.session_state.step == 1:
         if any(a[0] is None for a in answers): 
             st.error("すべての質問に回答してください。")
         else:
-            # 修正：ここで統合した文字列を保存
             st.session_state.specialty = full_specialty_str
             
             score_a = 0
@@ -863,7 +852,6 @@ elif st.session_state.step == 3:
             if submit:
                 if user_name and user_email and region:
                     st.session_state.user_name = user_name
-                    # メールアドレスのクリーニング
                     st.session_state.user_email = user_email.strip().replace('\xa0', '').replace('\u3000', ' ')
                     
                     # 保存処理
@@ -904,18 +892,29 @@ elif st.session_state.step == 4:
                 - 基礎診断傾向: {st.session_state.quiz_result}
 
                 # 1. Dynamic Analysis Strategy (Domain Switching)
-                ユーザーが選択した「表現領域」に合わせて、画像を分析する際の「着眼点」を動的に切り替えてください：
+                ユーザーが選択した以下の「表現領域」に合わせて、分析の着眼点を切り替えてください。
+                選択された領域: {st.session_state.specialty}
 
-                * **Optics (写真・光)** の場合:
-                  被写体そのものではなく、「光の入射角」「シャッターを切った瞬間の湿度」「構図の数学的整合性（黄金比など）」「ノイズの粒子感」を重点分析せよ。
-                * **Timeline (映像・時間)** の場合:
-                  静止画の前後にある「時間の流れ」「物語の予感」「カット割りのリズム」「グレーディングによる感情誘導」を想像して分析せよ。
-                * **Matter (物質・美術)** の場合:
-                  「マテリアルの質感」「筆致やパスの迷い」「色彩の物理的な厚み」「空間の余白（Negative Space）の扱い」を重点分析せよ。
-                * **Somatic (身体・被写体)** の場合:
-                  「ポージングの重心」「表情筋の微細な緊張」「指先のニュアンス」「空間を支配するオーラ（存在感）」を重点分析せよ。
-                * **Context (文脈・言葉)** の場合:
-                  画像から滲み出る「行間」「メタファーの強度」「社会への問いかけ」「コンセプトの解像度」を重点分析せよ。
+                [分析ルール]
+                - もし「Optics」系なら:
+                  「光の入射角」「シャッターの瞬間の湿度」「構図の数学的整合性」を重視。
+                
+                - もし「Timeline」系なら:
+                  「時間の流れ」「物語の予感」「カット割りのリズム」「音楽とのシンクロ」を重視。
+                
+                - もし「Matter」系なら:
+                  「マテリアルの質感」「色彩の物理的な厚み」「空間の余白」を重視。
+                  ※ 料理・香りの場合は、「味覚・嗅覚の視覚化（シズル感を超えた哲学）」を分析せよ。
+                  ※ ネイル・テキスタイルの場合は、「ミクロな細部への執着」と「素材との融合」を分析せよ。
+                  ※ Web・UIの場合は、「情報の建築美」と「ユーザー体験の導線」を分析せよ。
+                
+                - もし「Somatic」系なら:
+                  「ポージングの重心」「表情筋の緊張」「オーラ（存在感）」「役への没入度」を重視。
+                
+                - もし「Context」系なら:
+                  「行間」「メタファーの強度」「コンセプトの解像度」を重視。
+                  ※ エンジニア・研究者の場合は、提出画像（コード、図、論文）から「論理の美しさ」「構造の堅牢性」「知性の品格」を読み取れ。
+                  ※ 経営者の場合は、「ビジョンの視覚的強度」と「社会への眼差し」を分析せよ。
 
                 # 2. Classification Logic (The 12 Aesthetic Archetypes)
                 分析結果に基づき、以下の12の「美的アーキタイプ」から最も近いものを【1つだけ】選定してください。
