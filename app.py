@@ -74,7 +74,7 @@ if "GEMINI_API_KEY" in st.secrets:
     genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 
 # ---------------------------------------------------------
-# 1. デザインCSS（視認性強化版）
+# 1. デザインCSS（視認性強化・フローティングボタン版）
 # ---------------------------------------------------------
 st.markdown(f"""
 <style>
@@ -126,7 +126,7 @@ st.markdown(f"""
         background-color: {COLORS["button_active"]} !important;
         border-color: {COLORS["button_active"]} !important;
     }}
-    /* 選択された時のテキスト色調整（視認性確保） */
+    /* 選択された時のテキスト色調整 */
     div[role="radiogroup"] > label[data-baseweb="radio"] div[data-testid="stMarkdownContainer"] p {{
         color: {COLORS["button_text_active"]} !important;
     }}
@@ -181,6 +181,33 @@ st.markdown(f"""
         box-shadow: 0 6px 14px rgba(0,0,0,0.7);
     }}
 
+    /* --- 浮き上がるボタン（Floating CTA） --- */
+    .floating-cta {
+        position: fixed;
+        bottom: 30px;
+        right: 30px;
+        background: linear-gradient(135deg, #D6AE60 0%, #F4D03F 100%); 
+        color: #1E1E1E !important;
+        padding: 18px 30px;
+        border-radius: 50px;
+        box-shadow: 0 10px 25px rgba(214, 174, 96, 0.4); 
+        text-decoration: none;
+        font-weight: bold;
+        font-size: 1.1rem;
+        z-index: 9999; 
+        transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        border: 1px solid rgba(255,255,255,0.2);
+    }
+    
+    .floating-cta:hover {
+        transform: translateY(-5px) scale(1.05);
+        box-shadow: 0 15px 35px rgba(214, 174, 96, 0.6);
+        color: #000 !important;
+    }
+
     /* スマホ用メディアクエリ */
     @media (max-width: 640px) {{
         html, body, [class*="css"] {{
@@ -191,6 +218,12 @@ st.markdown(f"""
         }}
         div[role="radiogroup"] > label {{
             padding: 12px 15px !important;
+        }}
+        .floating-cta {{
+            bottom: 20px;
+            right: 20px;
+            padding: 15px 25px;
+            font-size: 0.95rem;
         }}
     }}
 </style>
@@ -720,7 +753,7 @@ if st.session_state.step == 1:
     st.caption("あなたの感性と才能を言語化する、クリエイティブ診断ツール")
     
     # === スマホ対策：視認性アップ＆事前案内枠 ===
-    # ★修正箇所：AIという言葉を排除し、スクショOKを明記★
+    # AI排除・スクショOK・表現を洗練
     st.markdown(f"""
     <div style="
         background-color: {COLORS['card']};
@@ -875,7 +908,7 @@ elif st.session_state.step == 3:
 # STEP 4 (AI Analysis)
 elif st.session_state.step == 4:
     if "analysis_data" not in st.session_state:
-        # ★修正：ここでもAIという言葉を隠す★
+        # AIという言葉を隠す
         with st.spinner("あなたの視覚情報を解析し、『美的DNA』を抽出中... (約1分)"):
             
             success = False
@@ -1064,6 +1097,15 @@ elif st.session_state.step == 4:
             
             pdf_buffer = create_pdf(data, st.session_state.get("user_name", "Guest"))
             st.download_button("📥 診断レポートをダウンロード", pdf_buffer, "Visionary_Report.pdf", "application/pdf")
+
+        # === ここに追加：浮き上がるCTAボタン ===
+        salon_url = "https://www.street-academy.com/subscription/services/3794?conversion_name=direct_message&tracking_code=d09de3445c9cd6725ecac969e0f06d76"
+        
+        st.markdown(f"""
+        <a href="{salon_url}" target="_blank" class="floating-cta">
+            <span>🚪 研究所のドアを叩く</span>
+        </a>
+        """, unsafe_allow_html=True)
 
         st.markdown("<br><br>", unsafe_allow_html=True)
         if st.button("トップに戻る"):
