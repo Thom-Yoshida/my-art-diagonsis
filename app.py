@@ -182,7 +182,6 @@ st.markdown(f"""
     }}
 
     /* --- 浮き上がるボタン（Floating CTA） --- */
-    /* ここを修正：波括弧を二重 {{ }} にしました */
     .floating-cta {{
         position: fixed;
         bottom: 30px;
@@ -393,7 +392,7 @@ def send_email_with_pdf(user_email, pdf_buffer):
 あなたの作品と回答から生成された
 「美的DNA解析レポート（PDF）」をお届けします。
 
-AIによる分析の結果、あなたの内側に眠る
+独自の分析アルゴリズムの結果、あなたの内側に眠る
 「{st.session_state.analysis_data.get('catchphrase', '未知なるアーキタイプ')}」の片鱗が見えてきました。
 
 もし、レポートにある「理想の世界観」を
@@ -452,7 +451,10 @@ def wrap_text_smart(text, max_char_count=15):
 
 def draw_wrapped_text(c, text, x, y, font, size, width_limit_mm, leading, centered=False):
     c.setFont(font, size)
-    lines = wrap_text_smart(text, max_char_count=15)
+    # --- P7 Proposals 25文字改行に変更 ---
+    limit = 25 if width_limit_mm == 135 else 15
+    lines = wrap_text_smart(text, max_char_count=limit)
+    # ------------------------------------
     current_y = y
     for line in lines:
         if centered: c.drawCentredString(x, current_y, line)
@@ -524,8 +526,9 @@ def create_pdf(json_data, user_name="Guest"):
     c.setFont(FONT_SANS, 18)
     c.drawCentredString(width/2, height/2 - 25*mm, "WORLDVIEW ANALYSIS REPORT")
     
+    # === Footer Update: AI -> Laboratory ===
     c.setFont(FONT_SERIF, 12)
-    c.drawCentredString(width/2, 20*mm, f"Designed by ThomYoshida AI | {datetime.datetime.now().strftime('%Y.%m.%d')}")
+    c.drawCentredString(width/2, 20*mm, f"Designed by ThomYoshida Laboratory | {datetime.datetime.now().strftime('%Y.%m.%d')}")
     c.showPage()
 
     # P2: KEYWORDS
@@ -650,6 +653,7 @@ def create_pdf(json_data, user_name="Guest"):
         c.setFont(FONT_SANS, 14)
         c.setFillColor(HexColor(COLORS['pdf_text']))
         c.drawString(MARGIN_X, y, f"・{p.get('point')}")
+        # === 修正：具体的な〜を削除し、25文字改行に ===
         draw_wrapped_text(c, p.get('detail', ''), MARGIN_X + 5*mm, y - 8*mm, FONT_SANS, 11, 135*mm, 14)
         y -= 24*mm
         
@@ -925,7 +929,7 @@ elif st.session_state.step == 4:
 
                 # Task
                 ユーザーの入力情報（領域・タイプ）と、アップロードされた作品画像（現在地・未来）を統合分析し、その表現者の「魂のアーキタイプ」を特定してください。
-                甘いお世辞やAI特有の「きれいごと」は不要です。クリス・ペプラー氏のような低音ボイスが聞こえてくるような、知的で落ち着いた、かつ「確信を突く（刺さる）」トーンで記述してください。
+                甘いお世辞や表面的な「きれいごと」は不要です。クリス・ペプラー氏のような低音ボイスが聞こえてくるような、知的で落ち着いた、かつ「確信を突く（刺さる）」トーンで記述してください。
 
                 # User Profile
                 - 表現領域 (Domain & Specialty): {st.session_state.specialty}
@@ -973,8 +977,8 @@ elif st.session_state.step == 4:
                 11. **The Director (世界の支配人)**: [Ruler] 構築された美、スタジオ撮影、重厚感、ラグジュアリー、完璧主義、威厳。
                 12. **The Visionary (未踏の創造主)**: [Creator] 抽象表現、アートフォト、前衛的、誰にも似ていない、哲学。
 
-                # 3. Output Rules (Anti-AI Writing Style)
-                - **禁止事項:** 「素晴らしい」「美しい」「感動的」「調和している」といった手垢のついたAI的な賞賛言葉は一切禁止。
+                # 3. Output Rules (Natural & Organic Writing Style)
+                - **禁止事項:** 「素晴らしい」「美しい」「感動的」「調和している」といった手垢のついたありきたりな賞賛言葉は一切禁止。
                 - **推奨事項:** 「網膜を刺すような」「静寂が聴こえる」「湿度を感じる」「鉄の味がする」など、五感に訴える具体的な描写を行うこと。
                 - **トーン:** ユーザーの「弱点（迷い、ノイズ、未熟さ）」も鋭く指摘すること。ただし、それを「独自の武器（Writer's Voice）」として再定義（リフレーミング）して勇気づけること。
                 - **リズム:** 体言止めや倒置法を使い、詩的なリズム（余白のある文体）を作ること。
@@ -983,8 +987,8 @@ elif st.session_state.step == 4:
                 以下のJSON形式で出力してください。Markdownのコードブロックは不要です。生JSONのみ返してください。
                 {{
                     "catchphrase": "選定したアーキタイプ名（例：『ノイズの反逆者』として覚醒せよ）", 
-                    "twelve_past_keywords": ["現在の作品から滲む『重さ』『停滞』『未熟さ』『躊躇』などを表す単語12個"],
-                    "twelve_future_keywords": ["未来の作品が放つべき『解放』『洗練』『理想』『覚醒』などを表す単語12個"],
+                    "twelve_past_keywords": ["現在の作品から滲む『重さ』や『停滞』を表す単語12個。※重要：必ず「一語（単語）」のみで出力すること。例：「混沌とした世界」は不可。「混沌」とする。"],
+                    "twelve_future_keywords": ["未来の作品が放つべき『解放』や『洗練』を表す単語12個。※重要：必ず「一語（単語）」のみで出力すること。"],
                     "sense_metrics": [
                         {{"left": "論理(Logic)", "right": "直感(Sense)", "value": 0〜100}},
                         {{"left": "写実(Real)", "right": "抽象(Abstract)", "value": 0〜100}},
@@ -1009,11 +1013,11 @@ elif st.session_state.step == 4:
                         {{"name": "メンターとなる巨匠・作家名(1〜3名)", "detail": "その作家の『視点』のどこを盗むべきか、なぜあなたと似ているのか"}}
                     ],
                     "final_proposals": [
-                        {{"point": "具体的な処方箋 1", "detail": "明日から実践できる具体的なアクション(40文字)"}},
-                        {{"point": "具体的な処方箋 2", "detail": "明日から実践できる具体的なアクション(40文字)"}},
-                        {{"point": "具体的な処方箋 3", "detail": "明日から実践できる具体的なアクション(40文字)"}},
-                        {{"point": "具体的な処方箋 4", "detail": "明日から実践できる具体的なアクション(40文字)"}},
-                        {{"point": "具体的な処方箋 5", "detail": "明日から実践できる具体的なアクション(40文字)"}}
+                        {{"point": "具体的な処方箋 1（見出し不要）", "detail": "明日から実践できる具体的なアクション(40文字)"}},
+                        {{"point": "具体的な処方箋 2（見出し不要）", "detail": "明日から実践できる具体的なアクション(40文字)"}},
+                        {{"point": "具体的な処方箋 3（見出し不要）", "detail": "明日から実践できる具体的なアクション(40文字)"}},
+                        {{"point": "具体的な処方箋 4（見出し不要）", "detail": "明日から実践できる具体的なアクション(40文字)"}},
+                        {{"point": "具体的な処方箋 5（見出し不要）", "detail": "明日から実践できる具体的なアクション(40文字)"}}
                     ],
                     "alternative_expressions": [
                         "今の表現以外で触れるべき芸術分野（例：アンビエント音楽、純文学、ブルータリズム建築など）"
@@ -1046,7 +1050,7 @@ elif st.session_state.step == 4:
                         data = json.loads(response.text)
                         success = True
                 except Exception as e:
-                    print(f"AI Error: {e}")
+                    print(f"System Error: {e}")
 
             if not success:
                 st.warning("⚠️ アクセス集中により、デモモードでレポートを作成しました。")
