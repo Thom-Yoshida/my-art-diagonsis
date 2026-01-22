@@ -289,7 +289,7 @@ DOMAIN_HIERARCHY = {
     }
 }
 
-# 診断用質問
+# 診断用質問 (30問)
 QUIZ_DATA = [
     {"q": "Q1. 制作を始めるきっかけは？", "opts": ["内から湧き出る衝動・感情", "外部の要請や明確なコンセプト"], "type_a": "内から湧き出る衝動・感情"},
     {"q": "Q2. アイデア出しの方法は？", "opts": ["走り書きや落書きから広げる", "マインドマップや箇条書きで整理する"], "type_a": "走り書きや落書きから広げる"},
@@ -519,15 +519,9 @@ def create_pdf(json_data, user_name="Guest"):
     catchphrase_text = json_data.get('catchphrase', 'Visionary Report')
     c.setFont(FONT_SERIF, 42)
     
-    # 15文字で分割
     title_lines = wrap_text_smart(catchphrase_text, max_char_count=15)
-    
-    # 行送り（Leading）の設定
     leading = 20 * mm 
-    
-    # ブロック全体の高さを計算して、垂直方向の中心を調整
     total_height = (len(title_lines) - 1) * leading
-    # 基準点（画面中央より少し上）から、ブロックの半分を上にずらして書き始める
     start_y = (height / 2) + 10*mm + (total_height / 2) 
     
     current_y = start_y
@@ -605,8 +599,7 @@ def create_pdf(json_data, user_name="Guest"):
     c.setFont(FONT_SERIF, 24)
     c.setFillColor(HexColor(COLORS['pdf_text']))
     
-    # P3の下部のキャッチフレーズも同様に処理
-    title_lines_p3 = wrap_text_smart(catchphrase_text, max_char_count=18) # ここは少し長めでOK
+    title_lines_p3 = wrap_text_smart(catchphrase_text, max_char_count=18)
     current_y_p3 = height - 40*mm
     for line in title_lines_p3:
         c.drawCentredString(width/2, current_y_p3, f"「{line}」")
