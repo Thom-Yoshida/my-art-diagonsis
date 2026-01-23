@@ -335,7 +335,7 @@ def resize_image_for_api(image, max_width=1024):
         return image.resize((max_width, height_size), Image.Resampling.LANCZOS)
     return image
 
-# --- Drive Upload Function (New) ---
+# --- Drive Upload Function ---
 def upload_to_drive(pdf_buffer, filename):
     if "gcp_service_account" not in st.secrets or "DRIVE_FOLDER_ID" not in st.secrets:
         return None
@@ -371,6 +371,7 @@ def upload_to_drive(pdf_buffer, filename):
         print(f"Drive Upload Error: {e}")
         return None
 
+# --- 修正：列ズレ防止のため、管理用空白列を追加 ---
 def save_to_google_sheets(name, age, region, email, specialty, diagnosis_type, free_answers, drive_link):
     if "gcp_service_account" not in st.secrets:
         return False, "Secretsにgcp_service_accountの設定がありません"
@@ -407,10 +408,14 @@ def save_to_google_sheets(name, age, region, email, specialty, diagnosis_type, f
             "TRUE",          # H: Check
             "5_Visionary",   # I: Segment
             "配信中",         # J: Status
-            fav_movie,       # K: Movie
-            fav_color,       # L: Color
-            last_supper,     # M: Food
-            drive_link       # N: Drive Link (New)
+            "",              # K: (Blank for Step Mail 1)
+            "",              # L: (Blank for Step Mail 2)
+            "",              # M: (Blank for Step Mail 3)
+            "",              # N: (Blank for Memo)
+            fav_movie,       # O: Movie
+            fav_color,       # P: Color
+            last_supper,     # Q: Food
+            drive_link       # R: Drive Link
         ]
         sheet.append_row(row_data)
         return True, None
@@ -962,9 +967,6 @@ elif st.session_state.step == 3:
                 if user_name and user_email and region:
                     st.session_state.user_name = user_name
                     st.session_state.user_email = user_email.strip().replace('\xa0', '').replace('\u3000', ' ')
-                    
-                    # 修正点: Step3ではまだ保存しない（PDFリンクが未生成のため）。
-                    # Step4でまとめて保存する方針に変更。
                     st.session_state.user_age = age_group
                     st.session_state.user_region = region
                     
@@ -980,29 +982,7 @@ elif st.session_state.step == 4:
             success = False
             
             if "GEMINI_API_KEY" in st.secrets:
-                # Prompt Definition (Full Prompt Hidden for brevity, keeping only key logic)
-                prompt_text = f"""
-                # Role Definition
-                あなたは「世界観 研究所」の所長、Thom Yoshidaです。
-                
-                # User Profile
-                - 表現領域: {st.session_state.specialty}
-                - 基礎診断傾向: {st.session_state.quiz_result}
-                - 好きな映画: {st.session_state.free_answers.get('movie')}
-                - 好きな色: {st.session_state.free_answers.get('color')}
-                - 最後の晩餐: {st.session_state.free_answers.get('food')}
-
-                # Analysis Rules
-                (ここに先ほどの完全版プロンプトの全内容が入りますが、長すぎるためロジックは保持したまま省略表記しません。実際の動作時にはここには完全版のテキストが入ります)
-                
-                # 3. Output Rules (Natural & Organic Writing Style)
-                - 共感重視のトーンで記述。「〜せよ」等の命令形禁止。
-                
-                # 4. JSON Output Format
-                (JSON構造も先ほどの完全版と同じ)
-                """
-                
-                # 実際のプロンプト文字列を再構築（前回の完全版をここに展開）
+                # Prompt
                 prompt_text = f"""
                 # Role Definition
                 あなたは「世界観 研究所」の所長、Thom Yoshidaです。
@@ -1151,14 +1131,12 @@ elif st.session_state.step == 4:
             
             pdf_buffer = create_pdf(data, st.session_state.get("user_name", "Guest"))
             
-            # --- 1. Upload PDF to Drive ---
             drive_link = upload_to_drive(pdf_buffer, f"Visionary_Report_{st.session_state.user_name}.pdf")
             
-            # --- 2. Save ALL data (inc. Drive Link) to Sheets ---
             is_saved, save_error = save_to_google_sheets(
                 st.session_state.user_name,
-                st.session_state.user_age, # Retrieved from session
-                st.session_state.user_region, # Retrieved from session
+                st.session_state.user_age, 
+                st.session_state.user_region, 
                 st.session_state.user_email, 
                 st.session_state.specialty, 
                 st.session_state.quiz_result,
@@ -1166,7 +1144,6 @@ elif st.session_state.step == 4:
                 drive_link if drive_link else "Upload Failed"
             )
             
-            # --- 3. Send Email ---
             is_sent, error_msg = send_email_with_pdf(st.session_state.user_email, pdf_buffer)
             
             st.session_state.email_sent_status = is_sent
@@ -1200,7 +1177,7 @@ elif st.session_state.step == 4:
             pdf_buffer = create_pdf(data, st.session_state.get("user_name", "Guest"))
             st.download_button("📥 診断レポートをダウンロード", pdf_buffer, "Visionary_Report.pdf", "application/pdf")
 
-        # === ここに追加：浮き上がるCTAボタン ===
+        # === Floating CTA ===
         salon_url = "https://www.street-academy.com/subscription/services/3794?conversion_name=direct_message&tracking_code=d09de3445c9cd6725ecac969e0f06d76"
         
         st.markdown(f"""
