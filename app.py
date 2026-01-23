@@ -17,6 +17,8 @@ import google.generativeai as genai
 import pandas as pd
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaIoBaseUpload
 
 # デザイン・可視化
 import plotly.graph_objects as go
@@ -233,7 +235,7 @@ st.markdown(f"""
 # 2. 定義データ
 # ---------------------------------------------------------
 
-# 領域定義（階層構造データ） ※全方位クリエイター対応版
+# 領域定義（階層構造データ）
 DOMAIN_HIERARCHY = {
     "📸 写真・カメラ (Optics)": {
         "description": "レンズ越しに「光」と「一瞬」を切り取る表現",
@@ -289,7 +291,7 @@ DOMAIN_HIERARCHY = {
     }
 }
 
-# 診断用質問 (30問)
+# 診断用質問
 QUIZ_DATA = [
     {"q": "Q1. 制作を始めるきっかけは？", "opts": ["内から湧き出る衝動・感情", "外部の要請や明確なコンセプト"], "type_a": "内から湧き出る衝動・感情"},
     {"q": "Q2. アイデア出しの方法は？", "opts": ["走り書きや落書きから広げる", "マインドマップや箇条書きで整理する"], "type_a": "走り書きや落書きから広げる"},
@@ -333,7 +335,43 @@ def resize_image_for_api(image, max_width=1024):
         return image.resize((max_width, height_size), Image.Resampling.LANCZOS)
     return image
 
-def save_to_google_sheets(name, age, region, email, specialty, diagnosis_type):
+# --- Drive Upload Function (New) ---
+def upload_to_drive(pdf_buffer, filename):
+    if "gcp_service_account" not in st.secrets or "DRIVE_FOLDER_ID" not in st.secrets:
+        return None
+    
+    try:
+        creds_dict = dict(st.secrets["gcp_service_account"])
+        if "type" not in creds_dict:
+             try:
+                 creds_dict = json.loads(st.secrets["gcp_service_account"])
+             except: pass
+
+        scope = ['https://www.googleapis.com/auth/drive']
+        creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+        
+        service = build('drive', 'v3', credentials=creds)
+        
+        file_metadata = {
+            'name': filename,
+            'parents': [st.secrets["DRIVE_FOLDER_ID"]]
+        }
+        
+        media = MediaIoBaseUpload(pdf_buffer, mimetype='application/pdf')
+        
+        file = service.files().create(
+            body=file_metadata, 
+            media_body=media, 
+            fields='id, webViewLink'
+        ).execute()
+        
+        return file.get('webViewLink')
+        
+    except Exception as e:
+        print(f"Drive Upload Error: {e}")
+        return None
+
+def save_to_google_sheets(name, age, region, email, specialty, diagnosis_type, free_answers, drive_link):
     if "gcp_service_account" not in st.secrets:
         return False, "Secretsにgcp_service_accountの設定がありません"
     try:
@@ -354,6 +392,10 @@ def save_to_google_sheets(name, age, region, email, specialty, diagnosis_type):
         jst = datetime.timezone(delta, 'JST')
         now = datetime.datetime.now(jst).strftime("%Y/%m/%d")
         
+        fav_movie = free_answers.get("movie", "")
+        fav_color = free_answers.get("color", "")
+        last_supper = free_answers.get("food", "")
+        
         row_data = [
             now,             # A: Date
             name,            # B: Name
@@ -364,7 +406,11 @@ def save_to_google_sheets(name, age, region, email, specialty, diagnosis_type):
             diagnosis_type,  # G: Pattern
             "TRUE",          # H: Check
             "5_Visionary",   # I: Segment
-            "配信中"          # J: Status
+            "配信中",         # J: Status
+            fav_movie,       # K: Movie
+            fav_color,       # L: Color
+            last_supper,     # M: Food
+            drive_link       # N: Drive Link (New)
         ]
         sheet.append_row(row_data)
         return True, None
@@ -384,7 +430,6 @@ def send_email_with_pdf(user_email, pdf_buffer):
     msg['To'] = user_email
     msg['Subject'] = Header("【世界観診断】あなたの「美的DNA」分析レポートをお届けします", 'utf-8')
     
-    # === 招待状仕様のステップメール ===
     body = f"""{st.session_state.get('user_name', '表現者')} 様
 
 世界観 研究所のThom Yoshidaです。
@@ -515,7 +560,6 @@ def create_pdf(json_data, user_name="Guest"):
         TEXT_COLOR = HexColor(COLORS['pdf_text'])
     c.setFillColor(TEXT_COLOR)
     
-    # キャッチコピーの15文字改行・中央揃え処理
     catchphrase_text = json_data.get('catchphrase', 'Visionary Report')
     c.setFont(FONT_SERIF, 42)
     
@@ -535,7 +579,6 @@ def create_pdf(json_data, user_name="Guest"):
     c.setFont(FONT_SANS, 18)
     c.drawCentredString(width/2, height/2 - 32*mm - (total_height/2), "WORLDVIEW ANALYSIS REPORT")
     
-    # === Footer Update: AI -> Laboratory ===
     c.setFont(FONT_SERIF, 12)
     c.drawCentredString(width/2, 20*mm, f"Designed by ThomYoshida Laboratory | {datetime.datetime.now().strftime('%Y.%m.%d')}")
     c.showPage()
@@ -668,7 +711,6 @@ def create_pdf(json_data, user_name="Guest"):
         c.setFont(FONT_SANS, 14)
         c.setFillColor(HexColor(COLORS['pdf_text']))
         c.drawString(MARGIN_X, y, f"・{p.get('point')}")
-        # === 修正：具体的な〜を削除し、25文字改行に ===
         draw_wrapped_text(c, p.get('detail', ''), MARGIN_X + 5*mm, y - 8*mm, FONT_SANS, 11, 135*mm, 14)
         y -= 24*mm
         
@@ -773,8 +815,6 @@ if st.session_state.step == 1:
     st.title("世界観診断 | Visionary Analysis")
     st.caption("あなたの感性と才能を言語化する、クリエイティブ診断ツール")
     
-    # === スマホ対策：視認性アップ＆事前案内枠 ===
-    # AI排除・スクショOK・表現を洗練
     st.markdown(f"""
     <div style="
         background-color: {COLORS['card']};
@@ -801,7 +841,6 @@ if st.session_state.step == 1:
     </div>
     """, unsafe_allow_html=True)
     
-    # === 表現領域の選択UI（カード型） ===
     st.markdown(f"""<div class="domain-box"><div class="domain-title">00. あなたの表現領域 (Domain)</div>""", unsafe_allow_html=True)
     st.caption("あなたが世界を表現するために、主に扱っている「媒体」と「スタイル」を選択してください。")
 
@@ -824,13 +863,12 @@ if st.session_state.step == 1:
         "具体的な活動名や肩書き（任意）", 
         placeholder="例：フリーランスのMV監督、週末だけのパティシエなど"
     )
-    st.markdown("</div>", unsafe_allow_html=True) # domain-box closing
+    st.markdown("</div>", unsafe_allow_html=True)
 
     full_specialty_str = f"{selected_main_domain.split('(')[-1].strip(')')} > {selected_sub_category}"
     if specialty_detail:
         full_specialty_str += f" ({specialty_detail})"
     
-    # === 感性チェック（パネルボタン化） ===
     st.markdown("##### 01. 感性チェック")
     st.write("直感で回答してください。あなたの創作の源泉を探ります。")
     with st.form(key='quiz_form'):
@@ -839,7 +877,6 @@ if st.session_state.step == 1:
             ans = st.radio(item["q"], item["opts"], key=f"q{i}", horizontal=False, index=None)
             answers.append((ans, item["type_a"]))
         
-        # === 自由回答3問の追加 ===
         st.markdown("<br><h5>02. あなたのエッセンス（自由回答）</h5>", unsafe_allow_html=True)
         st.caption("独自の分析精度を高めるための、重要な3つの質問です。")
         free_q1 = st.text_input("Q31. 好きな映画を１つだけ挙げるなら？")
@@ -856,7 +893,6 @@ if st.session_state.step == 1:
             st.error("自由回答の3問もすべて入力してください。")
         else:
             st.session_state.specialty = full_specialty_str
-            # 自由回答の保存
             st.session_state.free_answers = {
                 "movie": free_q1,
                 "color": free_q2,
@@ -879,7 +915,6 @@ elif st.session_state.step == 2:
     st.header("02. ビジョンの統合")
     st.info(f"診断タイプ: **{st.session_state.quiz_result}** / 専門: **{st.session_state.specialty}**")
     
-    # === スマホ対策 ===
     st.warning("⚠️ iPhoneの方へ：『Live Photos』や『HEIC形式』はエラーになる場合があります。JPG/PNGを使用してください。")
 
     col1, col2 = st.columns(2)
@@ -912,7 +947,6 @@ elif st.session_state.step == 3:
     st.header("03. レポートの受け取り")
     with st.container():
         st.markdown(f"""<div style="background-color: {COLORS['card']}; padding: 30px; border-radius: 10px; border: 1px solid {COLORS['accent']}; text-align: center;"><h3 style="color: {COLORS['accent']};">Analysis Ready</h3><p>診断結果レポートを発行します。</p></div><br>""", unsafe_allow_html=True)
-        # 入力フォーム
         with st.form("lead_capture"):
             col_f1, col_f2 = st.columns(2)
             with col_f1: 
@@ -929,14 +963,10 @@ elif st.session_state.step == 3:
                     st.session_state.user_name = user_name
                     st.session_state.user_email = user_email.strip().replace('\xa0', '').replace('\u3000', ' ')
                     
-                    # 保存処理
-                    is_saved, save_error = save_to_google_sheets(
-                        user_name, age_group, region, st.session_state.user_email, 
-                        st.session_state.specialty, st.session_state.quiz_result
-                    )
-                    
-                    if not is_saved:
-                        st.error(f"スプレッドシート保存エラー: {save_error}")
+                    # 修正点: Step3ではまだ保存しない（PDFリンクが未生成のため）。
+                    # Step4でまとめて保存する方針に変更。
+                    st.session_state.user_age = age_group
+                    st.session_state.user_region = region
                     
                     st.session_state.step = 4
                     st.rerun()
@@ -945,15 +975,34 @@ elif st.session_state.step == 3:
 # STEP 4 (AI Analysis)
 elif st.session_state.step == 4:
     if "analysis_data" not in st.session_state:
-        # AIという言葉を隠す
         with st.spinner("あなたの視覚情報を解析し、『美的DNA』を抽出中... (約1分)"):
             
             success = False
             
             if "GEMINI_API_KEY" in st.secrets:
-                # ==========================================
-                # Thom Yoshida Model: Ultimate System Prompt
-                # ==========================================
+                # Prompt Definition (Full Prompt Hidden for brevity, keeping only key logic)
+                prompt_text = f"""
+                # Role Definition
+                あなたは「世界観 研究所」の所長、Thom Yoshidaです。
+                
+                # User Profile
+                - 表現領域: {st.session_state.specialty}
+                - 基礎診断傾向: {st.session_state.quiz_result}
+                - 好きな映画: {st.session_state.free_answers.get('movie')}
+                - 好きな色: {st.session_state.free_answers.get('color')}
+                - 最後の晩餐: {st.session_state.free_answers.get('food')}
+
+                # Analysis Rules
+                (ここに先ほどの完全版プロンプトの全内容が入りますが、長すぎるためロジックは保持したまま省略表記しません。実際の動作時にはここには完全版のテキストが入ります)
+                
+                # 3. Output Rules (Natural & Organic Writing Style)
+                - 共感重視のトーンで記述。「〜せよ」等の命令形禁止。
+                
+                # 4. JSON Output Format
+                (JSON構造も先ほどの完全版と同じ)
+                """
+                
+                # 実際のプロンプト文字列を再構築（前回の完全版をここに展開）
                 prompt_text = f"""
                 # Role Definition
                 あなたは「世界観 研究所」の所長、Thom Yoshidaです。
@@ -978,19 +1027,15 @@ elif st.session_state.step == 4:
                 [分析ルール]
                 - もし「Optics」系なら:
                   「光の入射角」「シャッターの瞬間の湿度」「構図の数学的整合性」を重視。
-                
                 - もし「Timeline」系なら:
                   「時間の流れ」「物語の予感」「カット割りのリズム」「音楽とのシンクロ」を重視。
-                
                 - もし「Matter」系なら:
                   「マテリアルの質感」「色彩の物理的な厚み」「空間の余白」を重視。
                   ※ 料理・香りの場合は、「味覚・嗅覚の視覚化（シズル感を超えた哲学）」を分析せよ。
                   ※ ネイル・テキスタイルの場合は、「ミクロな細部への執着」と「素材との融合」を分析せよ。
                   ※ Web・UIの場合は、「情報の建築美」と「ユーザー体験の導線」を分析せよ。
-                
                 - もし「Somatic」系なら:
                   「ポージングの重心」「表情筋の緊張」「オーラ（存在感）」「役への没入度」を重視。
-                
                 - もし「Context」系なら:
                   「行間」「メタファーの強度」「コンセプトの解像度」を重視。
                   ※ エンジニア・研究者の場合は、提出画像（コード、図、論文）から「論理の美しさ」「構造の堅牢性」「知性の品格」を読み取れ。
@@ -998,8 +1043,7 @@ elif st.session_state.step == 4:
 
                 # 2. Classification Logic (The 12 Aesthetic Archetypes)
                 分析結果に基づき、以下の12の「美的アーキタイプ」から最も近いものを【1つだけ】選定してください。
-                (※ 一般的なユング心理学の名称ではなく、以下のThom流の美的定義を使用すること)
-
+                
                 1. **The Purist (純粋なる観測者)**: [Innocent] 自然光、透明感、作為のない美、白、ミニマリズム、無垢。
                 2. **The Analyst (光の解析者)**: [Sage] 幾何学構図、論理的な美、モノクロ、静寂、水平垂直、理知的。
                 3. **The Seeker (真実の探求者)**: [Explorer] ストリートスナップ、ドキュメンタリー、旅、未知の風景、広角、生々しさ。
@@ -1014,9 +1058,9 @@ elif st.session_state.step == 4:
                 12. **The Visionary (未踏の創造主)**: [Creator] 抽象表現、アートフォト、前衛的、誰にも似ていない、哲学。
 
                 # 3. Output Rules (Natural & Organic Writing Style)
-                - **禁止事項:** 「素晴らしい」「美しい」「感動的」「調和している」といった手垢のついたありきたりな賞賛言葉は一切禁止。
+                - **禁止事項:** 「素晴らしい」「美しい」「感動的」「調和している」といった手垢のついたありきたりな賞賛言葉は一切禁止。「〜せよ」「〜だ」という断定的な命令口調も禁止。
                 - **推奨事項:** 「網膜を刺すような」「静寂が聴こえる」「湿度を感じる」「鉄の味がする」など、五感に訴える具体的な描写を行うこと。
-                - **トーン:** ユーザーの「弱点（迷い、ノイズ、未熟さ）」も鋭く指摘すること。ただし、それを「独自の武器（Writer's Voice）」として再定義（リフレーミング）して勇気づけること。
+                - **トーン:** 厳しい批評家ではなく、**「孤独を知る理解者・伴走者」**として振る舞うこと。相手の迷いを否定せず、「その迷いすらも美しい」と肯定し、可能性を広げるような、優しくも深い**「共感重視」**の文体で語りかけること。「〜かもしれません」「〜という可能性を秘めています」といった表現を好む。
                 - **リズム:** 体言止めや倒置法を使い、詩的なリズム（余白のある文体）を作ること。
 
                 # 4. JSON Output Format
@@ -1107,7 +1151,24 @@ elif st.session_state.step == 4:
             
             pdf_buffer = create_pdf(data, st.session_state.get("user_name", "Guest"))
             
+            # --- 1. Upload PDF to Drive ---
+            drive_link = upload_to_drive(pdf_buffer, f"Visionary_Report_{st.session_state.user_name}.pdf")
+            
+            # --- 2. Save ALL data (inc. Drive Link) to Sheets ---
+            is_saved, save_error = save_to_google_sheets(
+                st.session_state.user_name,
+                st.session_state.user_age, # Retrieved from session
+                st.session_state.user_region, # Retrieved from session
+                st.session_state.user_email, 
+                st.session_state.specialty, 
+                st.session_state.quiz_result,
+                st.session_state.free_answers,
+                drive_link if drive_link else "Upload Failed"
+            )
+            
+            # --- 3. Send Email ---
             is_sent, error_msg = send_email_with_pdf(st.session_state.user_email, pdf_buffer)
+            
             st.session_state.email_sent_status = is_sent
             st.session_state.email_error_log = error_msg 
             st.rerun()
