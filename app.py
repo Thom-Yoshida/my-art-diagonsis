@@ -397,6 +397,7 @@ def save_to_google_sheets(name, age, region, email, specialty, diagnosis_type, f
         fav_color = free_answers.get("color", "")
         last_supper = free_answers.get("food", "")
         
+        # （前略）
         row_data = [
             now,             # A: Date
             name,            # B: Name
@@ -408,15 +409,17 @@ def save_to_google_sheets(name, age, region, email, specialty, diagnosis_type, f
             "TRUE",          # H: Check
             "5_Visionary",   # I: Segment
             "配信中",         # J: Status
-            "",              # K: (Blank for Step Mail 1)
-            "",              # L: (Blank for Step Mail 2)
-            "",              # M: (Blank for Step Mail 3)
-            "",              # N: (Blank for Memo)
-            fav_movie,       # O: Movie
-            fav_color,       # P: Color
-            last_supper,     # Q: Food
-            drive_link       # R: Drive Link
+            "",              # K: Day1
+            "",              # L: Day3
+            "",              # M: Day5 (★ここを追加！)
+            "",              # N: Day7
+            "",              # O: Log
+            fav_movie,       # P: Movie (列が右にズレます)
+            fav_color,       # Q: Color
+            last_supper,     # R: Food
+            drive_link       # S: Drive Link
         ]
+        # （後略）
         sheet.append_row(row_data)
         return True, None
     except Exception as e:
