@@ -37,21 +37,21 @@ from reportlab.lib.utils import ImageReader
 # ---------------------------------------------------------
 st.set_page_config(page_title="世界観診断 | Visionary Analysis", layout="centered")
 
-# デザイン定義 (COLORS - v5.2 Matte White Tuned)
+# デザイン定義 (COLORS - Brand-Core Aligned v6.0)
 COLORS = {
-    "bg": "#1E1E1E",        
-    "text": "#F0F0F0",      
-    "accent": "#D6AE60",    
-    "sub": "#A0BACC",       
-    "forest": "#6FB3B8",    
-    "card": "#2D2D2D",      
-    "card_hover": "#383838",
-    "input_bg": "#404040",  
-    "pdf_bg": "#FAFAF8",    
+    "bg": "#2B2723",         # --ink
+    "text": "#F5F5F5",       # --off-white
+    "accent": "#D6AE60",     # --gold
+    "sub": "#7A96A0",        # --blue
+    "forest": "#D1C0AF",     # --beige（変数名は維持・値のみ変更）
+    "card": "#332D27",
+    "card_hover": "#3D362F",
+    "input_bg": "#3A342E",
+    "pdf_bg": "#FAFAF8",
     "pdf_text": "#2C2C2C",
     "pdf_sub": "#555555",
-    "button_active": "#D6AE60", 
-    "button_text_active": "#1E1E1E" 
+    "button_active": "#D6AE60",
+    "button_text_active": "#2B2723"
 }
 
 # 日本語フォント設定
@@ -80,18 +80,20 @@ if "GEMINI_API_KEY" in st.secrets:
 # ---------------------------------------------------------
 st.markdown(f"""
 <style>
+    @import url('https://fonts.googleapis.com/css2?family=Zen+Old+Mincho:wght@400;500;600;700&display=swap');
+
     /* ベース設定 */
     html, body, [class*="css"] {{
         font-size: 18px;
         background-color: {COLORS["bg"]};
         color: {COLORS["text"]};
-        font-family: "Hiragino Kaku Gothic ProN", "Meiryo", sans-serif;
+        font-family: "Zen Old Mincho", "Hiragino Mincho ProN", "Hiragino Kaku Gothic ProN", "Meiryo", serif;
     }}
     .stApp {{ background-color: {COLORS["bg"]}; }}
     
     /* 見出し設定 */
     h1, h2, h3, h4, h5 {{
-        font-family: "Hiragino Mincho ProN", serif !important;
+        font-family: "Zen Old Mincho", "Hiragino Mincho ProN", serif !important;
         color: {COLORS["text"]} !important;
         letter-spacing: 0.05em;
     }}
@@ -112,7 +114,7 @@ st.markdown(f"""
         padding: 15px 20px !important;
         border-radius: 8px !important;
         margin-bottom: 10px !important;
-        border: 1px solid #555 !important;
+        border: 1px solid #6b6259 !important;
         transition: all 0.2s ease !important;
         cursor: pointer !important;
         display: flex !important;
@@ -140,6 +142,43 @@ st.markdown(f"""
         padding-left: 5px;
     }}
 
+    /* ─────────────────────────────────────────
+       選択肢の視認性強化（包括的な上書き）
+       Streamlitの内部DOM構造の差異に依存しないよう、
+       ラベル内の全てのテキスト要素に対して明示的に
+       高コントラストの文字色を強制する。
+       ───────────────────────────────────────── */
+    div[role="radiogroup"] label,
+    div[role="radiogroup"] label p,
+    div[role="radiogroup"] label span,
+    div[role="radiogroup"] label div {{
+        color: {COLORS["text"]} !important;
+    }}
+    div[role="radiogroup"] > label[data-baseweb="radio"] p,
+    div[role="radiogroup"] > label[data-baseweb="radio"] span,
+    div[role="radiogroup"] > label[data-baseweb="radio"] div {{
+        color: {COLORS["button_text_active"]} !important;
+        font-weight: 700 !important;
+    }}
+    /* ラジオの丸アイコン自体の視認性（未選択時のリング色） */
+    div[role="radiogroup"] label div[data-baseweb="radio"] > div:first-child {{
+        border-color: {COLORS["sub"]} !important;
+        background-color: transparent !important;
+    }}
+    /* selectbox（プルダウン）本体・ポップアップ双方の文字色 */
+    div[data-baseweb="select"] * {{
+        color: {COLORS["text"]} !important;
+    }}
+    ul[data-baseweb="menu"] {{
+        background-color: {COLORS["card"]} !important;
+    }}
+    ul[data-baseweb="menu"] li {{
+        color: {COLORS["text"]} !important;
+    }}
+    ul[data-baseweb="menu"] li:hover {{
+        background-color: {COLORS["card_hover"]} !important;
+    }}
+
     /* Domain選択エリアの装飾 */
     .domain-box {{
         background-color: {COLORS["card"]};
@@ -161,14 +200,14 @@ st.markdown(f"""
     /* 入力フォーム */
     .stTextInput > div > div > input, .stSelectbox > div > div > div {{
         background-color: {COLORS["input_bg"]} !important;
-        color: #FFFFFF !important; 
+        color: {COLORS["text"]} !important; 
         border: 1px solid #666 !important;
     }}
     
     /* ボタン */
     div.stButton > button {{
-        background-color: {COLORS["sub"]};
-        color: #1A1A1A;
+        background-color: {COLORS["accent"]};
+        color: {COLORS["bg"]};
         font-weight: bold;
         border: none;
         padding: 15px 30px;
@@ -179,7 +218,8 @@ st.markdown(f"""
         box-shadow: 0 4px 10px rgba(0,0,0,0.5);
     }}
     div.stButton > button:hover {{
-        background-color: #FFFFFF;
+        background-color: {COLORS["text"]};
+        color: {COLORS["bg"]};
         box-shadow: 0 6px 14px rgba(0,0,0,0.7);
     }}
 
@@ -189,7 +229,7 @@ st.markdown(f"""
         bottom: 30px;
         right: 30px;
         background: linear-gradient(135deg, #D6AE60 0%, #F4D03F 100%); 
-        color: #1E1E1E !important;
+        color: {COLORS["bg"]} !important;
         padding: 18px 30px;
         border-radius: 50px;
         box-shadow: 0 10px 25px rgba(214, 174, 96, 0.4); 
@@ -207,7 +247,7 @@ st.markdown(f"""
     .floating-cta:hover {{
         transform: translateY(-5px) scale(1.05);
         box-shadow: 0 15px 35px rgba(214, 174, 96, 0.6);
-        color: #000 !important;
+        color: {COLORS["bg"]} !important;
     }}
 
     /* スマホ用メディアクエリ */
@@ -633,7 +673,7 @@ def create_pdf(json_data, user_name="Guest"):
     ]
     for cx, cy_pos, title, word in positions:
         c.setStrokeColor(HexColor(COLORS['forest']))
-        c.setFillColor(HexColor('#FFFFFF'))
+        c.setFillColor(HexColor(COLORS['pdf_bg']))
         c.setLineWidth(1.5)
         c.circle(cx, cy_pos, r, fill=1, stroke=1)
         c.setFont(FONT_SERIF, 18)
